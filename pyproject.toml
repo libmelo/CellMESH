@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cell-mesh"
+version = "0.2.0"
+description = "CELL MESH: Metabolite-mediated Event Scoring with Sensor Hierarchies"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "CELL MESH developers"}]
+dependencies = ["numpy", "pandas"]
+
+[project.optional-dependencies]
+anndata = ["anndata", "scipy"]
+dev = ["pytest", "anndata", "scipy", "scikit-learn"]
+
+[tool.setuptools.packages.find]
+include = ["cell_mesh*"]
+
+[tool.setuptools.package-data]
+"cell_mesh.data" = ["*.csv"]
