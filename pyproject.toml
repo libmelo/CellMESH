@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cell-mesh"
+name = "cellmesh"
 version = "0.2.0"
 description = "CELL MESH: Metabolite-mediated Event Scoring with Sensor Hierarchies"
 readme = "README.md"
@@ -17,7 +17,7 @@ anndata = ["anndata", "scipy"]
 dev = ["pytest", "anndata", "scipy", "scikit-learn"]
 
 [tool.setuptools.packages.find]
-include = ["cell_mesh*"]
+include = ["cellmesh*"]
 
 [tool.setuptools.package-data]
-"cell_mesh.data" = ["*.csv"]
+"cellmesh.data" = ["*.csv"]

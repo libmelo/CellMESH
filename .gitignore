@@ -1,0 +1,22 @@
+# 忽略 Python 临时文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 忽略 Jupyter Notebook 输出
+.ipynb_checkpoints/
+
+# 忽略数据文件
+data/
+*.h5ad
+
+# 忽略日志文件
+*.log
+
+# 忽略环境配置文件
+.env
+venv/
+
+# ignore egg
+*.egg-info/
