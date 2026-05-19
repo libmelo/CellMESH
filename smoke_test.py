@@ -4,7 +4,7 @@
 import numpy as np
 import pandas as pd
 import anndata
-from cell_mesh import run_cell_mesh, read_example_data
+from cellmesh import run_cell_mesh, read_example_data
 
 print("=" * 60)
 print("CELL MESH 冒烟测试")

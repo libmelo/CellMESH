@@ -37,12 +37,12 @@ def read_anndata(
 ):
     """
     从各种格式读取 AnnData 对象
-    
+
     参数:
         path: 数据路径
         mode: 数据格式
         **kwargs: 传递给具体读取函数的参数
-    
+
     返回:
         AnnData 对象
     """
@@ -69,7 +69,7 @@ def _read_h5ad(path: Path, **kwargs):
         import anndata
     except ImportError:
         raise ImportError("读取 h5ad 文件需要 anndata 包")
-    
+
     adata = anndata.read_h5ad(path, **kwargs)
     return adata
 
@@ -80,7 +80,7 @@ def _read_10x(path: Path, gex_only: bool = True, **kwargs):
         import scanpy as sc
     except ImportError:
         raise ImportError("读取 10X 数据需要 scanpy 包")
-    
+
     adata = sc.read_10x_mtx(path, gex_only=gex_only, **kwargs)
     return adata
 
@@ -98,7 +98,7 @@ def _read_csv(
         import anndata
     except ImportError:
         raise ImportError("读取 CSV 文件需要 anndata 包")
-    
+
     df = pd.read_csv(path, index_col=0, **kwargs)
     if transpose:
         df = df.T
@@ -118,7 +118,7 @@ def _read_loom(path: Path, **kwargs):
         import anndata
     except ImportError:
         raise ImportError("读取 Loom 文件需要 anndata 包")
-    
+
     adata = anndata.read_loom(path, **kwargs)
     return adata
 
@@ -135,7 +135,7 @@ def _read_mtx(
         from scipy.io import mmread
     except ImportError:
         raise ImportError("读取 mtx 文件需要 anndata 和 scipy 包")
-    
+
     mat = mmread(path).tocsr()
     adata = anndata.AnnData(mat.T)
     return adata
@@ -144,10 +144,10 @@ def _read_mtx(
 def read_example_data(dataset: Literal["tiny", "small", "medium"] = "tiny"):
     """
     读取示例数据用于测试
-    
+
     参数:
-        dataset: 数据集大小，可选 "tiny", "small", "medium"
-    
+        dataset: 数据集大小,可选 "tiny", "small", "medium"
+
     返回:
         示例 AnnData 对象
     """
@@ -155,9 +155,9 @@ def read_example_data(dataset: Literal["tiny", "small", "medium"] = "tiny"):
         import anndata
     except ImportError:
         raise ImportError("需要 anndata 包")
-    
+
     rng = np.random.default_rng(42)
-    
+
     if dataset == "tiny":
         n_cells, n_genes = 50, 50
         cell_types = ["A", "B", "C"]
@@ -169,18 +169,18 @@ def read_example_data(dataset: Literal["tiny", "small", "medium"] = "tiny"):
         cell_types = ["Neutrophil", "Neuron", "Microglia", "T_cell", "B_cell", "Macrophage"]
     else:
         raise ValueError(f"不支持的数据集: {dataset}")
-    
+
     X = rng.poisson(0.1, size=(n_cells, n_genes)).astype(float)
     gene_names = [f"Gene{i+1}" for i in range(n_genes)]
     cell_type_labels = rng.choice(cell_types, size=n_cells)
-    
+
     for i, ct in enumerate(cell_types):
         if i < 5:
             ct_idx = cell_type_labels == ct
             gene_idx = i * 5 + np.arange(3)
             gene_idx = gene_idx[gene_idx < n_genes]
             X[np.ix_(ct_idx, gene_idx)] += rng.poisson(2, size=(ct_idx.sum(), len(gene_idx)))
-    
+
     adata = anndata.AnnData(
         X,
         var=pd.DataFrame(index=gene_names),
@@ -194,18 +194,18 @@ def read_example_data(dataset: Literal["tiny", "small", "medium"] = "tiny"):
 
 # ==================== 先验验证 ====================
 def validate_priors(
-    enzyme_metabolite: pd.DataFrame, 
-    metabolite_sensor: pd.DataFrame, 
+    enzyme_metabolite: pd.DataFrame,
+    metabolite_sensor: pd.DataFrame,
     var_names
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     验证并标准化先验数据库
-    
+
     参数:
         enzyme_metabolite: 酶-代谢物关系表
         metabolite_sensor: 代谢物-传感器关系表
         var_names: 数据集中的基因名列表
-    
+
     返回:
         标准化后的 (enzyme_prior, sensor_prior) 元组
     """
@@ -216,12 +216,12 @@ def validate_priors(
     missing = required_enz - set(enz.columns)
     if missing:
         raise ValueError(f"enzyme_metabolite is missing columns: {sorted(missing)}")
-    
+
     enz["gene"] = enz["gene"].astype(str)
     enz["role"] = enz["role"].astype(str).str.lower()
     enz = enz[enz["role"].isin(VALID_ROLES)]
     enz = enz[enz["gene"].isin(genes)]
-    
+
     if "weight" not in enz:
         enz["weight"] = 1.0
     enz["weight"] = pd.to_numeric(enz["weight"], errors="coerce").fillna(1.0)
@@ -231,16 +231,16 @@ def validate_priors(
     missing = required_sen - set(sen.columns)
     if missing:
         raise ValueError(f"metabolite_sensor is missing columns: {sorted(missing)}")
-    
+
     sen["sensor_gene"] = sen["sensor_gene"].astype(str)
     sen["sensor_type"] = sen["sensor_type"].astype(str).str.lower()
     sen = sen[sen["sensor_type"].isin(VALID_SENSOR_TYPES)]
     sen = sen[sen["sensor_gene"].isin(genes)]
-    
+
     if "weight" not in sen:
         sen["weight"] = 1.0
     sen["weight"] = pd.to_numeric(sen["weight"], errors="coerce").fillna(1.0)
-    
+
     return enz.reset_index(drop=True), sen.reset_index(drop=True)
 
 
@@ -253,30 +253,30 @@ def _build_celltype_pseudobulk(
 ) -> pd.DataFrame:
     """
     构建细胞类型的 pseudobulk 表达矩阵
-    
+
     参数:
         adata: AnnData 对象
         celltype_col: 细胞类型列名
-        layer: 使用的层，None 表示使用 adata.X
+        layer: 使用的层,None 表示使用 adata.X
         min_cells: 每个细胞类型的最小细胞数
-    
+
     返回:
         细胞类型 × 基因 的表达矩阵
     """
     if celltype_col not in adata.obs:
         raise KeyError(f"{celltype_col!r} not found in adata.obs")
-    
+
     X = adata.layers[layer] if layer is not None else adata.X
     X = _to_dense(X)
     genes = pd.Index(adata.var_names).astype(str)
     labels = adata.obs[celltype_col].astype(str)
-    
+
     # 过滤细胞数不足的细胞类型
     group_counts = labels.value_counts()
     valid_groups = group_counts[group_counts >= min_cells].index.tolist()
     if not valid_groups:
         raise ValueError(f"No cell types with at least {min_cells} cells")
-    
+
     # 计算每个细胞类型的平均表达
     pseudobulk = []
     group_names = []
@@ -284,7 +284,7 @@ def _build_celltype_pseudobulk(
         idx = labels.values == group
         pseudobulk.append(X[idx, :].mean(axis=0))
         group_names.append(group)
-    
+
     return pd.DataFrame(
         np.vstack(pseudobulk),
         index=group_names,
@@ -294,22 +294,22 @@ def _build_celltype_pseudobulk(
 
 def _parse_reaction_table(reaction_table: pd.DataFrame) -> pd.DataFrame:
     """
-    解析反应表，处理多基因和重复反应
-    
+    解析反应表,处理多基因和重复反应
+
     参数:
         reaction_table: 包含 metabolite, hmdb_id, reaction, gene, direction, weight 列的 DataFrame
-    
+
     返回:
         解析后的 DataFrame
     """
     df = reaction_table.copy()
-    
+
     # 确保必需列存在
     required_cols = ['metabolite', 'gene', 'direction']
     for col in required_cols:
         if col not in df.columns:
             raise ValueError(f"Reaction table missing required column: {col}")
-    
+
     # 处理可选字段默认值
     if 'hmdb_id' not in df.columns:
         df['hmdb_id'] = np.nan
@@ -317,34 +317,34 @@ def _parse_reaction_table(reaction_table: pd.DataFrame) -> pd.DataFrame:
         df['reaction'] = 'unknown'
     if 'weight' not in df.columns:
         df['weight'] = 1.0
-    
+
     # 标准化字段类型
     df['weight'] = pd.to_numeric(df['weight'], errors='coerce').fillna(1.0)
     df['hmdb_id'] = df['hmdb_id'].astype(object).where(pd.notna(df['hmdb_id']), np.nan)
-    
+
     return df
 
 
 def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
     """
-    为每个反应提取基因集合，处理多基因情况，去重，支持各种分隔符
-    
+    为每个反应提取基因集合,处理多基因情况,去重,支持各种分隔符
+
     参数:
         reaction_table: 解析后的反应表
-    
+
     返回:
         每个反应对应的基因集合
     """
     df = reaction_table.copy()
-    
+
     # 创建反应唯一标识
     def get_reaction_id(row):
         hmdb_str = str(row['hmdb_id']) if pd.notna(row['hmdb_id']) else 'nan'
         return f"{row['metabolite']}|{hmdb_str}|{row['reaction']}|{row['direction']}"
-    
+
     df['_reaction_id'] = df.apply(get_reaction_id, axis=1)
-    
-    # 解析基因列（可能包含多个基因，用分号、逗号、竖线分隔）
+
+    # 解析基因列(可能包含多个基因,用分号、逗号、竖线分隔)
     def parse_genes(gene_str):
         if pd.isna(gene_str) or gene_str == '':
             return []
@@ -358,26 +358,26 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
         # 单个基因的情况
         gene = gene_str.split('[')[0].strip()
         return [gene] if gene else []
-    
+
     df['_genes'] = df['gene'].apply(parse_genes)
-    
-    # 合并同一反应的基因和权重，去重基因
+
+    # 合并同一反应的基因和权重,去重基因
     reaction_dict = {}
     for _, row in df.iterrows():
         rid = row['_reaction_id']
         genes = row['_genes']
         weight = row['weight']
-        
+
         if rid not in reaction_dict:
             reaction_dict[rid] = {
                 'metabolite': row['metabolite'],
                 'hmdb_id': row['hmdb_id'],
                 'reaction': row['reaction'],
                 'direction': row['direction'],
-                'gene_weights': {}  # 存储 {gene: max_weight}，避免重复基因
+                'gene_weights': {}  # 存储 {gene: max_weight},避免重复基因
             }
-        
-        # 合并基因，同一基因多次出现取最大权重，并报警告
+
+        # 合并基因,同一基因多次出现取最大权重,并报警告
         for gene in genes:
             if gene in reaction_dict[rid]['gene_weights']:
                 if weight > reaction_dict[rid]['gene_weights'][gene]:
@@ -385,7 +385,7 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
                     warnings.warn(f"Gene {gene} appeared multiple times in reaction {rid}, using maximum weight {weight}")
             else:
                 reaction_dict[rid]['gene_weights'][gene] = weight
-    
+
     # 转换为 DataFrame 格式
     result = []
     for rid, info in reaction_dict.items():
@@ -397,7 +397,7 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
             'genes': list(info['gene_weights'].keys()),
             'weights': list(info['gene_weights'].values())
         })
-    
+
     return pd.DataFrame(result)
 
 
@@ -406,43 +406,43 @@ def _compute_reaction_scores(
     reaction_genes: pd.DataFrame
 ) -> pd.DataFrame:
     """
-    计算每个反应在每个细胞类型中的得分，考虑基因权重
-    
+    计算每个反应在每个细胞类型中的得分,考虑基因权重
+
     参数:
         pseudobulk: 细胞类型 × 基因 的表达矩阵
-        reaction_genes: 反应-基因映射表，包含 genes 和 weights 列
-    
+        reaction_genes: 反应-基因映射表,包含 genes 和 weights 列
+
     返回:
         反应 × 细胞类型 的得分矩阵
     """
     scores = []
     reaction_ids = []
-    
+
     for _, row in reaction_genes.iterrows():
         # 创建反应标识
         hmdb_str = str(row['hmdb_id']) if pd.notna(row['hmdb_id']) else 'nan'
         rid = f"{row['metabolite']}|{hmdb_str}|{row['reaction']}|{row['direction']}"
         reaction_ids.append(rid)
-        
+
         # 找到在数据集中存在的基因和对应的权重
         valid_gene_idx = [i for i, g in enumerate(row['genes']) if g in pseudobulk.columns]
-        
+
         if not valid_gene_idx:
-            # 没有有效基因，分数为 0
+            # 没有有效基因,分数为 0
             scores.append(pd.Series(0.0, index=pseudobulk.index))
         else:
             valid_genes = [row['genes'][i] for i in valid_gene_idx]
             valid_weights = np.array([row['weights'][i] for i in valid_gene_idx])
-            
-            # 提取基因表达，乘以权重
+
+            # 提取基因表达,乘以权重
             expr = pseudobulk[valid_genes].values * valid_weights.reshape(1, -1)
-            
+
             # 计算加权几何平均数作为反应得分
-            # 几何平均数公式：gmean(x + 1) - 1，避免 0 值影响
+            # 几何平均数公式:gmean(x + 1) - 1,避免 0 值影响
             geo_mean = gmean(expr + 1, axis=1) - 1
-            
+
             scores.append(pd.Series(geo_mean, index=pseudobulk.index))
-    
+
     return pd.DataFrame(scores, index=reaction_ids, columns=pseudobulk.index)
 
 
@@ -452,18 +452,18 @@ def _compute_PCE_matrices(
 ) -> Dict[str, pd.DataFrame]:
     """
     计算 P (production), C (consumption), E (efflux) 矩阵
-    
+
     参数:
         reaction_scores: 反应 × 细胞类型 的得分矩阵
         reaction_genes: 反应-基因映射表
-    
+
     返回:
         包含 P, C, E 矩阵的字典
     """
     # 为每个反应添加方向信息和代谢物信息
     reaction_info = {}
-    metabolites = set()
-    
+    metabolites_dict = {}  # 使用字典来跟踪唯一的代谢物
+
     for _, row in reaction_genes.iterrows():
         hmdb_str = str(row['hmdb_id']) if pd.notna(row['hmdb_id']) else 'nan'
         rid = f"{row['metabolite']}|{hmdb_str}|{row['reaction']}|{row['direction']}"
@@ -472,45 +472,38 @@ def _compute_PCE_matrices(
             'metabolite': row['metabolite'],
             'hmdb_id': row['hmdb_id']
         }
-        metabolites.add((row['metabolite'], row['hmdb_id']))
-    
+        # 使用字符串来作为唯一键，避免 np.nan != np.nan 的问题
+        met_key = f"{row['metabolite']}|{hmdb_str}"
+        if met_key not in metabolites_dict:
+            metabolites_dict[met_key] = (row['metabolite'], row['hmdb_id'])
+
     # 初始化矩阵
     cell_types = reaction_scores.columns
-    met_index = [f"{m}|{str(h) if pd.notna(h) else 'nan'}" for m, h in metabolites]
-    
+    metabolites = list(metabolites_dict.values())
+    # 使用唯一的代谢物对构建索引
+    met_index = pd.MultiIndex.from_tuples(metabolites, names=['metabolite', 'hmdb_id'])
+
     P = pd.DataFrame(0.0, index=met_index, columns=cell_types)
     C = pd.DataFrame(0.0, index=met_index, columns=cell_types)
     E = pd.DataFrame(0.0, index=met_index, columns=cell_types)
-    
+
     # 填充矩阵
     for rid in reaction_scores.index:
         info = reaction_info[rid]
         direction = info['direction']
         met = info['metabolite']
         hmdb = info['hmdb_id']
-        met_idx = f"{met}|{str(hmdb) if pd.notna(hmdb) else 'nan'}"
-        
+        hmdb_str = str(hmdb) if pd.notna(hmdb) else 'nan'
+        met_key = f"{met}|{hmdb_str}"
+        met_idx = metabolites_dict[met_key]
+
         if direction == 'product':
             P.loc[met_idx] += reaction_scores.loc[rid]
         elif direction == 'substrate':
             C.loc[met_idx] += reaction_scores.loc[rid]
         elif direction == 'exporter':
             E.loc[met_idx] += reaction_scores.loc[rid]
-    
-    # 重新设置索引，分离 metabolite 和 hmdb_id
-    def split_index(idx):
-        parts = idx.split('|')
-        met = parts[0]
-        hmdb = parts[1] if len(parts) > 1 else np.nan
-        # 转换回 NaN
-        if hmdb == 'nan':
-            hmdb = np.nan
-        return pd.Series({'metabolite': met, 'hmdb_id': hmdb})
-    
-    for mat in [P, C, E]:
-        idx_df = mat.index.to_series().apply(split_index)
-        mat.index = pd.MultiIndex.from_frame(idx_df, names=['metabolite', 'hmdb_id'])
-    
+
     return {'P': P, 'C': C, 'E': E}
 
 
@@ -521,31 +514,31 @@ def robust_minmax(
     eps: float = 1e-8
 ) -> np.ndarray:
     """
-    Robust min-max 标准化，结果范围在 [0, 1] 之间
-    
+    Robust min-max 标准化,结果范围在 [0, 1] 之间
+
     参数:
         x: 输入数组
         lower: 下限百分位数
         upper: 上限百分位数
         eps: 防止除零的小值
-    
+
     返回:
-        标准化后的数组，范围 [0, 1]
+        标准化后的数组,范围 [0, 1]
     """
     x = np.asarray(x, dtype=float)
-    
+
     # 保存 NaN 的位置
     nan_mask = np.isnan(x)
-    
+
     # 处理全 NaN 的情况
     if np.all(nan_mask):
         return np.zeros_like(x)
-    
-    # 计算百分位数（忽略 NaN）
+
+    # 计算百分位数(忽略 NaN)
     lo = np.nanpercentile(x, lower)
     hi = np.nanpercentile(x, upper)
-    
-    # 如果上下限接近，返回全 0
+
+    # 如果上下限接近,返回全 0
     if np.isclose(hi, lo, rtol=1e-5):
         result = np.zeros_like(x)
     else:
@@ -554,28 +547,28 @@ def robust_minmax(
         result = (x_clip - lo) / (hi - lo + eps)
         # 确保严格在 0-1 范围内
         result = np.clip(result, 0.0, 1.0)
-    
+
     # 将原来的 NaN 位置填充为 0
     result[nan_mask] = 0.0
-    
+
     return result
 
 
 def _safe_hmdb_compare(row: pd.Series, met: str, hmdb: Optional[str]) -> bool:
     """
-    安全比较代谢物和 hmdb_id，处理 hmdb_id 为 NaN 的情况
-    
+    安全比较代谢物和 hmdb_id,处理 hmdb_id 为 NaN 的情况
+
     参数:
         row: reaction_genes 中的行
         met: 代谢物名称
         hmdb: 代谢物 HMDB ID
-    
+
     返回:
         是否匹配
     """
     if row["metabolite"] != met:
         return False
-    # hmdb 都是 NaN，视为匹配
+    # hmdb 都是 NaN,视为匹配
     if pd.isna(row["hmdb_id"]) and pd.isna(hmdb):
         return True
     # 字符串相等才匹配
@@ -594,58 +587,56 @@ def _normalize_PCE(
 ) -> Dict[str, pd.DataFrame]:
     """
     对 P, C, E 矩阵进行标准化，结果都在 [0, 1] 范围内
-    
+
     参数:
         P, C, E: 原始矩阵
         reaction_genes: 反应-基因映射表（用于判断是否存在 substrate/exporter reaction）
         lower, upper: robust minmax 的百分位数
         missing_C_norm: 缺失 C 时的默认值，范围 [0, 1]
         missing_E_norm: 缺失 E 时的默认值，范围 [0, 1]
-    
+
     返回:
         包含标准化后矩阵的字典
     """
     # 确保默认值在合法范围内
     missing_C_norm = np.clip(missing_C_norm, 0.0, 1.0)
     missing_E_norm = np.clip(missing_E_norm, 0.0, 1.0)
-    
-    P_norm = P.copy()
-    
-    # 初始化 C_norm 和 E_norm，形状与 P_norm 相同，先填充默认值
-    C_norm = pd.DataFrame(missing_C_norm, index=P_norm.index, columns=P_norm.columns)
-    E_norm = pd.DataFrame(missing_E_norm, index=P_norm.index, columns=P_norm.columns)
-    
+
+    # 初始化结果 DataFrame
+    P_norm = pd.DataFrame(index=P.index, columns=P.columns, dtype=float)
+    C_norm = pd.DataFrame(missing_C_norm, index=P.index, columns=P.columns, dtype=float)
+    E_norm = pd.DataFrame(missing_E_norm, index=P.index, columns=P.columns, dtype=float)
+
     # 对每个代谢物进行标准化
-    for met_idx in P_norm.index:
+    for met_idx in P.index:
         met, hmdb = met_idx
-        
+
         # P 标准化：范围 [0, 1]
-        p_vals = P.loc[met_idx].values
+        p_vals = P.loc[met_idx].values.flatten()
         P_norm.loc[met_idx] = robust_minmax(p_vals, lower=lower, upper=upper)
-        
+
         # 检查是否有 substrate reaction
         has_substrate = any(
             _safe_hmdb_compare(row, met, hmdb) and row['direction'] == 'substrate'
             for _, row in reaction_genes.iterrows()
         )
-        
+
         # C 标准化 - 只有当有 substrate reaction 时才计算，否则保持默认值
         if has_substrate and met_idx in C.index:
-            c_vals = C.loc[met_idx].values
-            c_norm = robust_minmax(c_vals, lower=lower, upper=upper)
-            C_norm.loc[met_idx] = c_norm
-        
+            c_vals = C.loc[met_idx].values.flatten()
+            C_norm.loc[met_idx] = robust_minmax(c_vals, lower=lower, upper=upper)
+
         # 检查是否有 exporter reaction
         has_exporter = any(
             _safe_hmdb_compare(row, met, hmdb) and row['direction'] == 'exporter'
             for _, row in reaction_genes.iterrows()
         )
-        
+
         # E 标准化 - 只有当有 exporter reaction 时才计算，否则保持默认值
         if has_exporter and met_idx in E.index:
-            e_vals = E.loc[met_idx].values
-            e_norm = robust_minmax(e_vals, lower=lower, upper=upper)
-            E_norm.loc[met_idx] = e_norm
+            e_vals = E.loc[met_idx].values.flatten()
+            E_norm.loc[met_idx] = robust_minmax(e_vals, lower=lower, upper=upper)
+
     return {'P_norm': P_norm, 'C_norm': C_norm, 'E_norm': E_norm}
 
 
@@ -664,37 +655,37 @@ def compute_metabolite_availability(
     return_intermediates: bool = True
 ) -> Dict[str, Any]:
     """
-    计算代谢物 availability，结果范围在 [0, 1] 之间
-    
+    计算代谢物 availability,结果范围在 [0, 1] 之间
+
     参数:
         adata: AnnData 对象
-        reaction_table: 反应表（内部使用，由 enzyme_metabolite 转换而来）
+        reaction_table: 反应表(内部使用,由 enzyme_metabolite 转换而来)
         celltype_col: 细胞类型列名
         layer: 使用的层
         lower, upper: robust minmax 的百分位数
-        eps: 公式中的小值，避免除零
+        eps: 公式中的小值,避免除零
         beta: 消耗项的指数权重
-        missing_C_norm: 缺失 C 时的默认值，范围 [0, 1]
-        missing_E_norm: 缺失 E 时的默认值，范围 [0, 1]
+        missing_C_norm: 缺失 C 时的默认值,范围 [0, 1]
+        missing_E_norm: 缺失 E 时的默认值,范围 [0, 1]
         min_cells: 每个细胞类型的最小细胞数
         return_intermediates: 是否返回中间结果
-    
+
     返回:
         包含 availability 和中间结果的字典
-        availability 值范围：[0, 1]，值越高代表该细胞类型释放该代谢物的能力越强
-    
-    计算公式：
-        availability = (P_norm + eps) * ((1 - C_norm + eps) ** beta) * (E_norm + eps)
-        其中：
-        - P_norm: 标准化后的产生能力，范围 [0, 1]
-        - C_norm: 标准化后的消耗能力，范围 [0, 1]
-        - E_norm: 标准化后的外排能力，范围 [0, 1]
+        availability 值范围:[0, 1],值越高代表该细胞类型释放该代谢物的能力越强
+
+    计算公式:
+        availability = (P_norm) * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
+        其中:
+        - P_norm: 标准化后的产生能力,范围 [0, 1]
+        - C_norm: 标准化后的消耗能力,范围 [0, 1]
+        - E_norm: 标准化后的外排能力,范围 [0, 1]
         - 最终结果严格限制在 [0, 1] 范围内
     """
     # 确保 eps 和 beta 是正数
     eps = max(eps, 1e-8)
     beta = max(beta, 0.0)
-    
+
     # 1. 构建 pseudobulk
     pseudobulk = _build_celltype_pseudobulk(
         adata,
@@ -702,24 +693,24 @@ def compute_metabolite_availability(
         layer=layer,
         min_cells=min_cells
     )
-    
+
     # 2. 解析反应表
     parsed_reactions = _parse_reaction_table(reaction_table)
-    
+
     # 3. 获取反应-基因集合
     reaction_genes = _get_reaction_gene_sets(parsed_reactions)
-    
+
     # 4. 计算反应得分
     reaction_scores = _compute_reaction_scores(pseudobulk, reaction_genes)
-    
+
     # 5. 计算 P, C, E 矩阵
     PCE = _compute_PCE_matrices(reaction_scores, reaction_genes)
     P, C, E = PCE['P'], PCE['C'], PCE['E']
-    
-    # 6. 过滤没有 product reaction 的代谢物（即 P 全为 0 的代谢物）
+
+    # 6. 过滤没有 product reaction 的代谢物(即 P 全为 0 的代谢物)
     valid_mets = P.index[P.sum(axis=1) > 0]
-    
-    # 如果没有找到任何有效代谢物，返回空结果而不抛异常
+
+    # 如果没有找到任何有效代谢物,返回空结果而不抛异常
     if len(valid_mets) == 0:
         result = {
             'availability': pd.DataFrame(),
@@ -737,11 +728,13 @@ def compute_metabolite_availability(
                 'reaction_genes': pd.DataFrame()
             })
         return result
-    
+
+    # 过滤所有矩阵，确保它们有相同的索引
     P = P.loc[valid_mets]
-    C = C.loc[valid_mets.intersection(C.index)] if not C.empty else C.head(0)
-    E = E.loc[valid_mets.intersection(E.index)] if not E.empty else E.head(0)
-    
+    # 确保 C 和 E 有相同的索引
+    C = C.reindex(valid_mets, fill_value=0.0)
+    E = E.reindex(valid_mets, fill_value=0.0)
+
     # 7. 标准化
     normalized = _normalize_PCE(
         P, C, E, reaction_genes,
@@ -751,22 +744,23 @@ def compute_metabolite_availability(
         missing_E_norm=missing_E_norm
     )
     P_norm, C_norm, E_norm = normalized['P_norm'], normalized['C_norm'], normalized['E_norm']
-    
-    # 8. 计算最终 availability，确保结果在 [0, 1] 之间
+
+    # 8. 计算最终 availability,确保结果在 [0, 1] 之间
     availability = pd.DataFrame(index=P_norm.index, columns=P_norm.columns, dtype=float)
+
     for met_idx in P_norm.index:
-        p = P_norm.loc[met_idx].values
-        c = C_norm.loc[met_idx].values
-        e = E_norm.loc[met_idx].values
-        
+        p = P_norm.loc[met_idx].values.flatten()
+        c = C_norm.loc[met_idx].values.flatten()
+        e = E_norm.loc[met_idx].values.flatten()
+
         # 按公式计算
         avail = p * np.power((1 - c), beta) * (0.8 + 0.2 * e)
-        
+
         # 严格限制在 0-1 范围内
         avail = np.clip(avail, 0.0, 1.0)
-        
+
         availability.loc[met_idx] = avail
-    
+
     # 9. 准备元数据
     metadata = pd.DataFrame(index=P_norm.index)
     metadata['has_product'] = True
@@ -805,13 +799,13 @@ def compute_metabolite_availability(
         )
         for met, hmdb in P_norm.index
     ]
-    
+
     # 10. 整理结果
     result = {
         'availability': availability.astype(float),
         'metadata': metadata
     }
-    
+
     if return_intermediates:
         result.update({
             'P': P.astype(float),
@@ -823,5 +817,5 @@ def compute_metabolite_availability(
             'pseudobulk': pseudobulk.astype(float),
             'reaction_genes': reaction_genes
         })
-    
+
     return result
