@@ -40,11 +40,7 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
     role_map = {
         "product": "production",
         "substrate": "degradation",
-        "production": "production",
-        "degradation": "degradation",
-        "export": "export",
-        "import": "import",
-        "usage": "usage",
+        "exporter": "export",
     }
     rows = []
     for _, row in enzyme_df.iterrows():

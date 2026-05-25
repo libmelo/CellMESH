@@ -100,9 +100,7 @@ def _enzyme_prior_to_availability_reactions(enzyme_prior: pd.DataFrame) -> pd.Da
         role -> direction -> 矩阵
         production -> product -> P (production 矩阵，代表代谢物产生能力)
         degradation -> substrate -> C (consumption 矩阵，代表代谢物消耗能力)
-        usage -> substrate -> C (consumption 矩阵，代表代谢物消耗能力)
         export -> exporter -> E (efflux 矩阵，代表代谢物外排能力)
-        import -> exporter -> E (efflux 矩阵，代表代谢物转运能力)
     
     参数:
         enzyme_prior: 经过 validate_priors 验证后的酶-代谢物先验表
@@ -119,9 +117,7 @@ def _enzyme_prior_to_availability_reactions(enzyme_prior: pd.DataFrame) -> pd.Da
     role_to_dir = {
         'production': 'product',
         'degradation': 'substrate',
-        'usage': 'substrate',
-        'export': 'exporter',
-        'import': 'exporter'
+        'export': 'exporter'
     }
     df['direction'] = df['role'].map(role_to_dir)
     
@@ -481,7 +477,7 @@ def run_cell_mesh(
         enzyme_metabolite: 酶-代谢物关系先验表，默认使用内置数据库
             必需列：metabolite, gene, role
             可选列：hmdb_id, reaction, weight, evidence_level, source
-            role 取值：production (产生)、degradation (降解)、usage (使用)、export (外排)、import (导入)
+            role 取值：production (产生)、degradation (降解)、export (外排)
         metabolite_sensor: 代谢物-传感器关系先验表，默认使用内置数据库
         cell_type_key: 细胞类型列名，默认为 "cell_type"
         sample_key: 样本列名，用于置换检验时的样本内置换
@@ -507,11 +503,9 @@ def run_cell_mesh(
         1. enzyme_metabolite 会被自动转换为内部反应表，role 到 direction 的映射：
            - production → product → 进入 P (产生) 矩阵
            - degradation → substrate → 进入 C (消耗) 矩阵
-           - usage → substrate → 进入 C (消耗) 矩阵
            - export → exporter → 进入 E (外排) 矩阵
-           - import → exporter → 进入 E (外排) 矩阵
         2. sender_score 完全来自 metabolite availability 计算：
-           availability = (P_norm + eps) * ((1 - C_norm + eps) ** beta) * (E_norm + eps)
+           availability = P_norm * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
            结果范围在 [0, 1] 之间，值越高代表该细胞类型释放该代谢物的能力越强
         3. receiver_score 基于传感器基因的表达和特异性计算
     """
