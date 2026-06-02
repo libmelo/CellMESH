@@ -55,9 +55,7 @@ METABOLITE_AVAILABILITY_DEFAULTS = {
 ROLE_TO_DIRECTION = {
     'production': 'product',      # 产生代谢物 → P 矩阵
     'degradation': 'substrate',    # 降解代谢物 → C 矩阵
-    'usage': 'substrate',          # 使用代谢物 → C 矩阵
     'export': 'exporter',          # 外排代谢物 → E 矩阵
-    'import': 'exporter',          # 转运代谢物 → E 矩阵
 }
 ```
 
@@ -100,9 +98,7 @@ availability = (P_norm) × ((1 - C_norm)^beta) × (0.8 + 0.2 × E_norm)
 |------|-----------|--------|
 | `production` | `product` | P |
 | `degradation` | `substrate` | C |
-| `usage` | `substrate` | C |
 | `export` | `exporter` | E |
-| `import` | `exporter` | E |
 
 ### 5.3 Reaction 分数计算
 
