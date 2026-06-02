@@ -43,9 +43,7 @@ from cellmesh.config import METABOLITE_AVAILABILITY_DEFAULTS, ROLE_TO_DIRECTION
 |------|-----------|--------|
 | `production` | `product` | P |
 | `degradation` | `substrate` | C |
-| `usage` | `substrate` | C |
 | `export` | `exporter` | E |
-| `import` | `exporter` | E |
 
 ### 3. 加权几何平均数
 

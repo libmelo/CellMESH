@@ -32,7 +32,7 @@ METABOLITE_AVAILABILITY_DEFAULTS: Dict[str, Any] = {
 
 # ==================== 角色和传感器类型常量 ====================
 # 合法的酶角色类型
-VALID_ROLES = {"production", "degradation", "export", "import", "usage"}
+VALID_ROLES = {"production", "degradation", "export"}
 
 # 合法的传感器类型
 VALID_SENSOR_TYPES = {"surface_receptor", "transporter", "nuclear_receptor", "intracellular_sensor"}
@@ -41,7 +41,5 @@ VALID_SENSOR_TYPES = {"surface_receptor", "transporter", "nuclear_receptor", "in
 ROLE_TO_DIRECTION = {
     'production': 'product',      # 产生代谢物 → P 矩阵
     'degradation': 'substrate',    # 降解代谢物 → C 矩阵
-    'usage': 'substrate',          # 使用代谢物 → C 矩阵
     'export': 'exporter',          # 外排代谢物 → E 矩阵
-    'import': 'exporter',          # 转运代谢物 → E 矩阵
 }

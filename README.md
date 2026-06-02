@@ -19,14 +19,12 @@ The enzyme-metabolite prior table is internally converted to reaction matrices u
 |---|---|---|---|
 | `production` | `product` | P | Metabolite production ability |
 | `degradation` | `substrate` | C | Metabolite consumption ability |
-| `usage` | `substrate` | C | Metabolite consumption ability |
 | `export` | `exporter` | E | Metabolite efflux/transport ability |
-| `import` | `exporter` | E | Metabolite efflux/transport ability |
 
 ### 2. Metabolite Availability Calculation
 The final sender score (availability) is computed as:
 ```
-availability = (P_norm + eps) * ((1 - C_norm + eps) ** beta) * (E_norm + eps)
+availability = P_norm * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
 ```
 Where:
 - `P_norm`: Normalized production score [0, 1]
@@ -94,8 +92,8 @@ res.availability_results  # All intermediate calculation results
 | `upper` | `95` | Upper percentile for robust min-max normalization |
 | `eps` | `0.05` | Small constant to avoid division by zero in availability calculation |
 | `beta` | `0.5` | Exponent weight for consumption term in availability formula |
-| `missing_C_norm` | `0.41` | Default C_norm value when no consumption evidence exists |
-| `missing_E_norm` | `0.75` | Default E_norm value when no efflux evidence exists |
+| `missing_C_norm` | `0.2` | Default C_norm value when no consumption evidence exists |
+| `missing_E_norm` | `0.5` | Default E_norm value when no efflux evidence exists |
 | `min_cells` | `1` | Minimum number of cells per cell type to be included |
 
 ### Removed Parameters (v0.4.0+)
