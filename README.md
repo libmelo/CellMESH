@@ -1,17 +1,11 @@
-# CellMESH
+# CellMesh
 Metabolite-mediated Event Scoring with Sensor Hierarchies
 
 **CELL MESH** = **Metabolite-mediated Event Scoring with Sensor Hierarchies**.
 
-CELL MESH is a Python package for inferring metabolite-mediated cell-cell communication events from single-cell expression data, **fully based on the metabolite availability algorithm** since v0.4.0. It scores directed events of the form:
+CELL MESH is a Python package for inferring metabolite-mediated cell-cell communication events from single-cell expression data, **fully based on the metabolite availability algorithm**.
 
-```text
-sender cell type -> receiver cell type : metabolite -> sensor
-```
-
-## Algorithm Overview (v0.4.0+)
-
-CELL MESH now uses a unified metabolite availability calculation to score sender cell types' ability to release each metabolite:
+## Algorithm Overview
 
 ### 1. Enzyme Prior to Reaction Mapping
 The enzyme-metabolite prior table is internally converted to reaction matrices using the following mapping:
@@ -21,8 +15,8 @@ The enzyme-metabolite prior table is internally converted to reaction matrices u
 | `degradation` | `substrate` | C | Metabolite consumption ability |
 | `export` | `exporter` | E | Metabolite efflux/transport ability |
 
-### 2. Metabolite Availability Calculation
-The final sender score (availability) is computed as:
+### 2. Metabolite Availability Calculation (Unchanged)
+The metabolite availability (sender score) is computed as:
 ```
 availability = P_norm * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
 ```
@@ -32,13 +26,30 @@ Where:
 - `E_norm`: Normalized efflux score [0, 1]
 - Result range: Strictly between [0, 1], higher value indicates stronger ability to release the metabolite
 
-### 3. Receiver Score Calculation
-Receiver score is based solely on the expression and specificity of the sensor gene for the metabolite.
+### 3. Sensor Score Calculation
+Sensor score is based on robust min-max normalized sensor gene expression:
+- First, compute pseudobulk mean expression of each sensor gene per cell type
+- Then apply robust min-max normalization across cell types for each gene
+- Genes with `sensor_expr_frac < min_expr_frac` get `sensor_score = 0`
+
+### 4. Communication Score
+Communication score is the geometric mean of metabolite availability and sensor score:
+```
+communication_score = sqrt(metabolite_availability * sensor_score)
+```
+
+### 5. Sensor Types
+Sensors are categorized into three types based on the `Annotation` column in `interaction_test.csv`:
+- `Cell surface receptor`
+- `Transporter`
+- `Other receptor`
+
+Permutation p-values and FDR are computed separately within each sensor type.
 
 ## Included Databases
 The package includes built-in prior databases:
 - `cell_mesh/data/enzyme_test.csv`: enzyme/reaction/metabolite table
-- `cell_mesh/data/interaction_test.csv`: metabolite-receptor/sensor interaction table
+- `cell_mesh/data/interaction_test.csv`: metabolite-receptor/sensor interaction table (with `HMDB_ID`, `Gene_name`, `Annotation` columns)
 
 These are automatically loaded if not explicitly provided.
 
@@ -66,7 +77,7 @@ res = run_cell_mesh(
 # View results
 res.events.head()  # All communication events
 res.sender_scores  # Metabolite × cell type availability matrix
-res.receiver_scores  # Receiver scores
+res.receiver_scores  # Receiver/sensor scores
 res.availability_results  # All intermediate calculation results
 ```
 
@@ -86,23 +97,18 @@ res.availability_results  # All intermediate calculation results
 | `allow_self` | `True` | Whether to allow self-communication events (sender == receiver) |
 | `n_perms` | `0` | Number of permutations for empirical p-value calculation. 0 = no permutation |
 | `random_state` | `0` | Random seed for reproducibility |
-| `beta_sensor` | `1.0` | Weight of sensor expression in receiver score |
-| `beta_specificity` | `0.25` | Weight of sensor specificity in receiver score |
-| `lower` | `5` | Lower percentile for robust min-max normalization |
-| `upper` | `95` | Upper percentile for robust min-max normalization |
-| `eps` | `0.05` | Small constant to avoid division by zero in availability calculation |
+| `lower` | `5` | Lower percentile for robust min-max normalization (for both availability and sensor scoring) |
+| `upper` | `95` | Upper percentile for robust min-max normalization (for both availability and sensor scoring) |
+| `eps` | `0.05` | Small constant (reserved for backward compatibility, no longer used in availability formula) |
 | `beta` | `0.5` | Exponent weight for consumption term in availability formula |
 | `missing_C_norm` | `0.2` | Default C_norm value when no consumption evidence exists |
 | `missing_E_norm` | `0.5` | Default E_norm value when no efflux evidence exists |
 | `min_cells` | `1` | Minimum number of cells per cell type to be included |
 
-### Removed Parameters (v0.4.0+)
-The following parameters are no longer available:
-- `reaction_table` (now internally generated from enzyme_metabolite)
-- `use_new_availability` (now always enabled)
-- `role_agg` (old algorithm removed)
-- `min_cells_per_group` (replaced by min_cells)
-- `alpha_prod`, `alpha_deg`, `alpha_export`, `alpha_specificity` (old algorithm removed)
+### Removed Parameters
+The following parameters are no longer available (old scoring mechanism removed):
+- `beta_sensor`
+- `beta_specificity`
 
 ## Inspect the Packaged Database
 
@@ -120,21 +126,17 @@ print(metabolite_sensor.head())
 metabolite, hmdb_id, gene, role, weight, evidence_level, source, reaction
 ```
 
-### Sensor Table Columns
+### Sensor Table Columns (from interaction_test.csv)
 ```
-metabolite, hmdb_id, sensor_gene, sensor_type, weight, evidence_level,
-source, protein_name, reference
+ID, HMDB_ID, standard_metName, Gene_name, Protein_name, Annotation, Database source, Reference
 ```
 
 ## Supported Sensor Types
 
-| Input annotation | CELL MESH sensor type |
-|---|---|
-| Cell surface receptor | `surface_receptor` |
-| Other receptor | `surface_receptor` |
-| Transporter | `transporter` |
-| Nuclear receptor | `nuclear_receptor` |
-| Intracellular sensor | `intracellular_sensor` |
+From the `Annotation` column in `interaction_test.csv`:
+- `Cell surface receptor`
+- `Transporter`
+- `Other receptor` (includes nuclear receptors, intracellular sensors, and other annotations)
 
 ## Main Outputs
 
@@ -142,21 +144,23 @@ source, protein_name, reference
 Contains one row per communication event. Important columns:
 - `sender`, `receiver`: Cell type pair
 - `metabolite`, `hmdb_id`: Metabolite information
-- `sensor_gene`, `sensor_type`: Sensor information
-- `sender_score`: Metabolite availability in sender cell type [0, 1]
-- `receiver_score`: Sensor activation score in receiver cell type [0, 1]
-- `cell_mesh_score`: Combined event score = sender_score * receiver_score * prior_weight [0, 1]
-- `perm_pvalue`, `fdr`: Empirical p-value and FDR (if n_perms > 0)
+- `sensor_gene`, `sensor_type`: Sensor information (sensor_type is one of "Cell surface receptor", "Transporter", "Other receptor")
+- `sender_score` / `metabolite_availability`: Metabolite availability in sender cell type [0, 1]
+- `receiver_score` / `sensor_score`: Robust min-max normalized sensor expression in receiver cell type [0, 1]
+- `sensor_expr_frac`: Fraction of cells in receiver cell type expressing the sensor gene
+- `cell_mesh_score` / `communication_score`: Geometric mean of availability and sensor score [0, 1]
+- `perm_pvalue`, `fdr`: Empirical p-value and FDR (computed separately within each sensor type)
 - `confidence_tier`: Confidence classification (`Tier1_high`, `Tier2_medium`, `Tier3_exploratory`)
 
 ### Other Outputs
 - `res.sender_scores`: Metabolite × cell type matrix of availability scores
-- `res.receiver_scores`: Table of receiver scores per metabolite-sensor-cell type combination
+- `res.receiver_scores`: Table of sensor scores per metabolite-sensor-cell type combination
 - `res.availability_results`: Dictionary containing all intermediate calculation results (P/C/E matrices, pseudobulk, etc.)
-- `res.role_scores`: Empty dict (kept for backward compatibility, intermediate results now in availability_results)
+- `res.role_scores`: Empty dict (kept for backward compatibility)
 
 ## Notes
 - **Transcriptomics-only**: CELL MESH estimates metabolite availability using expression proxies and prior knowledge. Direct metabolomics, spatial data, or perturbation experiments should be used to validate predictions.
-- **Backward compatibility**: `run_cell_mesh` is the main entry point, the old `run_metcomm` alias is still available but deprecated.
-- **Weight support**: The algorithm respects the `weight` column in prior tables, using weighted geometric mean for reaction scores.
-- **Multi-gene support**: Genes in the `gene` column separated by `;`, `,` or `|` are parsed as a gene set for the same reaction.
+- **Sensor scoring**: Uses robust min-max normalization of pseudobulk sensor gene expression
+- **Communication score**: Geometric mean ensures both sender and receiver have meaningful scores
+- **Sensor type stratification**: P-values and FDR are computed separately for each sensor type to avoid confounding
+

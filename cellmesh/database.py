@@ -33,6 +33,8 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
 
     Input columns expected from the uploaded file:
     standard_metName, HMDB_ID, Reactions, Gene_name, Direction.
+    Also accepts the newer lower-case schema:
+    metabolite, HMDB_ID/hmdb_id, reaction, gene, direction.
 
     Output columns:
     metabolite, hmdb_id, gene, role, weight, evidence_level, source, reaction.
@@ -44,23 +46,23 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
     }
     rows = []
     for _, row in enzyme_df.iterrows():
-        direction = str(row.get("Direction", "")).strip().lower()
+        direction = str(row.get("Direction", row.get("direction", ""))).strip().lower()
         role = role_map.get(direction)
         if role is None:
             continue
-        for gene, evidence in _split_gene_field(row.get("Gene_name")):
+        for gene, evidence in _split_gene_field(row.get("Gene_name", row.get("gene"))):
             if not gene:
                 continue
             rows.append(
                 {
-                    "metabolite": row.get("standard_metName"),
-                    "hmdb_id": row.get("HMDB_ID"),
+                    "metabolite": row.get("standard_metName", row.get("metabolite")),
+                    "hmdb_id": row.get("HMDB_ID", row.get("hmdb_id")),
                     "gene": gene,
                     "role": role,
                     "weight": 1.0,
                     "evidence_level": evidence or "database",
                     "source": "packaged_enzyme_test",
-                    "reaction": row.get("Reactions"),
+                    "reaction": row.get("Reactions", row.get("reaction")),
                 }
             )
     out = pd.DataFrame(rows)
@@ -69,17 +71,28 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
     return out.drop_duplicates().reset_index(drop=True)
 
 
-def _map_sensor_type(annotation: object) -> str:
-    text = str(annotation).strip().lower()
-    if "nuclear" in text:
-        return "nuclear_receptor"
-    if "transport" in text:
-        return "transporter"
-    if "intracellular" in text:
-        return "intracellular_sensor"
-    if "surface" in text or "receptor" in text:
-        return "surface_receptor"
-    return "intracellular_sensor"
+def _normalize_sensor_type(annotation: object) -> str:
+    """Normalize sensor type to the three required categories.
+    
+    Maps to: "Cell surface receptor", "Transporter", "Other receptor"
+    """
+    if pd.isna(annotation):
+        return "Other receptor"
+    text = str(annotation).strip()
+    text_lower = text.lower()
+    
+    # Exact matches first
+    if text in ["Cell surface receptor", "Transporter", "Other receptor"]:
+        return text
+    
+    # Case-insensitive matching
+    if "cell surface" in text_lower or "surface receptor" in text_lower:
+        return "Cell surface receptor"
+    if "transport" in text_lower:
+        return "Transporter"
+    
+    # Everything else goes to Other receptor
+    return "Other receptor"
 
 
 def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame:
@@ -103,7 +116,7 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
                 "metabolite": row.get("standard_metName"),
                 "hmdb_id": row.get("HMDB_ID"),
                 "sensor_gene": gene,
-                "sensor_type": _map_sensor_type(row.get("Annotation")),
+                "sensor_type": _normalize_sensor_type(row.get("Annotation")),
                 "weight": 1.0,
                 "evidence_level": row.get("Annotation"),
                 "source": row.get("Database source"),
@@ -114,7 +127,11 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
     out = pd.DataFrame(rows)
     if out.empty:
         return pd.DataFrame(columns=["metabolite", "hmdb_id", "sensor_gene", "sensor_type", "weight", "evidence_level", "source", "protein_name", "reference"])
-    return out.drop_duplicates().reset_index(drop=True)
+    return (
+        out.sort_values("weight", ascending=False)
+        .drop_duplicates(subset=["hmdb_id", "sensor_gene"])
+        .reset_index(drop=True)
+    )
 
 
 def load_cell_mesh_database(

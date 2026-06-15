@@ -7,7 +7,7 @@ import anndata
 from cellmesh import run_cell_mesh, read_example_data
 
 print("=" * 60)
-print("CELL MESH 冒烟测试")
+print("CELL MESH 冒烟测试 - 新 Sensor 评分算法")
 print("=" * 60)
 
 # 1. 生成测试数据
@@ -15,31 +15,32 @@ print("\n1. 加载示例数据...")
 adata = read_example_data("tiny")
 print(f"  数据形状: {adata.shape}")
 print(f"  细胞类型: {list(adata.obs['cell_type'].unique())}")
+print(f"  基因名: {list(adata.var_names[:10])}...")
 
 # 2. 构建测试 prior
 print("\n2. 构建测试 prior 表...")
 
-# 酶-代谢物 prior，包含所有 role 类型
+# 酶-代谢物 prior，只包含 3 个 roles
 enzyme_metabolite = pd.DataFrame([
     # ATP 相关
     {"metabolite": "ATP", "gene": "Gene1", "role": "production", "weight": 1.0},
     {"metabolite": "ATP", "gene": "Gene2", "role": "degradation", "weight": 0.8},
-    {"metabolite": "ATP", "gene": "Gene3", "role": "usage", "weight": 0.7},
     {"metabolite": "ATP", "gene": "Gene4", "role": "export", "weight": 1.2},
-    {"metabolite": "ATP", "gene": "Gene5", "role": "import", "weight": 0.9},
     # 谷氨酸相关
     {"metabolite": "Glutamate", "gene": "Gene6", "role": "production", "weight": 1.0},
     {"metabolite": "Glutamate", "gene": "Gene7", "role": "export", "weight": 1.0},
 ])
 
-# 代谢物-传感器 prior
+# 代谢物-传感器 prior，使用 3 种 sensor types
 metabolite_sensor = pd.DataFrame([
-    {"metabolite": "ATP", "sensor_gene": "Gene8", "sensor_type": "surface_receptor", "weight": 1.0},
-    {"metabolite": "Glutamate", "sensor_gene": "Gene9", "sensor_type": "surface_receptor", "weight": 1.0},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "sensor_gene": "Gene8", "sensor_type": "Cell surface receptor", "weight": 1.0},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "sensor_gene": "Gene9", "sensor_type": "Transporter", "weight": 1.0},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "sensor_gene": "Gene10", "sensor_type": "Other receptor", "weight": 1.0},
 ])
 
 print(f"  酶 prior 行数: {len(enzyme_metabolite)}")
 print(f"  传感器 prior 行数: {len(metabolite_sensor)}")
+print(f"  传感器类型: {list(metabolite_sensor['sensor_type'].unique())}")
 
 # 3. 运行 CELL MESH，带置换检验
 print("\n3. 运行 CELL MESH (n_perms=2)...")
@@ -72,34 +73,53 @@ if not avail.empty:
 # 检查事件结果
 if not res.events.empty:
     print(f"  事件前 5 行:")
-    print(res.events[['sender', 'receiver', 'metabolite', 'cell_mesh_score', 'perm_pvalue', 'fdr']].head())
+    display_cols = ['sender', 'receiver', 'metabolite', 'sensor_gene', 'sensor_type', 
+                   'communication_score', 'sensor_expr_frac', 'perm_pvalue', 'fdr']
+    available_cols = [c for c in display_cols if c in res.events.columns]
+    print(res.events[available_cols].head())
     
     # 检查 score 范围
-    min_score = res.events['cell_mesh_score'].min()
-    max_score = res.events['cell_mesh_score'].max()
-    print(f"  cell_mesh_score 范围: [{min_score:.4f}, {max_score:.4f}] (预期在 0-1 之间)")
-    assert 0 <= min_score <= 1 and 0 <= max_score <= 1, "cell_mesh_score 超出 0-1 范围"
+    min_score = res.events['communication_score'].min()
+    max_score = res.events['communication_score'].max()
+    print(f"  communication_score 范围: [{min_score:.4f}, {max_score:.4f}] (预期在 0-1 之间)")
+    assert 0 <= min_score <= 1 and 0 <= max_score <= 1, "communication_score 超出 0-1 范围"
+    
+    # 检查 sensor_expr_frac 存在
+    assert 'sensor_expr_frac' in res.events.columns, "缺少 sensor_expr_frac 列"
+    assert 'sensor_type' in res.events.columns, "缺少 sensor_type 列"
+    
+    # 检查是否包含所需的 sensor types
+    sensor_types = res.events['sensor_type'].unique()
+    print(f"  检测到的 sensor types: {list(sensor_types)}")
+    
+    # 验证 communication score 是几何均值
+    # 检查一些样本
+    sample = res.events.iloc[0]
+    avail_score = sample['sender_score']
+    sensor_score = sample['sensor_score']
+    expected = np.sqrt(avail_score * sensor_score)
+    actual = sample['communication_score']
+    print(f"  几何均值验证: sqrt({avail_score:.4f} * {sensor_score:.4f}) = {expected:.4f} (实际: {actual:.4f})")
+    assert np.isclose(expected, actual), "communication score 不是几何均值"
 
 # 5. 检查参数是否正确
 print("\n5. 参数检查:")
 print(f"  包含的参数键: {list(res.parameters.keys())}")
 # 确认没有旧参数
-old_params = ['use_new_availability', 'role_agg', 'min_cells_per_group', 'alpha_prod', 'alpha_deg', 'alpha_export', 'alpha_specificity']
+old_params = ['beta_sensor', 'beta_specificity']
 for p in old_params:
     assert p not in res.parameters, f"旧参数 {p} 不应出现在结果中"
 print("  ✓ 所有旧参数已成功移除")
 
-# 6. 检查元数据
-if 'metadata' in res.availability_results and not res.availability_results['metadata'].empty:
-    print("\n6. 元数据检查:")
-    metadata = res.availability_results['metadata']
-    print("  代谢物元数据:")
-    print(metadata)
-    # 检查 role 映射是否正确
-    assert metadata.loc[('ATP', np.nan), 'has_substrate'] == True, "ATP 应该有 substrate 反应"
-    assert metadata.loc[('ATP', np.nan), 'has_exporter'] == True, "ATP 应该有 exporter 反应"
-    print("  ✓ role 映射正确")
+# 6. 检查 receiver scores 格式
+if not res.receiver_scores.empty:
+    print("\n6. Receiver scores 检查:")
+    print(f"  列名: {list(res.receiver_scores.columns)}")
+    assert 'sensor_score' in res.receiver_scores.columns, "缺少 sensor_score 列"
+    assert 'sensor_expr_frac' in res.receiver_scores.columns, "缺少 sensor_expr_frac 列"
+    print("  ✓ receiver_scores 格式正确")
 
 print("\n" + "=" * 60)
-print("✅ 所有冒烟测试通过！重构成功！")
+print("✅ 所有冒烟测试通过！新 Sensor 评分算法成功！")
 print("=" * 60)
+

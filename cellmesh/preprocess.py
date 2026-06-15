@@ -233,8 +233,7 @@ def validate_priors(
         raise ValueError(f"metabolite_sensor is missing columns: {sorted(missing)}")
 
     sen["sensor_gene"] = sen["sensor_gene"].astype(str)
-    sen["sensor_type"] = sen["sensor_type"].astype(str).str.lower()
-    sen = sen[sen["sensor_type"].isin(VALID_SENSOR_TYPES)]
+    # 不再转换或过滤 sensor_type，保持原样
     sen = sen[sen["sensor_gene"].isin(genes)]
 
     if "weight" not in sen:
@@ -290,6 +289,125 @@ def _build_celltype_pseudobulk(
         index=group_names,
         columns=genes
     )
+
+
+def _compute_celltype_expr_frac(
+    adata,
+    celltype_col: str = "cell_type",
+    layer: Optional[str] = None,
+    min_cells: int = MIN_CELL_COUNT
+) -> pd.DataFrame:
+    """
+    计算每个基因在每个细胞类型中的表达比例（表达>0的细胞比例）
+
+    参数:
+        adata: AnnData 对象
+        celltype_col: 细胞类型列名
+        layer: 使用的层,None 表示使用 adata.X
+        min_cells: 每个细胞类型的最小细胞数
+
+    返回:
+        细胞类型 × 基因 的表达比例矩阵
+    """
+    if celltype_col not in adata.obs:
+        raise KeyError(f"{celltype_col!r} not found in adata.obs")
+
+    X = adata.layers[layer] if layer is not None else adata.X
+    X = _to_dense(X)
+    genes = pd.Index(adata.var_names).astype(str)
+    labels = adata.obs[celltype_col].astype(str)
+
+    # 过滤细胞数不足的细胞类型
+    group_counts = labels.value_counts()
+    valid_groups = group_counts[group_counts >= min_cells].index.tolist()
+    if not valid_groups:
+        raise ValueError(f"No cell types with at least {min_cells} cells")
+
+    # 计算每个细胞类型中每个基因的表达比例
+    expr_frac = []
+    group_names = []
+    for group in valid_groups:
+        idx = labels.values == group
+        n_cells = idx.sum()
+        expr_frac.append((X[idx, :] > 0).sum(axis=0) / n_cells)
+        group_names.append(group)
+
+    return pd.DataFrame(
+        np.vstack(expr_frac),
+        index=group_names,
+        columns=genes
+    )
+
+
+def compute_sensor_scores(
+    adata,
+    sensor_prior: pd.DataFrame,
+    celltype_col: str = "cell_type",
+    layer: Optional[str] = None,
+    lower: float = METABOLITE_AVAILABILITY_DEFAULTS["lower"],
+    upper: float = METABOLITE_AVAILABILITY_DEFAULTS["upper"],
+    min_expr_frac: float = 0.05,
+    min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
+) -> pd.DataFrame:
+    """
+    计算 sensor scores: robust min-max 标准化的 sensor 基因表达
+
+    参数:
+        adata: AnnData 对象
+        sensor_prior: sensor 先验表（来自 normalize_interaction_database）
+        celltype_col: 细胞类型列名
+        layer: 使用的层
+        lower: robust minmax 的下限百分位数
+        upper: robust minmax 的上限百分位数
+        min_expr_frac: 最小表达比例阈值
+        min_cells: 每个细胞类型的最小细胞数
+
+    返回:
+        sensor scores DataFrame，包含列：
+        metabolite, hmdb_id, sensor_gene, sensor_type, receiver, 
+        sensor_score, sensor_expr_frac
+    """
+    # 获取 pseudobulk 表达和表达比例
+    pseudobulk = _build_celltype_pseudobulk(adata, celltype_col, layer, min_cells)
+    expr_frac = _compute_celltype_expr_frac(adata, celltype_col, layer, min_cells)
+    
+    # 筛选在数据中存在的 sensor genes
+    valid_genes = [g for g in sensor_prior["sensor_gene"].unique() if g in pseudobulk.columns]
+    if not valid_genes:
+        return pd.DataFrame(columns=[
+            "metabolite", "hmdb_id", "sensor_gene", "sensor_type", 
+            "receiver", "sensor_score", "sensor_expr_frac"
+        ])
+    
+    # 对每个 sensor gene 计算 robust min-max 标准化
+    sensor_gene_scores = {}
+    for gene in valid_genes:
+        expr_values = pseudobulk[gene].values
+        norm_scores = robust_minmax(expr_values, lower=lower, upper=upper)
+        sensor_gene_scores[gene] = pd.Series(norm_scores, index=pseudobulk.index)
+    
+    # 构建结果
+    rows = []
+    for _, row in sensor_prior.iterrows():
+        gene = row["sensor_gene"]
+        if gene not in valid_genes:
+            continue
+        
+        for receiver in pseudobulk.index:
+            frac = expr_frac.loc[receiver, gene]
+            score = sensor_gene_scores[gene].loc[receiver] if frac >= min_expr_frac else 0.0
+            
+            rows.append({
+                "metabolite": row["metabolite"],
+                "hmdb_id": row["hmdb_id"],
+                "sensor_gene": gene,
+                "sensor_type": row["sensor_type"],
+                "receiver": receiver,
+                "sensor_score": score,
+                "sensor_expr_frac": frac
+            })
+    
+    return pd.DataFrame(rows)
 
 
 def _parse_reaction_table(reaction_table: pd.DataFrame) -> pd.DataFrame:

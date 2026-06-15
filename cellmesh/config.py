@@ -34,8 +34,8 @@ METABOLITE_AVAILABILITY_DEFAULTS: Dict[str, Any] = {
 # 合法的酶角色类型
 VALID_ROLES = {"production", "degradation", "export"}
 
-# 合法的传感器类型
-VALID_SENSOR_TYPES = {"surface_receptor", "transporter", "nuclear_receptor", "intracellular_sensor"}
+# 合法的传感器类型（新格式 - 从 Annotation 列获取）
+VALID_SENSOR_TYPES = {"Cell surface receptor", "Transporter", "Other receptor"}
 
 # 角色到反应方向的映射（新 availability 算法使用）
 ROLE_TO_DIRECTION = {
@@ -43,3 +43,4 @@ ROLE_TO_DIRECTION = {
     'degradation': 'substrate',    # 降解代谢物 → C 矩阵
     'export': 'exporter',          # 外排代谢物 → E 矩阵
 }
+
