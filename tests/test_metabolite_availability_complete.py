@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
+from scipy.stats import gmean
 
 import cellmesh
 from cellmesh.preprocess import robust_minmax
@@ -118,7 +119,12 @@ class TestMetaboliteAvailability:
         assert metA_idx is not None, "MetA should be included"
         
         # Test multi-gene max and multi-reaction sum
-        expected_metA_P = pseudobulk[["G_prodA1", "G_prodA2"]].max(axis=1) + pseudobulk["G_prodA3"]
+        expected_metA_P = (
+            gmean(pseudobulk[["G_prodA1", "G_prodA2"]].to_numpy() + 1.0, axis=1)
+            - 1.0
+            + pseudobulk["G_prodA3"]
+        )
+        expected_metA_P = pd.Series(expected_metA_P, index=pseudobulk.index)
         pd.testing.assert_series_equal(
             result['P'].loc[metA_idx], expected_metA_P, check_names=False, atol=1e-10
         )

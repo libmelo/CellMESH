@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from cell_mesh import (
+from cellmesh import (
     load_cell_mesh_database, 
     run_cell_mesh, 
     compute_metabolite_availability
@@ -18,7 +18,7 @@ class FakeAnnData:
 
 def test_robust_minmax():
     """测试 robust minmax 函数"""
-    from cell_mesh.preprocess import robust_minmax
+    from cellmesh.preprocess import robust_minmax
     
     # 测试正常情况
     x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
@@ -77,6 +77,8 @@ def test_compute_metabolite_availability():
         lower=0,  # 因为样本量小，使用全部数据
         upper=100,
         min_cells=1,
+        missing_C_norm=0.41,
+        missing_E_norm=0.75,
         return_intermediates=True
     )
     
@@ -116,8 +118,6 @@ def test_compute_metabolite_availability():
             assert np.allclose(result['E_norm'].loc[metc_idx].values, 0.75)
             print(f"\n✓ MetC 缺失值检查通过！")
     
-    return result
-
 
 def test_sparse_vs_dense():
     """测试 dense 和 sparse 输入是否得到一致结果"""
@@ -155,12 +155,12 @@ def test_sparse_vs_dense():
     
     # 计算 dense 结果
     result_dense = compute_metabolite_availability(
-        adata_dense, reaction_table, lower=0, upper=100
+        adata_dense, reaction_table, lower=0, upper=100, min_cells=1
     )
     
     # 计算 sparse 结果
     result_sparse = compute_metabolite_availability(
-        adata_sparse, reaction_table, lower=0, upper=100
+        adata_sparse, reaction_table, lower=0, upper=100, min_cells=1
     )
     
     # 比较结果
@@ -196,7 +196,7 @@ def test_boundary_cases():
         {'cell_type': ['A', 'B']}
     )
     
-    result1 = compute_metabolite_availability(adata, reaction_table1)
+    result1 = compute_metabolite_availability(adata, reaction_table1, min_cells=1)
     assert result1['availability'].empty, "没有 product reaction 的代谢物应该被跳过"
     print(f"\n✓ 边界情况 1 测试通过：没有 product reaction 的代谢物被跳过")
     
@@ -209,7 +209,7 @@ def test_boundary_cases():
         'direction': ['product']
     })
     
-    result2 = compute_metabolite_availability(adata, reaction_table2)
+    result2 = compute_metabolite_availability(adata, reaction_table2, min_cells=1)
     # availability 应该为空（因为 P 全 0，被过滤掉了）
     assert result2['availability'].empty, "所有 product 基因都缺失的代谢物应该被跳过"
     print(f"\n✓ 边界情况 2 测试通过：所有 product 基因缺失时代谢物被跳过")
@@ -229,7 +229,7 @@ def test_boundary_cases():
         {'cell_type': ['A', 'A']}
     )
     
-    result3 = compute_metabolite_availability(adata3, reaction_table3, lower=0, upper=100)
+    result3 = compute_metabolite_availability(adata3, reaction_table3, lower=0, upper=100, min_cells=1)
     # P 应该是 10 (max of 10, 1) + 0.5 = 10.5
     assert 'P' in result3
     print(f"\nP matrix:\n{result3['P']}")
@@ -250,14 +250,14 @@ def test_boundary_cases():
         {'cell_type': ['A', 'A']}
     )
     
-    result4 = compute_metabolite_availability(adata4, reaction_table4, lower=0, upper=100)
+    result4 = compute_metabolite_availability(adata4, reaction_table4, lower=0, upper=100, min_cells=1)
     # P 应该是 5 + 3 = 8
     print(f"\nP matrix:\n{result4['P']}")
     print(f"\n✓ 边界情况 4 测试通过：多 reaction 代谢物取 sum")
 
 
-def test_run_cell_mesh_with_new_availability():
-    """测试使用新 availability 方法的完整 CELL MESH 流程"""
+def test_run_cell_mesh_with_availability():
+    """测试使用 availability 方法的完整 CELL MESH 流程"""
     enzyme, sensor = load_cell_mesh_database()
     
     # 创建一个简单的测试数据集
@@ -281,22 +281,12 @@ def test_run_cell_mesh_with_new_availability():
     
     adata = FakeAnnData(X, genes, {"cell_type": ["A", "A", "A", "B", "B", "B"]})
     
-    # 创建一个简单的 reaction table
-    reaction_table = pd.DataFrame({
-        'metabolite': [met] * 3,
-        'hmdb_id': enzyme.loc[enzyme["metabolite"] == met, "hmdb_id"].iloc[0] if "hmdb_id" in enzyme.columns else np.nan,
-        'reaction': ['R1', 'R2', 'R3'],
-        'gene': list(e_genes)[:3],
-        'direction': ['product', 'substrate', 'transporter']
-    })
-    
-    # 使用新的 availability 方法运行
     res = run_cell_mesh(
         adata,
-        reaction_table=reaction_table,
-        use_new_availability=True,
+        enzyme_metabolite=enzyme[enzyme["metabolite"] == met],
+        metabolite_sensor=sensor[sensor["metabolite"] == met],
         cell_type_key="cell_type",
-        min_cells_per_group=2,
+        min_cells=2,
         allow_self=False,
         lower=0,
         upper=100
@@ -308,20 +298,6 @@ def test_run_cell_mesh_with_new_availability():
     
     print(f"\nEvents with new availability method: {len(res.events)}")
     print(res.events[['sender', 'receiver', 'metabolite', 'cell_mesh_score']].head())
-    
-    # 确保原有的方法仍然可以工作
-    print(f"\n{'='*60}")
-    print(f"验证旧方法仍然工作")
-    print(f"{'='*60}")
-    res_old = run_cell_mesh(
-        adata,
-        use_new_availability=False,
-        cell_type_key="cell_type",
-        min_cells_per_group=2,
-        allow_self=False
-    )
-    assert not res_old.events.empty
-    print(f"\n✓ 旧方法仍然可以正常工作！")
 
 
 if __name__ == "__main__":
@@ -336,7 +312,7 @@ if __name__ == "__main__":
     
     test_boundary_cases()
     
-    test_run_cell_mesh_with_new_availability()
+    test_run_cell_mesh_with_availability()
     print("✓ run_cell_mesh with new availability test passed")
     
     print("\n✅ All tests passed!")

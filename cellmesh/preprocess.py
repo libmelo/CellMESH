@@ -4,11 +4,11 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any, Union, Literal
 
 import numpy as np
+from scipy import sparse
 from scipy.stats import gmean
 import pandas as pd
 import warnings
@@ -16,17 +16,43 @@ import warnings
 # 导入集中配置
 from .config import (
     MIN_CELL_COUNT,
+    MIN_EXPR_FRAC,
     VALID_ROLES,
     VALID_SENSOR_TYPES,
     METABOLITE_AVAILABILITY_DEFAULTS
 )
 
 
-def _to_dense(x):
-    """将稀疏矩阵转换为稠密矩阵"""
-    if hasattr(x, "toarray"):
-        return x.toarray()
-    return np.asarray(x)
+def _as_1d_array(x) -> np.ndarray:
+    """Convert a sliced aggregation result to a flat dense vector."""
+    if hasattr(x, "A1"):
+        return x.A1
+    return np.asarray(x).ravel()
+
+
+def _read_metadata_table(path: Union[str, Path], id_col: Optional[str] = None) -> pd.DataFrame:
+    metadata = pd.read_csv(path)
+    if id_col is not None:
+        if id_col not in metadata.columns:
+            raise ValueError(f"{id_col!r} not found in {path}")
+        metadata = metadata.set_index(id_col)
+    else:
+        metadata = metadata.set_index(metadata.columns[0])
+    metadata.index = metadata.index.astype(str)
+    return metadata
+
+
+def _read_name_list(path: Union[str, Path], prefer_second_column: bool = False) -> list[str]:
+    path = Path(path)
+    sep = "\t" if path.suffix.lower() in {".tsv", ".txt"} else None
+    table = pd.read_csv(path, sep=sep, engine="python", header=None, comment="#")
+    column = 1 if prefer_second_column and table.shape[1] > 1 else 0
+    return table.iloc[:, column].astype(str).tolist()
+
+
+def _valid_hmdb_mask(values: pd.Series) -> pd.Series:
+    text = values.astype(str).str.strip().str.lower()
+    return pd.notna(values) & ~text.isin({"", "nan", "none", "null"})
 
 
 # ==================== 数据读取函数 ====================
@@ -102,7 +128,18 @@ def _read_csv(
     df = pd.read_csv(path, index_col=0, **kwargs)
     if transpose:
         df = df.T
-    adata = anndata.AnnData(df)
+    df.index = df.index.astype(str)
+    df.columns = df.columns.astype(str)
+
+    obs = None
+    if cell_meta_path is not None:
+        obs = _read_metadata_table(cell_meta_path, id_col=cell_id_col).reindex(df.index)
+
+    var = None
+    if gene_meta_path is not None:
+        var = _read_metadata_table(gene_meta_path).reindex(df.columns)
+
+    adata = anndata.AnnData(df, obs=obs, var=var)
     return adata
 
 
@@ -138,6 +175,16 @@ def _read_mtx(
 
     mat = mmread(path).tocsr()
     adata = anndata.AnnData(mat.T)
+    if barcodes_path is not None:
+        barcodes = _read_name_list(barcodes_path)
+        if len(barcodes) != adata.n_obs:
+            raise ValueError(f"barcodes_path has {len(barcodes)} entries, expected {adata.n_obs}")
+        adata.obs_names = barcodes
+    if genes_path is not None:
+        genes = _read_name_list(genes_path, prefer_second_column=True)
+        if len(genes) != adata.n_vars:
+            raise ValueError(f"genes_path has {len(genes)} entries, expected {adata.n_vars}")
+        adata.var_names = genes
     return adata
 
 
@@ -212,13 +259,15 @@ def validate_priors(
     genes = set(pd.Index(var_names).astype(str))
 
     enz = enzyme_metabolite.copy()
-    required_enz = {"metabolite", "gene", "role"}
+    required_enz = {"metabolite", "hmdb_id", "gene", "role"}
     missing = required_enz - set(enz.columns)
     if missing:
         raise ValueError(f"enzyme_metabolite is missing columns: {sorted(missing)}")
 
     enz["gene"] = enz["gene"].astype(str)
+    enz["hmdb_id"] = enz["hmdb_id"].astype(object).where(pd.notna(enz["hmdb_id"]), np.nan)
     enz["role"] = enz["role"].astype(str).str.lower()
+    enz = enz[_valid_hmdb_mask(enz["hmdb_id"])]
     enz = enz[enz["role"].isin(VALID_ROLES)]
     enz = enz[enz["gene"].isin(genes)]
 
@@ -227,13 +276,16 @@ def validate_priors(
     enz["weight"] = pd.to_numeric(enz["weight"], errors="coerce").fillna(1.0)
 
     sen = metabolite_sensor.copy()
-    required_sen = {"metabolite", "sensor_gene", "sensor_type"}
+    required_sen = {"metabolite", "hmdb_id", "sensor_gene", "sensor_type"}
     missing = required_sen - set(sen.columns)
     if missing:
         raise ValueError(f"metabolite_sensor is missing columns: {sorted(missing)}")
 
     sen["sensor_gene"] = sen["sensor_gene"].astype(str)
-    # 不再转换或过滤 sensor_type，保持原样
+    sen["hmdb_id"] = sen["hmdb_id"].astype(object).where(pd.notna(sen["hmdb_id"]), np.nan)
+    sen["sensor_type"] = sen["sensor_type"].astype(str)
+    sen = sen[_valid_hmdb_mask(sen["hmdb_id"])]
+    sen = sen[sen["sensor_type"].isin(VALID_SENSOR_TYPES)]
     sen = sen[sen["sensor_gene"].isin(genes)]
 
     if "weight" not in sen:
@@ -266,7 +318,6 @@ def _build_celltype_pseudobulk(
         raise KeyError(f"{celltype_col!r} not found in adata.obs")
 
     X = adata.layers[layer] if layer is not None else adata.X
-    X = _to_dense(X)
     genes = pd.Index(adata.var_names).astype(str)
     labels = adata.obs[celltype_col].astype(str)
 
@@ -281,7 +332,7 @@ def _build_celltype_pseudobulk(
     group_names = []
     for group in valid_groups:
         idx = labels.values == group
-        pseudobulk.append(X[idx, :].mean(axis=0))
+        pseudobulk.append(_as_1d_array(X[idx, :].mean(axis=0)))
         group_names.append(group)
 
     return pd.DataFrame(
@@ -313,7 +364,6 @@ def _compute_celltype_expr_frac(
         raise KeyError(f"{celltype_col!r} not found in adata.obs")
 
     X = adata.layers[layer] if layer is not None else adata.X
-    X = _to_dense(X)
     genes = pd.Index(adata.var_names).astype(str)
     labels = adata.obs[celltype_col].astype(str)
 
@@ -329,7 +379,12 @@ def _compute_celltype_expr_frac(
     for group in valid_groups:
         idx = labels.values == group
         n_cells = idx.sum()
-        expr_frac.append((X[idx, :] > 0).sum(axis=0) / n_cells)
+        group_x = X[idx, :]
+        if sparse.issparse(group_x):
+            frac = group_x.getnnz(axis=0) / n_cells
+        else:
+            frac = (np.asarray(group_x) > 0).sum(axis=0) / n_cells
+        expr_frac.append(_as_1d_array(frac))
         group_names.append(group)
 
     return pd.DataFrame(
@@ -346,8 +401,10 @@ def compute_sensor_scores(
     layer: Optional[str] = None,
     lower: float = METABOLITE_AVAILABILITY_DEFAULTS["lower"],
     upper: float = METABOLITE_AVAILABILITY_DEFAULTS["upper"],
-    min_expr_frac: float = 0.05,
+    min_expr_frac: float = MIN_EXPR_FRAC,
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
+    pseudobulk: Optional[pd.DataFrame] = None,
+    expr_frac: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """
     计算 sensor scores: robust min-max 标准化的 sensor 基因表达
@@ -361,15 +418,19 @@ def compute_sensor_scores(
         upper: robust minmax 的上限百分位数
         min_expr_frac: 最小表达比例阈值
         min_cells: 每个细胞类型的最小细胞数
+        pseudobulk: 可选的预计算细胞类型 × 基因均值表达矩阵
+        expr_frac: 可选的预计算细胞类型 × 基因表达比例矩阵
 
     返回:
         sensor scores DataFrame，包含列：
         metabolite, hmdb_id, sensor_gene, sensor_type, receiver, 
         sensor_score, sensor_expr_frac
     """
-    # 获取 pseudobulk 表达和表达比例
-    pseudobulk = _build_celltype_pseudobulk(adata, celltype_col, layer, min_cells)
-    expr_frac = _compute_celltype_expr_frac(adata, celltype_col, layer, min_cells)
+    # 获取或复用 pseudobulk 表达和表达比例
+    if pseudobulk is None:
+        pseudobulk = _build_celltype_pseudobulk(adata, celltype_col, layer, min_cells)
+    if expr_frac is None:
+        expr_frac = _compute_celltype_expr_frac(adata, celltype_col, layer, min_cells)
     
     # 筛选在数据中存在的 sensor genes
     valid_genes = [g for g in sensor_prior["sensor_gene"].unique() if g in pseudobulk.columns]
@@ -423,14 +484,14 @@ def _parse_reaction_table(reaction_table: pd.DataFrame) -> pd.DataFrame:
     df = reaction_table.copy()
 
     # 确保必需列存在
-    required_cols = ['metabolite', 'gene', 'direction']
+    required_cols = ['metabolite', 'hmdb_id', 'gene', 'direction']
+    if 'hmdb_id' not in df.columns and 'HMDB_ID' in df.columns:
+        df['hmdb_id'] = df['HMDB_ID']
     for col in required_cols:
         if col not in df.columns:
             raise ValueError(f"Reaction table missing required column: {col}")
 
     # 处理可选字段默认值
-    if 'hmdb_id' not in df.columns:
-        df['hmdb_id'] = np.nan
     if 'reaction' not in df.columns:
         df['reaction'] = 'unknown'
     if 'weight' not in df.columns:
@@ -439,6 +500,8 @@ def _parse_reaction_table(reaction_table: pd.DataFrame) -> pd.DataFrame:
     # 标准化字段类型
     df['weight'] = pd.to_numeric(df['weight'], errors='coerce').fillna(1.0)
     df['hmdb_id'] = df['hmdb_id'].astype(object).where(pd.notna(df['hmdb_id']), np.nan)
+    df = df[_valid_hmdb_mask(df['hmdb_id'])]
+    df['direction'] = df['direction'].replace({'transporter': 'exporter'})
 
     return df
 
@@ -454,6 +517,8 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
         每个反应对应的基因集合
     """
     df = reaction_table.copy()
+    if df.empty:
+        return pd.DataFrame(columns=['metabolite', 'hmdb_id', 'reaction', 'direction', 'genes', 'weights'])
 
     # 创建反应唯一标识
     def get_reaction_id(row):
@@ -552,10 +617,10 @@ def _compute_reaction_scores(
             valid_genes = [row['genes'][i] for i in valid_gene_idx]
             valid_weights = np.array([row['weights'][i] for i in valid_gene_idx])
 
-            # 提取基因表达,乘以权重
+            # Weight scales each gene expression value before the ordinary
+            # geometric mean; it is not a normalized weighted geometric mean.
             expr = pseudobulk[valid_genes].values * valid_weights.reshape(1, -1)
 
-            # 计算加权几何平均数作为反应得分
             # 几何平均数公式:gmean(x + 1) - 1,避免 0 值影响
             geo_mean = gmean(expr + 1, axis=1) - 1
 
@@ -701,7 +766,8 @@ def _normalize_PCE(
     lower: float = 5,
     upper: float = 95,
     missing_C_norm: float = 0.2,
-    missing_E_norm: float = 0.5
+    missing_E_norm: float = 0.5,
+    eps: float = 1e-8
 ) -> Dict[str, pd.DataFrame]:
     """
     对 P, C, E 矩阵进行标准化，结果都在 [0, 1] 范围内
@@ -712,6 +778,7 @@ def _normalize_PCE(
         lower, upper: robust minmax 的百分位数
         missing_C_norm: 缺失 C 时的默认值，范围 [0, 1]
         missing_E_norm: 缺失 E 时的默认值，范围 [0, 1]
+        eps: robust minmax 分母中的小常数
 
     返回:
         包含标准化后矩阵的字典
@@ -731,7 +798,7 @@ def _normalize_PCE(
 
         # P 标准化：范围 [0, 1]
         p_vals = P.loc[met_idx].values.flatten()
-        P_norm.loc[met_idx] = robust_minmax(p_vals, lower=lower, upper=upper)
+        P_norm.loc[met_idx] = robust_minmax(p_vals, lower=lower, upper=upper, eps=eps)
 
         # 检查是否有 substrate reaction
         has_substrate = any(
@@ -742,7 +809,7 @@ def _normalize_PCE(
         # C 标准化 - 只有当有 substrate reaction 时才计算，否则保持默认值
         if has_substrate and met_idx in C.index:
             c_vals = C.loc[met_idx].values.flatten()
-            C_norm.loc[met_idx] = robust_minmax(c_vals, lower=lower, upper=upper)
+            C_norm.loc[met_idx] = robust_minmax(c_vals, lower=lower, upper=upper, eps=eps)
 
         # 检查是否有 exporter reaction
         has_exporter = any(
@@ -753,7 +820,7 @@ def _normalize_PCE(
         # E 标准化 - 只有当有 exporter reaction 时才计算，否则保持默认值
         if has_exporter and met_idx in E.index:
             e_vals = E.loc[met_idx].values.flatten()
-            E_norm.loc[met_idx] = robust_minmax(e_vals, lower=lower, upper=upper)
+            E_norm.loc[met_idx] = robust_minmax(e_vals, lower=lower, upper=upper, eps=eps)
 
     return {'P_norm': P_norm, 'C_norm': C_norm, 'E_norm': E_norm}
 
@@ -799,6 +866,7 @@ def compute_metabolite_availability(
         - C_norm: 标准化后的消耗能力,范围 [0, 1]
         - E_norm: 标准化后的外排能力,范围 [0, 1]
         - 最终结果严格限制在 [0, 1] 范围内
+        - eps 控制 P/C/E robust min-max 标准化的分母稳定项
     """
     # 确保 eps 和 beta 是正数
     eps = max(eps, 1e-8)
@@ -806,6 +874,12 @@ def compute_metabolite_availability(
 
     # 1. 构建 pseudobulk
     pseudobulk = _build_celltype_pseudobulk(
+        adata,
+        celltype_col=celltype_col,
+        layer=layer,
+        min_cells=min_cells
+    )
+    expr_frac = _compute_celltype_expr_frac(
         adata,
         celltype_col=celltype_col,
         layer=layer,
@@ -843,6 +917,7 @@ def compute_metabolite_availability(
                 'C_norm': pd.DataFrame(),
                 'E_norm': pd.DataFrame(),
                 'pseudobulk': pd.DataFrame(),
+                'expr_frac': pd.DataFrame(),
                 'reaction_genes': pd.DataFrame()
             })
         return result
@@ -859,7 +934,8 @@ def compute_metabolite_availability(
         lower=lower,
         upper=upper,
         missing_C_norm=missing_C_norm,
-        missing_E_norm=missing_E_norm
+        missing_E_norm=missing_E_norm,
+        eps=eps
     )
     P_norm, C_norm, E_norm = normalized['P_norm'], normalized['C_norm'], normalized['E_norm']
 
@@ -933,6 +1009,7 @@ def compute_metabolite_availability(
             'C_norm': C_norm.astype(float),
             'E_norm': E_norm.astype(float),
             'pseudobulk': pseudobulk.astype(float),
+            'expr_frac': expr_frac.astype(float),
             'reaction_genes': reaction_genes
         })
 

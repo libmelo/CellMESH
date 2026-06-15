@@ -11,6 +11,13 @@ def _data_path(filename: str):
     return files("cellmesh.data").joinpath(filename)
 
 
+def _first_present(row: pd.Series, *columns: str):
+    for column in columns:
+        if column in row.index:
+            return row.get(column)
+    return None
+
+
 def _split_gene_field(value: object) -> list[tuple[str, str | None]]:
     """Parse fields such as 'PTGR2[Enzyme]; PTGR1[Enzyme]'."""
     if pd.isna(value):
@@ -101,6 +108,9 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
     Input columns expected from the uploaded file:
     ID, HMDB_ID, standard_metName, Gene_name, Protein_name, Annotation,
     Database source, Reference.
+    Also accepts normalized/internal or lower-case schema:
+    metabolite, hmdb_id, sensor_gene, sensor_type, weight, evidence_level,
+    source, protein_name, reference.
 
     Output columns:
     metabolite, hmdb_id, sensor_gene, sensor_type, weight, evidence_level,
@@ -108,25 +118,27 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
     """
     rows = []
     for _, row in interaction_df.iterrows():
-        gene = str(row.get("Gene_name", "")).strip()
+        gene = str(_first_present(row, "Gene_name", "gene_name", "sensor_gene", "gene") or "").strip()
         if not gene or gene.lower() == "nan":
             continue
+        sensor_type = _first_present(row, "Annotation", "annotation", "sensor_type")
         rows.append(
             {
-                "metabolite": row.get("standard_metName"),
-                "hmdb_id": row.get("HMDB_ID"),
+                "metabolite": _first_present(row, "standard_metName", "standard_metname", "metabolite"),
+                "hmdb_id": _first_present(row, "HMDB_ID", "hmdb_id"),
                 "sensor_gene": gene,
-                "sensor_type": _normalize_sensor_type(row.get("Annotation")),
-                "weight": 1.0,
-                "evidence_level": row.get("Annotation"),
-                "source": row.get("Database source"),
-                "protein_name": row.get("Protein_name"),
-                "reference": row.get("Reference"),
+                "sensor_type": _normalize_sensor_type(sensor_type),
+                "weight": pd.to_numeric(_first_present(row, "weight"), errors="coerce") if "weight" in row.index else 1.0,
+                "evidence_level": _first_present(row, "evidence_level", "Annotation", "annotation"),
+                "source": _first_present(row, "source", "Database source", "database_source"),
+                "protein_name": _first_present(row, "protein_name", "Protein_name"),
+                "reference": _first_present(row, "reference", "Reference"),
             }
         )
     out = pd.DataFrame(rows)
     if out.empty:
         return pd.DataFrame(columns=["metabolite", "hmdb_id", "sensor_gene", "sensor_type", "weight", "evidence_level", "source", "protein_name", "reference"])
+    out["weight"] = pd.to_numeric(out["weight"], errors="coerce").fillna(1.0)
     return (
         out.sort_values("weight", ascending=False)
         .drop_duplicates(subset=["hmdb_id", "sensor_gene"])
@@ -143,7 +155,7 @@ def load_cell_mesh_database(
     Returns
     -------
     enzyme_metabolite, metabolite_sensor
-        Two normalized prior tables ready for :func:`cell_mesh.run_cell_mesh`.
+        Two normalized prior tables ready for :func:`cellmesh.run_cell_mesh`.
     """
     enzyme_path = enzyme_file if enzyme_file is not None else _data_path("enzyme_test.csv")
     interaction_path = interaction_file if interaction_file is not None else _data_path("interaction_test.csv")

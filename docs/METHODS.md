@@ -22,13 +22,19 @@ At runtime, `load_cell_mesh_database()` normalizes these files into:
 - `enzyme_metabolite`
 - `metabolite_sensor`
 
-The enzyme table maps `Direction = product` to `production` and `Direction = substrate` to `degradation`. The interaction table maps annotations to CELL MESH sensor classes:
+Both priors must provide `hmdb_id`. Records without `hmdb_id` are excluded before scoring, and sender availability is matched to receiver sensors by exact `(metabolite, hmdb_id)`.
 
-- Cell surface receptor -> `surface_receptor`
-- Other receptor -> `surface_receptor`
-- Transporter -> `transporter`
-- Nuclear receptor -> `nuclear_receptor`
-- Intracellular sensor -> `intracellular_sensor`
+The enzyme table maps reaction directions into the three enzyme roles used by the availability model:
+
+- `product` -> `production`
+- `substrate` -> `degradation`
+- `exporter` -> `export`
+
+The interaction table maps annotations to the three supported sensor classes:
+
+- `Cell surface receptor`
+- `Transporter`
+- `Other receptor`
 
 ## Expression aggregation
 
@@ -44,87 +50,45 @@ and expression fraction:
 \phi_{g,c} = \frac{1}{|C_c|}\sum_{i \in C_c} I(x_{i,g} > 0)
 \]
 
-Mean expression is z-scored across cell groups:
+For each reaction, CELL MESH scales each valid gene expression value by its gene weight and then applies an ordinary geometric mean:
 
 \[
-z_{g,c} = \frac{\bar{x}_{g,c} - \mu_g}{\sigma_g + \epsilon}
+\operatorname{rxn}_{r,c} =
+\operatorname{gmean}_{g \in G_r}(w_g \bar{x}_{g,c} + 1) - 1
 \]
 
-## Metabolite role scores
+This weight semantics is a per-gene expression scaling step, not the normalized weighted geometric mean \(\exp(\sum w \log x / \sum w)\).
 
-For metabolite \(m\), cell group \(c\), and role \(r\), CELL MESH computes:
+## Metabolite availability
+
+Reaction scores are aggregated into three metabolite matrices: production \(P\), consumption \(C\), and efflux \(E\). Each matrix is robust min-max normalized across cell groups for each metabolite. The `eps` parameter is the denominator stabilizer in this normalization.
 
 \[
-A_{m,c}^{(r)} = \operatorname{Agg}_{g \in G_{m,r}}(w_g z_{g,c})
+P^{norm}_{m,c}, C^{norm}_{m,c}, E^{norm}_{m,c} \in [0, 1]
 \]
 
-where \(r\) can be `production`, `degradation`, `export`, `import`, or `usage`.
-
-The default aggregation is a weighted mean:
+The sender-side metabolite availability is:
 
 \[
-A_{m,c}^{(r)} = \frac{\sum_g w_g z_{g,c}}{\sum_g |w_g|}
+A_{m,c_s} =
+P^{norm}_{m,c_s}
+\times (1 - C^{norm}_{m,c_s})^\beta
+\times (0.8 + 0.2 E^{norm}_{m,c_s})
 \]
 
-A `softmin` option is available for bottleneck-like pathways.
+## Receiver score
 
-## Sender score
-
-CELL MESH models sender-side metabolite availability as:
+Receiver-side sensor score uses robust min-max normalized pseudobulk sensor gene expression across cell groups. If the sensor expression fraction in the receiver group is below `min_expr_frac`, the score is set to 0.
 
 \[
-\tilde{S}_{m,c_s} =
-\alpha_1 A_{m,c_s}^{prod}
-- \alpha_2 A_{m,c_s}^{deg}
-+ \alpha_3 A_{m,c_s}^{export}
-+ \alpha_4 Q_{m,c_s}^{send}
-\]
-
-where \(Q\) is a cell-group specificity term. The bounded sender score is:
-
-\[
-S_{m,c_s} = \sigma(\tilde{S}_{m,c_s})
-\]
-
-## Receiver score with sensor hierarchy
-
-CELL MESH differs from a unified metabolite-sensor scoring scheme by using different receiver models for different sensor classes.
-
-### Surface receptor
-
-\[
-R^{surface}_{m,s,c_r} = \sigma(\beta_1 z_{s,c_r} + \beta_2 Q_{s,c_r}^{recv})
-\]
-
-### Transporter
-
-\[
-R^{transporter}_{m,s,c_r} = \sigma(
-\beta_1 z_{s,c_r}
-+ \beta_2 Q_{s,c_r}^{recv}
-+ \beta_3 A_{m,c_r}^{import}
-+ \beta_4 A_{m,c_r}^{usage}
-)
-\]
-
-### Nuclear/intracellular sensor
-
-\[
-R^{intracellular}_{m,s,c_r} = \sigma(
-\beta_1 z_{s,c_r}
-+ \beta_2 Q_{s,c_r}^{recv}
-+ \beta_3 A_{m,c_r}^{import}
-+ \beta_5 A_{m,c_r}^{usage}
-)
+R_{m,s,c_r} \in [0, 1]
 \]
 
 ## CELL MESH event score
 
-The final event score is:
-
 \[
 \text{CELL\_MESH}_{c_s \to c_r}^{m,s} =
-S_{m,c_s} \times R_{m,s,c_r}^{type(s)} \times W_{m,s}^{prior}
+\sqrt{A_{m,c_s} R_{m,s,c_r}}
 \]
 
 In the output table this is stored as `cell_mesh_score`. The column `communication_score` is also retained as a backward-compatible alias.
@@ -137,4 +101,4 @@ CELL MESH optionally estimates empirical p-values by shuffling cell group labels
 p = \frac{1 + \sum_b I(C_b \ge C_{obs})}{B + 1}
 \]
 
-P-values are adjusted using Benjamini-Hochberg FDR.
+The current null is defined at the full event-key level: `sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, and `sensor_type` must match between observed and permuted events before scores are compared. P-values are adjusted using Benjamini-Hochberg FDR separately within each sensor type.

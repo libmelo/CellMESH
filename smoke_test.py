@@ -23,12 +23,12 @@ print("\n2. 构建测试 prior 表...")
 # 酶-代谢物 prior，只包含 3 个 roles
 enzyme_metabolite = pd.DataFrame([
     # ATP 相关
-    {"metabolite": "ATP", "gene": "Gene1", "role": "production", "weight": 1.0},
-    {"metabolite": "ATP", "gene": "Gene2", "role": "degradation", "weight": 0.8},
-    {"metabolite": "ATP", "gene": "Gene4", "role": "export", "weight": 1.2},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene1", "role": "production", "weight": 1.0},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene2", "role": "degradation", "weight": 0.8},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene4", "role": "export", "weight": 1.2},
     # 谷氨酸相关
-    {"metabolite": "Glutamate", "gene": "Gene6", "role": "production", "weight": 1.0},
-    {"metabolite": "Glutamate", "gene": "Gene7", "role": "export", "weight": 1.0},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene6", "role": "production", "weight": 1.0},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene7", "role": "export", "weight": 1.0},
 ])
 
 # 代谢物-传感器 prior，使用 3 种 sensor types
@@ -122,4 +122,3 @@ if not res.receiver_scores.empty:
 print("\n" + "=" * 60)
 print("✅ 所有冒烟测试通过！新 Sensor 评分算法成功！")
 print("=" * 60)
-

@@ -3,14 +3,11 @@ CELL MESH 配置文件
 集中管理所有参数、阈值和路径设置
 """
 from pathlib import Path
-from typing import Literal, Dict, Any
+from typing import Dict, Any
 
 # ==================== 基础路径配置 ====================
 # 数据目录
 DATA_DIR = Path(__file__).parent / "data"
-
-# 确保目录存在
-DATA_DIR.mkdir(exist_ok=True)
 
 # ==================== 通用阈值配置 ====================
 # 最小细胞数阈值，低于该数量的细胞类型会被自动排除
@@ -27,7 +24,7 @@ METABOLITE_AVAILABILITY_DEFAULTS: Dict[str, Any] = {
     "beta": 0.5,
     "missing_C_norm": 0.2,
     "missing_E_norm": 0.5,
-    "min_cells": 1,
+    "min_cells": MIN_CELL_COUNT,
 }
 
 # ==================== 角色和传感器类型常量 ====================
@@ -43,4 +40,3 @@ ROLE_TO_DIRECTION = {
     'degradation': 'substrate',    # 降解代谢物 → C 矩阵
     'export': 'exporter',          # 外排代谢物 → E 矩阵
 }
-

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [{name = "CELL MESH developers"}]
-dependencies = ["numpy", "pandas"]
+dependencies = ["numpy", "pandas", "scipy"]
 
 [project.optional-dependencies]
 anndata = ["anndata", "scipy"]

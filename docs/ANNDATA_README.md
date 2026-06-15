@@ -40,25 +40,25 @@ CELL MESH 现在支持多种格式的单细胞数据读取，使用统一的 `re
 ### 1. 读取 .h5ad 文件
 
 ```python
-import cell_mesh
+import cellmesh
 
-adata = cell_mesh.read_anndata("path/to/data.h5ad", mode="h5ad")
+adata = cellmesh.read_anndata("path/to/data.h5ad", mode="h5ad")
 ```
 
 ### 2. 读取 10X Genomics 数据
 
 ```python
-adata = cell_mesh.read_anndata("path/to/10x_directory", mode="10x")
+adata = cellmesh.read_anndata("path/to/10x_directory", mode="10x")
 ```
 
 ### 3. 从 CSV 读取
 
 ```python
 # 简单读取
-adata = cell_mesh.read_anndata("expression.csv", mode="csv")
+adata = cellmesh.read_anndata("expression.csv", mode="csv")
 
 # 读取时同时加载元数据
-adata = cell_mesh.read_anndata(
+adata = cellmesh.read_anndata(
     "expression.csv",
     mode="csv",
     cell_meta_path="cell_metadata.csv",
@@ -71,22 +71,22 @@ adata = cell_mesh.read_anndata(
 
 ```python
 # 读取小示例数据
-adata = cell_mesh.read_example_data(dataset="small")
+adata = cellmesh.read_example_data(dataset="small")
 
 # 读取中等大小数据
-adata = cell_mesh.read_example_data(dataset="medium")
+adata = cellmesh.read_example_data(dataset="medium")
 ```
 
 ### 5. 完整工作流程
 
 ```python
-import cell_mesh
+import cellmesh
 
 # 步骤 1: 读取数据
-adata = cell_mesh.read_example_data(dataset="small")
+adata = cellmesh.read_example_data(dataset="small")
 
 # 步骤 2: 运行 CELL MESH
-result = cell_mesh.run_cell_mesh(
+result = cellmesh.run_cell_mesh(
     adata,
     cell_type_key="cell_type",
     n_perms=100
@@ -160,10 +160,9 @@ python examples/read_anndata_example.py
 在 `__init__.py` 中已导出以下函数，可直接使用：
 
 ```python
-from cell_mesh import (
+from cellmesh import (
     CellMeshResult,
     run_cell_mesh,
-    run_metcomm,
     load_cell_mesh_database,
     load_default_priors,
     read_anndata,          # 新增

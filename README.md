@@ -37,6 +37,7 @@ Communication score is the geometric mean of metabolite availability and sensor 
 ```
 communication_score = sqrt(metabolite_availability * sensor_score)
 ```
+Events are matched by `hmdb_id` on both the sender availability side and receiver sensor side. Prior rows without `hmdb_id` are excluded before event construction.
 
 ### 5. Sensor Types
 Sensors are categorized into three types based on the `Annotation` column in `interaction_test.csv`:
@@ -48,8 +49,8 @@ Permutation p-values and FDR are computed separately within each sensor type.
 
 ## Included Databases
 The package includes built-in prior databases:
-- `cell_mesh/data/enzyme_test.csv`: enzyme/reaction/metabolite table
-- `cell_mesh/data/interaction_test.csv`: metabolite-receptor/sensor interaction table (with `HMDB_ID`, `Gene_name`, `Annotation` columns)
+- `cellmesh/data/enzyme_test.csv`: enzyme/reaction/metabolite table
+- `cellmesh/data/interaction_test.csv`: metabolite-receptor/sensor interaction table (with `HMDB_ID`, `Gene_name`, `Annotation` columns)
 
 These are automatically loaded if not explicitly provided.
 
@@ -62,7 +63,7 @@ pip install -e .
 ## Basic Usage
 
 ```python
-from cell_mesh import run_cell_mesh
+from cellmesh import run_cell_mesh
 
 res = run_cell_mesh(
     adata,
@@ -99,11 +100,11 @@ res.availability_results  # All intermediate calculation results
 | `random_state` | `0` | Random seed for reproducibility |
 | `lower` | `5` | Lower percentile for robust min-max normalization (for both availability and sensor scoring) |
 | `upper` | `95` | Upper percentile for robust min-max normalization (for both availability and sensor scoring) |
-| `eps` | `0.05` | Small constant (reserved for backward compatibility, no longer used in availability formula) |
+| `eps` | `0.05` | Small constant used in robust min-max denominators for P/C/E normalization |
 | `beta` | `0.5` | Exponent weight for consumption term in availability formula |
 | `missing_C_norm` | `0.2` | Default C_norm value when no consumption evidence exists |
 | `missing_E_norm` | `0.5` | Default E_norm value when no efflux evidence exists |
-| `min_cells` | `1` | Minimum number of cells per cell type to be included |
+| `min_cells` | `100` | Minimum number of cells per cell type to be included |
 
 ### Removed Parameters
 The following parameters are no longer available (old scoring mechanism removed):
@@ -113,7 +114,7 @@ The following parameters are no longer available (old scoring mechanism removed)
 ## Inspect the Packaged Database
 
 ```python
-from cell_mesh import load_cell_mesh_database
+from cellmesh import load_cell_mesh_database
 
 enzyme_metabolite, metabolite_sensor = load_cell_mesh_database()
 
@@ -153,14 +154,13 @@ Contains one row per communication event. Important columns:
 - `confidence_tier`: Confidence classification (`Tier1_high`, `Tier2_medium`, `Tier3_exploratory`)
 
 ### Other Outputs
-- `res.sender_scores`: Metabolite × cell type matrix of availability scores
+- `res.sender_scores`: `(metabolite, hmdb_id)` × cell type matrix of availability scores
 - `res.receiver_scores`: Table of sensor scores per metabolite-sensor-cell type combination
 - `res.availability_results`: Dictionary containing all intermediate calculation results (P/C/E matrices, pseudobulk, etc.)
-- `res.role_scores`: Empty dict (kept for backward compatibility)
 
 ## Notes
 - **Transcriptomics-only**: CELL MESH estimates metabolite availability using expression proxies and prior knowledge. Direct metabolomics, spatial data, or perturbation experiments should be used to validate predictions.
 - **Sensor scoring**: Uses robust min-max normalization of pseudobulk sensor gene expression
 - **Communication score**: Geometric mean ensures both sender and receiver have meaningful scores
 - **Sensor type stratification**: P-values and FDR are computed separately for each sensor type to avoid confounding
-
+- **Permutation null**: Empirical p-values compare each observed full event key (`sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, `sensor_type`) against the same key after cell-type label permutation, with FDR stratified by sensor type.
