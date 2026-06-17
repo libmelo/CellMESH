@@ -15,7 +15,7 @@ CELL MESH 现在支持多种格式的单细胞数据读取，使用统一的 `re
 **参数:**
 - `path`: 文件路径或目录路径
 - `mode`: 读取模式，支持以下选项：
-  - `"h5ad"`: 从 .h5ad 文件读取 (Scanpy 格式)
+  - `"h5ad"`: 从 .h5ad 文件读取 (AnnData/Scanpy 格式)
   - `"10x"`: 从 10X Genomics 输出目录读取
   - `"csv"`: 从 CSV 文件读取 (细胞 × 基因矩阵)
   - `"tsv"`: 从 TSV 文件读取
@@ -102,8 +102,8 @@ print(result.events.head())
 
 使用 Scanpy 的 AnnData 标准格式，最推荐的格式。
 
-**需要:** `anndata` 包
-**安装:** `pip install anndata`
+**需要:** `anndata` 包，已包含在 CELL MESH 核心依赖中。
+**安装:** `pip install -e .`
 
 ### 10x 模式
 
@@ -113,7 +113,7 @@ print(result.events.head())
 - `barcodes.tsv.gz` / `barcodes.tsv`
 
 **需要:** `scanpy` 包
-**安装:** `pip install scanpy`
+**安装:** `pip install -e ".[scanpy]"`
 
 ### CSV/TSV 模式
 
@@ -129,7 +129,7 @@ print(result.events.head())
 
 读取 Loom 格式文件。
 
-**需要:** `anndata` 包
+**需要:** `anndata` 包，已包含在 CELL MESH 核心依赖中。
 
 ### mtx 模式
 
@@ -139,19 +139,23 @@ print(result.events.head())
 - `genes_path`: 基因列表文件路径
 - `barcodes_path`: 细胞 barcode 文件路径
 
-**需要:** `anndata` 和 `scipy` 包
-**安装:** `pip install anndata scipy`
+**需要:** `anndata` 和 `scipy` 包，均已包含在 CELL MESH 核心依赖中。
+**安装:** `pip install -e .`
 
-## 示例脚本
+## 示例 notebook
 
-在 `examples/` 目录下提供完整的示例脚本：
-- `examples/read_anndata_example.py` - 完整示例
+在 `examples/` 目录下提供完整 walkthrough：
+- `examples/cellmesh_comprehensive_walkthrough.ipynb`
 
-运行示例：
+运行前安装 notebook 依赖：
 ```bash
-cd /path/to/cell_mesh_pkg
-python examples/read_anndata_example.py
+pip install -e ".[notebook]"
 ```
+
+该 notebook 使用包内固定测试文件：
+- `cellmesh/data/test_single_cell.h5ad`
+- `cellmesh/data/Enzyme_new.csv`
+- `cellmesh/data/Interaction1.0.csv`
 
 ## API 参考
 

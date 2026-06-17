@@ -12,7 +12,7 @@ from scipy import sparse
 from scipy.stats import gmean
 
 import cellmesh
-from cellmesh.preprocess import robust_minmax
+from cellmesh.score import robust_minmax
 from cellmesh import compute_metabolite_availability
 
 
@@ -53,20 +53,20 @@ def toy_adata():
 
 
 @pytest.fixture
-def toy_reaction_table():
-    """Create toy reaction table from documentation"""
+def toy_enzyme_prior():
+    """Create toy enzyme-metabolite prior from documentation."""
     return pd.DataFrame([
-        {"metabolite": "MetA", "HMDB_ID": "HMDB00001", "reaction": "R_A_prod_1", "gene": "G_prodA1", "direction": "product"},
-        {"metabolite": "MetA", "HMDB_ID": "HMDB00001", "reaction": "R_A_prod_1", "gene": "G_prodA2", "direction": "product"},
-        {"metabolite": "MetA", "HMDB_ID": "HMDB00001", "reaction": "R_A_prod_2", "gene": "G_prodA3", "direction": "product"},
-        {"metabolite": "MetA", "HMDB_ID": "HMDB00001", "reaction": "R_A_sub_1", "gene": "G_consA", "direction": "substrate"},
-        {"metabolite": "MetA", "HMDB_ID": "HMDB00001", "reaction": "R_A_trans_1", "gene": "G_transA1", "direction": "transporter"},
-        {"metabolite": "MetA", "HMDB_ID": "HMDB00001", "reaction": "R_A_trans_1", "gene": "G_transA2", "direction": "transporter"},
-        {"metabolite": "MetB", "HMDB_ID": "HMDB00002", "reaction": "R_B_prod_1", "gene": "G_prodB", "direction": "product"},
-        {"metabolite": "MetF", "HMDB_ID": "HMDB00006", "reaction": "R_F_prod_1", "gene": "G_prodF", "direction": "product"},
-        {"metabolite": "MetF", "HMDB_ID": "HMDB00006", "reaction": "R_F_sub_1", "gene": "G_consA", "direction": "substrate"},
-        {"metabolite": "MetD", "HMDB_ID": "HMDB00004", "reaction": "R_D_sub_1", "gene": "G_consA", "direction": "substrate"},
-        {"metabolite": "MetC", "HMDB_ID": "HMDB00003", "reaction": "R_C_prod_1", "gene": "G_missing", "direction": "product"},
+        {"metabolite": "MetA", "hmdb_id": "HMDB00001", "reaction": "R_A_prod_1", "gene": "G_prodA1", "role": "production"},
+        {"metabolite": "MetA", "hmdb_id": "HMDB00001", "reaction": "R_A_prod_1", "gene": "G_prodA2", "role": "production"},
+        {"metabolite": "MetA", "hmdb_id": "HMDB00001", "reaction": "R_A_prod_2", "gene": "G_prodA3", "role": "production"},
+        {"metabolite": "MetA", "hmdb_id": "HMDB00001", "reaction": "R_A_sub_1", "gene": "G_consA", "role": "degradation"},
+        {"metabolite": "MetA", "hmdb_id": "HMDB00001", "reaction": "R_A_trans_1", "gene": "G_transA1", "role": "export"},
+        {"metabolite": "MetA", "hmdb_id": "HMDB00001", "reaction": "R_A_trans_1", "gene": "G_transA2", "role": "export"},
+        {"metabolite": "MetB", "hmdb_id": "HMDB00002", "reaction": "R_B_prod_1", "gene": "G_prodB", "role": "production"},
+        {"metabolite": "MetF", "hmdb_id": "HMDB00006", "reaction": "R_F_prod_1", "gene": "G_prodF", "role": "production"},
+        {"metabolite": "MetF", "hmdb_id": "HMDB00006", "reaction": "R_F_sub_1", "gene": "G_consA", "role": "degradation"},
+        {"metabolite": "MetD", "hmdb_id": "HMDB00004", "reaction": "R_D_sub_1", "gene": "G_consA", "role": "degradation"},
+        {"metabolite": "MetC", "hmdb_id": "HMDB00003", "reaction": "R_C_prod_1", "gene": "G_missing", "role": "production"},
     ])
 
 
@@ -87,7 +87,6 @@ class TestRobustMinMax:
         x = np.array([5.0, 5.0, 5.0, 5.0, 5.0])
         result = robust_minmax(x)
         assert np.all(result == 0.0)
-        print("✓ Test 7 passed: Constant vector returns 0")
     
     def test_nan_handling(self):
         """Test that NaN values are handled properly"""
@@ -99,10 +98,10 @@ class TestRobustMinMax:
 class TestMetaboliteAvailability:
     """Tests for metabolite availability calculations"""
     
-    def test_1_2_multi_gene_and_multi_reaction(self, toy_adata, toy_reaction_table):
-        """Documentation tests 1-2: multi-gene reaction takes max; multi-reaction sums"""
+    def test_1_2_multi_gene_and_multi_reaction(self, toy_adata, toy_enzyme_prior):
+        """Documentation tests 1-2: multi-gene reaction uses geometric mean; multi-reaction sums"""
         result = compute_metabolite_availability(
-            toy_adata, toy_reaction_table, celltype_col="cell_type",
+            toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, lower=0, upper=100, return_intermediates=True
         )
         
@@ -118,7 +117,7 @@ class TestMetaboliteAvailability:
         
         assert metA_idx is not None, "MetA should be included"
         
-        # Test multi-gene max and multi-reaction sum
+        # Test multi-gene geometric mean and multi-reaction sum
         expected_metA_P = (
             gmean(pseudobulk[["G_prodA1", "G_prodA2"]].to_numpy() + 1.0, axis=1)
             - 1.0
@@ -128,36 +127,33 @@ class TestMetaboliteAvailability:
         pd.testing.assert_series_equal(
             result['P'].loc[metA_idx], expected_metA_P, check_names=False, atol=1e-10
         )
-        print("✓ Tests 1-2 passed: Multi-gene reaction takes max; multi-reaction sums")
     
-    def test_3_metabolite_without_product_skipped(self, toy_adata, toy_reaction_table):
+    def test_3_metabolite_without_product_skipped(self, toy_adata, toy_enzyme_prior):
         """Documentation test 3: Metabolite without product is skipped (MetD)"""
         result = compute_metabolite_availability(
-            toy_adata, toy_reaction_table, celltype_col="cell_type",
+            toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, return_intermediates=True
         )
         
         # Check MetD is not in availability
         included_mets = [idx[0] for idx in result['availability'].index]
         assert 'MetD' not in included_mets, "MetD should be skipped"
-        print("✓ Test 3 passed: Metabolite without product is skipped")
     
-    def test_4_missing_product_genes_skipped(self, toy_adata, toy_reaction_table):
+    def test_4_missing_product_genes_skipped(self, toy_adata, toy_enzyme_prior):
         """Documentation test 4: Metabolite with missing product genes is skipped (MetC)"""
         result = compute_metabolite_availability(
-            toy_adata, toy_reaction_table, celltype_col="cell_type",
+            toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, return_intermediates=True
         )
         
         # Check MetC is not in availability
         included_mets = [idx[0] for idx in result['availability'].index]
         assert 'MetC' not in included_mets, "MetC should be skipped"
-        print("✓ Test 4 passed: Metabolite with missing product genes is skipped")
     
-    def test_5_missing_substrate_default_C_norm(self, toy_adata, toy_reaction_table):
+    def test_5_missing_substrate_default_C_norm(self, toy_adata, toy_enzyme_prior):
         """Documentation test 5: Missing substrate uses C_norm=0.41 (MetB)"""
         result = compute_metabolite_availability(
-            toy_adata, toy_reaction_table, celltype_col="cell_type",
+            toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, lower=0, upper=100, missing_C_norm=0.41, return_intermediates=True
         )
         
@@ -170,12 +166,11 @@ class TestMetaboliteAvailability:
         
         assert metB_idx is not None, "MetB should be included"
         assert np.allclose(result['C_norm'].loc[metB_idx].values, 0.41)
-        print("✓ Test 5 passed: Missing substrate uses C_norm=0.41")
     
-    def test_6_missing_transporter_default_E_norm(self, toy_adata, toy_reaction_table):
+    def test_6_missing_transporter_default_E_norm(self, toy_adata, toy_enzyme_prior):
         """Documentation test 6: Missing transporter uses E_norm=0.75 (MetB and MetF)"""
         result = compute_metabolite_availability(
-            toy_adata, toy_reaction_table, celltype_col="cell_type",
+            toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, lower=0, upper=100, missing_E_norm=0.75, return_intermediates=True
         )
         
@@ -186,8 +181,8 @@ class TestMetaboliteAvailability:
                 metB_idx = idx
                 break
         
-        if metB_idx is not None:
-            assert np.allclose(result['E_norm'].loc[metB_idx].values, 0.75)
+        assert metB_idx is not None, "MetB should be included"
+        assert np.allclose(result['E_norm'].loc[metB_idx].values, 0.75)
         
         # Check MetF
         metF_idx = None
@@ -196,12 +191,10 @@ class TestMetaboliteAvailability:
                 metF_idx = idx
                 break
         
-        if metF_idx is not None:
-            assert np.allclose(result['E_norm'].loc[metF_idx].values, 0.75)
-        
-        print("✓ Test 6 passed: Missing transporter uses E_norm=0.75")
+        assert metF_idx is not None, "MetF should be included"
+        assert np.allclose(result['E_norm'].loc[metF_idx].values, 0.75)
     
-    def test_8_dense_sparse_equivalent(self, toy_adata, toy_reaction_table):
+    def test_8_dense_sparse_equivalent(self, toy_adata, toy_enzyme_prior):
         """Documentation test 8: Dense and sparse inputs produce identical outputs"""
         # Create sparse version
         adata_sparse = FakeAnnData(
@@ -212,12 +205,12 @@ class TestMetaboliteAvailability:
         
         # Compute both
         result_dense = compute_metabolite_availability(
-            toy_adata, toy_reaction_table, celltype_col="cell_type",
+            toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, lower=0, upper=100
         )
         
         result_sparse = compute_metabolite_availability(
-            adata_sparse, toy_reaction_table, celltype_col="cell_type",
+            adata_sparse, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, lower=0, upper=100
         )
         
@@ -225,12 +218,11 @@ class TestMetaboliteAvailability:
         pd.testing.assert_frame_equal(
             result_dense['availability'], result_sparse['availability'], atol=1e-10
         )
-        print("✓ Test 8 passed: Dense and sparse inputs produce identical outputs")
     
-    def test_9_availability_shape_correct(self, toy_adata, toy_reaction_table):
+    def test_9_availability_shape_correct(self, toy_adata, toy_enzyme_prior):
         """Documentation test 9: Availability shape is correct"""
         result = compute_metabolite_availability(
-            toy_adata, toy_reaction_table, celltype_col="cell_type",
+            toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, lower=0, upper=100, return_intermediates=True
         )
         
@@ -239,7 +231,15 @@ class TestMetaboliteAvailability:
         # Should have 3 cell types
         assert availability.shape[1] == 3, "Should have 3 cell types"
         assert set(availability.columns) == {'T_cell', 'Macrophage', 'Fibroblast'}
-        print("✓ Test 9 passed: Availability shape is correct")
+
+    def test_10_legacy_direction_style_input_compatibility(self, toy_adata, toy_enzyme_prior):
+        """Low-level availability remains compatible with old direction-style input."""
+        direction_map = {"production": "product", "degradation": "substrate", "export": "exporter"}
+        legacy = toy_enzyme_prior.rename(columns={"hmdb_id": "HMDB_ID"}).copy()
+        legacy["direction"] = legacy.pop("role").map(direction_map)
+        role_result = compute_metabolite_availability(toy_adata, toy_enzyme_prior, celltype_col="cell_type", min_cells=1)
+        legacy_result = compute_metabolite_availability(toy_adata, legacy, celltype_col="cell_type", min_cells=1)
+        pd.testing.assert_frame_equal(role_result["availability"], legacy_result["availability"], atol=1e-10, rtol=0)
 
 
 class TestDownstreamCompatibility:
@@ -256,18 +256,8 @@ class TestDownstreamCompatibility:
         assert hasattr(cellmesh, 'compute_metabolite_availability')
         assert callable(cellmesh.compute_metabolite_availability)
         
-        print("✓ Test 10a passed: cellmesh imports still work")
     
     def test_compute_availability_exposed(self):
         """Test that compute_metabolite_availability is exposed at top level"""
         assert 'compute_metabolite_availability' in dir(cellmesh)
         assert callable(cellmesh.compute_metabolite_availability)
-        print("✓ Test 10b passed: compute_metabolite_availability is exposed")
-
-
-if __name__ == "__main__":
-    print("=" * 70)
-    print("Running Complete Metabolite Availability Tests")
-    print("=" * 70)
-    
-    pytest.main([__file__, "-v"])

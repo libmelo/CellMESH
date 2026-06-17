@@ -12,14 +12,12 @@ import pandas as pd
 
 # 导入集中配置
 from .config import (
-    ROLE_TO_DIRECTION,
     MIN_EXPR_FRAC,
     METABOLITE_AVAILABILITY_DEFAULTS
 )
 
-from .database import load_cell_mesh_database
-from .preprocess import (
-    validate_priors,
+from .database import load_cell_mesh_database, validate_priors
+from .score import (
     compute_metabolite_availability,
     compute_sensor_scores
 )
@@ -32,13 +30,10 @@ EVENT_COLUMNS = [
     "hmdb_id",
     "sensor_gene",
     "sensor_type",
-    "sender_score",
     "metabolite_availability",
-    "receiver_score",
     "sensor_score",
     "sensor_expr_frac",
     "cell_mesh_score",
-    "communication_score",
 ]
 
 
@@ -86,83 +81,15 @@ def _bh_fdr(pvalues: np.ndarray) -> np.ndarray:
     return out
 
 
-def _safe_hmdb_compare(row: pd.Series, met: str, hmdb: Optional[str]) -> bool:
-    """
-    安全比较代谢物和 hmdb_id,处理 hmdb_id 为 NaN 的情况
-
-    参数:
-        row: reaction_genes 中的行
-        met: 代谢物名称
-        hmdb: 代谢物 HMDB ID
-
-    返回:
-        是否匹配
-    """
-    if row["metabolite"] != met:
-        return False
-    # hmdb 都是 NaN,视为匹配
-    if pd.isna(row["hmdb_id"]) and pd.isna(hmdb):
-        return True
-    # 字符串相等才匹配
-    return str(row["hmdb_id"]) == str(hmdb)
-
-
 def _same_hmdb(left: object, right: object) -> bool:
     if pd.isna(left) or pd.isna(right):
         return False
     return str(left) == str(right)
 
 
-def _enzyme_prior_to_availability_reactions(enzyme_prior: pd.DataFrame) -> pd.DataFrame:
-    """
-    内部函数:将用户提供的 enzyme_metabolite 先验表转换为 availability 算法需要的内部反应表
-
-    映射逻辑:
-        role -> direction -> 矩阵
-        production -> product -> P (production 矩阵,代表代谢物产生能力)
-        degradation -> substrate -> C (consumption 矩阵,代表代谢物消耗能力)
-        export -> exporter -> E (efflux 矩阵,代表代谢物外排能力)
-
-    参数:
-        enzyme_prior: 经过 validate_priors 验证后的酶-代谢物先验表
-            必需列:metabolite, hmdb_id, gene, role
-            可选列:reaction, weight, evidence_level, source
-
-    返回:
-        内部 reaction 表,可直接传入 compute_metabolite_availability
-            列:metabolite, hmdb_id, reaction, gene, direction, weight, evidence_level, source
-    """
-    df = enzyme_prior.copy()
-
-    # 1. 处理核心字段映射
-    df['direction'] = df['role'].map(ROLE_TO_DIRECTION)
-
-    # 2. 填充可选字段默认值
-    if 'hmdb_id' not in df.columns:
-        raise ValueError("enzyme_prior is missing required column: 'hmdb_id'")
-    if 'reaction' not in df.columns:
-        df['reaction'] = 'unknown'
-    if 'weight' not in df.columns:
-        df['weight'] = 1.0
-    if 'evidence_level' not in df.columns:
-        df['evidence_level'] = 'unknown'
-    if 'source' not in df.columns:
-        df['source'] = 'unknown'
-
-    # 3. 标准化字段类型
-    df['weight'] = pd.to_numeric(df['weight'], errors='coerce').fillna(1.0)
-    df['hmdb_id'] = df['hmdb_id'].astype(object).where(pd.notna(df['hmdb_id']), np.nan)
-
-    # 4. 返回需要的列
-    return df[[
-        'metabolite', 'hmdb_id', 'reaction', 'gene', 'direction',
-        'weight', 'evidence_level', 'source'
-    ]].reset_index(drop=True)
-
-
 def _compute_availability_scores(
     adata,
-    availability_reactions: pd.DataFrame,
+    enzyme_prior: pd.DataFrame,
     sensor_prior: pd.DataFrame,
     celltype_col: str = "cell_type",
     layer: Optional[str] = None,
@@ -180,7 +107,7 @@ def _compute_availability_scores(
 
     参数:
         adata: AnnData 对象
-        availability_reactions: 内部反应表（由 enzyme_prior 转换而来）
+        enzyme_prior: 经过 validate_priors 验证后的酶-代谢物先验表
         sensor_prior: 代谢物-传感器先验表
         celltype_col: 细胞类型列名
         layer: 表达层
@@ -193,7 +120,7 @@ def _compute_availability_scores(
     # 计算代谢物 availability（保持不变）
     avail_results = compute_metabolite_availability(
         adata,
-        availability_reactions,
+        enzyme_prior,
         celltype_col=celltype_col,
         layer=layer,
         lower=lower,
@@ -212,7 +139,7 @@ def _compute_availability_scores(
     if availability.empty:
         return pd.DataFrame(), pd.DataFrame(), avail_results
     
-    # sender_score 直接使用 availability 结果
+    # sender_scores is the metabolite availability matrix kept as a separate result.
     sender_scores = availability.copy()
     
     # 计算新的 sensor scores
@@ -267,15 +194,14 @@ def _make_cell_mesh_events(
         if not sender_matches:
             continue
         for sender_idx in sender_matches:
-            for sender, sender_score in sender_scores.loc[sender_idx].items():
+            for sender, availability_value in sender_scores.loc[sender_idx].items():
                 receiver = rr["receiver"]
                 if (not allow_self) and sender == receiver:
                     continue
 
-                # 计算几何均值作为 communication score
-                availability = float(sender_score)
+                availability = float(availability_value)
                 sensor_score = float(rr["sensor_score"])
-                communication_score = float(np.sqrt(availability * sensor_score))
+                cell_mesh_score = float(np.sqrt(availability * sensor_score))
 
                 rows.append(
                     {
@@ -285,19 +211,16 @@ def _make_cell_mesh_events(
                         "hmdb_id": hmdb_id,
                         "sensor_gene": rr["sensor_gene"],
                         "sensor_type": rr["sensor_type"],
-                        "sender_score": availability,  # alias for metabolite_availability
                         "metabolite_availability": availability,
-                        "receiver_score": sensor_score,  # alias for sensor_score
                         "sensor_score": sensor_score,
                         "sensor_expr_frac": float(rr["sensor_expr_frac"]),
-                        "cell_mesh_score": communication_score,
-                        "communication_score": communication_score,
+                        "cell_mesh_score": cell_mesh_score,
                     }
                 )
 
     if not rows:
         return pd.DataFrame(columns=EVENT_COLUMNS)
-    return pd.DataFrame(rows, columns=EVENT_COLUMNS).sort_values("communication_score", ascending=False).reset_index(drop=True)
+    return pd.DataFrame(rows, columns=EVENT_COLUMNS).sort_values("cell_mesh_score", ascending=False).reset_index(drop=True)
 
 
 def _permute_labels(
@@ -368,16 +291,13 @@ def _empirical_pvalues_by_sensor_type(
     key_cols = ["sender", "receiver", "metabolite", "hmdb_id", "sensor_gene", "sensor_type"]
     obs_keys = obs_events[key_cols].astype(str).agg("|".join, axis=1)
     ge_counts = pd.Series(0, index=obs_keys.values, dtype=int)
-    obs_score = pd.Series(obs_events["communication_score"].values, index=obs_keys.values)
+    obs_score = pd.Series(obs_events["cell_mesh_score"].values, index=obs_keys.values)
     obs_sensor_types = pd.Series(obs_events["sensor_type"].values, index=obs_keys.values)
 
     rng = np.random.default_rng(random_state)
     original = adata.obs[cell_type_key].copy()
     sample_labels = adata.obs[sample_key].copy() if sample_key is not None else None
     perm_key = "_cell_mesh_perm_label"
-
-    # 预先生成内部反应表,所有置换使用同一个反应表
-    availability_reactions = _enzyme_prior_to_availability_reactions(enzyme_prior)
 
     try:
         for perm_idx in range(n_perms):
@@ -387,7 +307,7 @@ def _empirical_pvalues_by_sensor_type(
             # 2. 重新计算 availability 和得分
             sender_perm, receiver_perm, _ = _compute_availability_scores(
                 adata,
-                availability_reactions,
+                enzyme_prior,
                 sensor_prior,
                 celltype_col=perm_key,
                 layer=layer,
@@ -401,7 +321,7 @@ def _empirical_pvalues_by_sensor_type(
                 continue
 
             # 4. 比较得分计数（按 sensor type 分别进行比较）
-            perm_scores = events_perm.assign(_key=events_perm[key_cols].astype(str).agg("|".join, axis=1)).set_index("_key")["communication_score"]
+            perm_scores = events_perm.assign(_key=events_perm[key_cols].astype(str).agg("|".join, axis=1)).set_index("_key")["cell_mesh_score"]
             perm_sensor_types = events_perm.assign(_key=events_perm[key_cols].astype(str).agg("|".join, axis=1)).set_index("_key")["sensor_type"]
             
             common = obs_score.index.intersection(perm_scores.index)
@@ -441,13 +361,13 @@ def _confidence_tier(row: pd.Series) -> str:
         置信等级字符串
     """
     if pd.isna(row.get("fdr", np.nan)):
-        if row["communication_score"] >= 0.5 and row.get("sensor_expr_frac", 0) >= 0.1:
+        if row["cell_mesh_score"] >= 0.5 and row.get("sensor_expr_frac", 0) >= 0.1:
             return "Tier2_no_permutation"
         return "Tier3_exploratory"
 
-    if row["fdr"] <= 0.05 and row["communication_score"] >= 0.5 and row.get("sensor_expr_frac", 0) >= 0.1:
+    if row["fdr"] <= 0.05 and row["cell_mesh_score"] >= 0.5 and row.get("sensor_expr_frac", 0) >= 0.1:
         return "Tier1_high"
-    if row["fdr"] <= 0.1 and row["communication_score"] >= 0.25:
+    if row["fdr"] <= 0.1 and row["cell_mesh_score"] >= 0.25:
         return "Tier2_medium"
 
     return "Tier3_exploratory"
@@ -502,15 +422,16 @@ def run_cell_mesh(
         CellMeshResult 对象,包含所有计算结果
 
     内部逻辑说明:
-        1. enzyme_metabolite 会被自动转换为内部反应表,role 到 direction 的映射:
+        1. enzyme_metabolite 作为标准 enzyme prior 直接传入 availability 计算，
+           availability 内部负责 role 到 direction 的映射:
            - production → product → 进入 P (产生) 矩阵
            - degradation → substrate → 进入 C (消耗) 矩阵
            - export → exporter → 进入 E (外排) 矩阵
-        2. sender_score 完全来自 metabolite availability 计算:
+        2. metabolite_availability 完全来自 metabolite availability 计算:
            availability = P_norm * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
            结果范围在 [0, 1] 之间,值越高代表该细胞类型释放该代谢物的能力越强
         3. sensor_score 基于 robust min-max 标准化的 sensor 基因表达
-        4. communication_score = sqrt(metabolite_availability * sensor_score)
+        4. cell_mesh_score = sqrt(metabolite_availability * sensor_score)
     """
     # 验证输入
     if sample_key is not None and sample_key not in adata.obs:
@@ -530,9 +451,6 @@ def run_cell_mesh(
     if sensor_prior.empty:
         raise ValueError("No sensor genes found in adata.var_names")
 
-    # 转换 enzyme_prior 为内部反应表
-    availability_reactions = _enzyme_prior_to_availability_reactions(enzyme_prior)
-
     # 计算 availability 和得分
     availability_kwargs = {
         'lower': lower,
@@ -546,7 +464,7 @@ def run_cell_mesh(
 
     sender_scores, receiver_scores, availability_results = _compute_availability_scores(
         adata,
-        availability_reactions,
+        enzyme_prior,
         sensor_prior,
         celltype_col=cell_type_key,
         layer=layer,
@@ -576,7 +494,7 @@ def run_cell_mesh(
     # 计算置信等级
     if not events.empty:
         events["confidence_tier"] = events.apply(_confidence_tier, axis=1)
-        events = events.sort_values(["fdr", "communication_score"], ascending=[True, False], na_position="last").reset_index(drop=True)
+        events = events.sort_values(["fdr", "cell_mesh_score"], ascending=[True, False], na_position="last").reset_index(drop=True)
     elif "confidence_tier" not in events.columns:
         events["confidence_tier"] = pd.Series(dtype=object)
 

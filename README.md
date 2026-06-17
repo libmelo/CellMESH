@@ -7,8 +7,11 @@ CELL MESH is a Python package for inferring metabolite-mediated cell-cell commun
 
 ## Algorithm Overview
 
-### 1. Enzyme Prior to Reaction Mapping
-The enzyme-metabolite prior table is internally converted to reaction matrices using the following mapping:
+### 1. Enzyme Prior Normalization
+The enzyme-metabolite prior table is the canonical enzyme input. `run_cell_mesh()`
+validates this prior once with `validate_priors()` and passes it directly into
+the availability calculation. Internally, enzyme roles are normalized to the
+availability directions used to build the P/C/E matrices:
 | Role in prior | Direction | Matrix | Meaning |
 |---|---|---|---|
 | `production` | `product` | P | Metabolite production ability |
@@ -35,7 +38,7 @@ Sensor score is based on robust min-max normalized sensor gene expression:
 ### 4. Communication Score
 Communication score is the geometric mean of metabolite availability and sensor score:
 ```
-communication_score = sqrt(metabolite_availability * sensor_score)
+cell_mesh_score = sqrt(metabolite_availability * sensor_score)
 ```
 Events are matched by `hmdb_id` on both the sender availability side and receiver sensor side. Prior rows without `hmdb_id` are excluded before event construction.
 
@@ -47,17 +50,53 @@ Sensors are categorized into three types based on the `Annotation` column in `in
 
 Permutation p-values and FDR are computed separately within each sensor type.
 
-## Included Databases
-The package includes built-in prior databases:
-- `cellmesh/data/enzyme_test.csv`: enzyme/reaction/metabolite table
-- `cellmesh/data/interaction_test.csv`: metabolite-receptor/sensor interaction table (with `HMDB_ID`, `Gene_name`, `Annotation` columns)
+## Included Data
+The package includes built-in prior databases and a small AnnData example file:
 
-These are automatically loaded if not explicitly provided.
+- `cellmesh/data/Enzyme1.0.csv`: versioned enzyme/reaction/metabolite table
+- `cellmesh/data/Interaction1.0.csv`: versioned metabolite-sensor interaction table
+- `cellmesh/data/enzyme_test.csv`: legacy small enzyme prior used for compatibility tests
+- `cellmesh/data/interaction_test.csv`: legacy small sensor prior used for compatibility tests
+- `cellmesh/data/Enzyme_new.csv`: walkthrough/test enzyme prior
+- `cellmesh/data/test_single_cell.h5ad`: walkthrough/test single-cell data
+
+`load_cell_mesh_database()` automatically loads the highest packaged enzyme file
+named `Enzyme<version>.csv` and the highest packaged interaction file named
+`Interaction<version>.csv` if file paths are not explicitly provided. The two
+version numbers do not need to match: if the highest enzyme prior is
+`Enzyme1.2.csv` and the highest interaction prior is `Interaction2.2.csv`, those
+two files are selected together. With the current packaged files, the default is
+`Enzyme1.0.csv` and `Interaction1.0.csv`. If no versioned files are available,
+the loader falls back to the legacy `enzyme_test.csv` / `interaction_test.csv`
+pair. The comprehensive walkthrough notebook uses `Enzyme_new.csv`,
+`Interaction1.0.csv`, and `test_single_cell.h5ad` so its calculations are fully
+reproducible from packaged files.
 
 ## Install
 
+From a local checkout:
+
 ```bash
 pip install -e .
+```
+
+For running the walkthrough notebook:
+
+```bash
+pip install -e ".[notebook]"
+```
+
+For development and tests:
+
+```bash
+pip install -e ".[dev]"
+pytest -q
+```
+
+10X directory loading uses Scanpy and can be enabled with:
+
+```bash
+pip install -e ".[scanpy]"
 ```
 
 ## Basic Usage
@@ -127,14 +166,18 @@ print(metabolite_sensor.head())
 metabolite, hmdb_id, gene, role, weight, evidence_level, source, reaction
 ```
 
-### Sensor Table Columns (from interaction_test.csv)
+`compute_metabolite_availability()` also accepts this standard
+`enzyme_metabolite` schema directly. Legacy direction-style inputs are only
+kept as a compatibility path for low-level availability tests.
+
+### Sensor Table Columns (from interaction_test.csv / Interaction1.0.csv)
 ```
 ID, HMDB_ID, standard_metName, Gene_name, Protein_name, Annotation, Database source, Reference
 ```
 
 ## Supported Sensor Types
 
-From the `Annotation` column in `interaction_test.csv`:
+From the `Annotation` column in the packaged interaction CSV:
 - `Cell surface receptor`
 - `Transporter`
 - `Other receptor` (includes nuclear receptors, intracellular sensors, and other annotations)
@@ -146,10 +189,10 @@ Contains one row per communication event. Important columns:
 - `sender`, `receiver`: Cell type pair
 - `metabolite`, `hmdb_id`: Metabolite information
 - `sensor_gene`, `sensor_type`: Sensor information (sensor_type is one of "Cell surface receptor", "Transporter", "Other receptor")
-- `sender_score` / `metabolite_availability`: Metabolite availability in sender cell type [0, 1]
-- `receiver_score` / `sensor_score`: Robust min-max normalized sensor expression in receiver cell type [0, 1]
+- `metabolite_availability`: Metabolite availability in sender cell type [0, 1]
+- `sensor_score`: Robust min-max normalized sensor expression in receiver cell type [0, 1]
 - `sensor_expr_frac`: Fraction of cells in receiver cell type expressing the sensor gene
-- `cell_mesh_score` / `communication_score`: Geometric mean of availability and sensor score [0, 1]
+- `cell_mesh_score`: Geometric mean of availability and sensor score [0, 1]
 - `perm_pvalue`, `fdr`: Empirical p-value and FDR (computed separately within each sensor type)
 - `confidence_tier`: Confidence classification (`Tier1_high`, `Tier2_medium`, `Tier3_exploratory`)
 

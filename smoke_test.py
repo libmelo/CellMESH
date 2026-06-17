@@ -74,15 +74,15 @@ if not avail.empty:
 if not res.events.empty:
     print(f"  事件前 5 行:")
     display_cols = ['sender', 'receiver', 'metabolite', 'sensor_gene', 'sensor_type', 
-                   'communication_score', 'sensor_expr_frac', 'perm_pvalue', 'fdr']
+                   'cell_mesh_score', 'sensor_expr_frac', 'perm_pvalue', 'fdr']
     available_cols = [c for c in display_cols if c in res.events.columns]
     print(res.events[available_cols].head())
     
     # 检查 score 范围
-    min_score = res.events['communication_score'].min()
-    max_score = res.events['communication_score'].max()
-    print(f"  communication_score 范围: [{min_score:.4f}, {max_score:.4f}] (预期在 0-1 之间)")
-    assert 0 <= min_score <= 1 and 0 <= max_score <= 1, "communication_score 超出 0-1 范围"
+    min_score = res.events['cell_mesh_score'].min()
+    max_score = res.events['cell_mesh_score'].max()
+    print(f"  cell_mesh_score 范围: [{min_score:.4f}, {max_score:.4f}] (预期在 0-1 之间)")
+    assert 0 <= min_score <= 1 and 0 <= max_score <= 1, "cell_mesh_score 超出 0-1 范围"
     
     # 检查 sensor_expr_frac 存在
     assert 'sensor_expr_frac' in res.events.columns, "缺少 sensor_expr_frac 列"
@@ -92,15 +92,15 @@ if not res.events.empty:
     sensor_types = res.events['sensor_type'].unique()
     print(f"  检测到的 sensor types: {list(sensor_types)}")
     
-    # 验证 communication score 是几何均值
+    # 验证 cell_mesh_score 是几何均值
     # 检查一些样本
     sample = res.events.iloc[0]
-    avail_score = sample['sender_score']
+    avail_score = sample['metabolite_availability']
     sensor_score = sample['sensor_score']
     expected = np.sqrt(avail_score * sensor_score)
-    actual = sample['communication_score']
+    actual = sample['cell_mesh_score']
     print(f"  几何均值验证: sqrt({avail_score:.4f} * {sensor_score:.4f}) = {expected:.4f} (实际: {actual:.4f})")
-    assert np.isclose(expected, actual), "communication score 不是几何均值"
+    assert np.isclose(expected, actual), "cell_mesh_score 不是几何均值"
 
 # 5. 检查参数是否正确
 print("\n5. 参数检查:")

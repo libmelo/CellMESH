@@ -22,8 +22,9 @@ from cellmesh import (
     read_anndata,
     read_example_data,
 )
-from cellmesh.core import _confidence_tier, _enzyme_prior_to_availability_reactions
-from cellmesh.preprocess import robust_minmax
+from cellmesh.core import _confidence_tier
+from cellmesh.database import validate_priors
+from cellmesh.score import robust_minmax
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -50,23 +51,24 @@ def _copy_adata(adata, X=None):
 
 
 def _availability_case(adata):
-    reaction_table = pd.DataFrame(
+    enzyme_prior = pd.DataFrame(
         {
             "metabolite": ["MetA", "MetA", "MetA", "MetB", "MetB", "MetC"],
             "hmdb_id": ["HMDB00001", "HMDB00001", "HMDB00001", "HMDB00002", "HMDB00002", "HMDB00003"],
             "reaction": ["r_prod_1", "r_prod_2", "r_sub_1", "r_prod_1", "r_exp_1", "r_sub_only"],
             "gene": ["Gene1", "Gene2;Gene3", "Gene4", "Gene5", "Gene6", "Gene7"],
-            "direction": ["product", "product", "substrate", "product", "exporter", "substrate"],
+            "role": ["production", "production", "degradation", "production", "export", "degradation"],
             "weight": [1.0, 2.0, 1.0, 1.0, 1.5, 1.0],
         }
     )
-    return compute_metabolite_availability(adata, reaction_table, min_cells=1, return_intermediates=True), reaction_table
+    return compute_metabolite_availability(adata, enzyme_prior, min_cells=1, return_intermediates=True), enzyme_prior
 
 
-def _manual_pce(result, reaction_table):
+def _manual_pce(result, enzyme_prior):
     pseudobulk = result["pseudobulk"]
+    direction_map = {"production": "product", "degradation": "substrate", "export": "exporter"}
     rows = []
-    for _, rr in reaction_table.iterrows():
+    for _, rr in enzyme_prior.iterrows():
         genes = [g.split("[")[0].strip() for g in str(rr["gene"]).replace(",", ";").replace("|", ";").split(";") if g.strip()]
         valid = [g for g in genes if g in pseudobulk.columns]
         if valid:
@@ -78,7 +80,7 @@ def _manual_pce(result, reaction_table):
             {
                 "metabolite": rr["metabolite"],
                 "hmdb_id": rr["hmdb_id"],
-                "direction": rr["direction"],
+                "direction": direction_map[rr["role"]],
                 "score": pd.Series(score, index=pseudobulk.index),
             }
         )
@@ -94,6 +96,34 @@ def _manual_pce(result, reaction_table):
         target = {"product": P, "substrate": C, "exporter": E}[row["direction"]]
         target.loc[key] += row["score"]
     return P, C, E
+
+
+def test_validate_priors_filters_invalid_rows():
+    enzyme = pd.DataFrame(
+        {
+            "metabolite": ["M1", "M2", "M3", "M4"],
+            "hmdb_id": ["HMDB00001", np.nan, "HMDB00003", "HMDB00004"],
+            "gene": ["Gene1", "Gene1", "MissingGene", "Gene2"],
+            "role": ["production", "production", "production", "invalid"],
+        }
+    )
+    sensor = pd.DataFrame(
+        {
+            "metabolite": ["M1", "M2", "M3", "M4"],
+            "hmdb_id": ["HMDB00001", np.nan, "HMDB00003", "HMDB00004"],
+            "sensor_gene": ["Gene2", "Gene2", "MissingSensor", "Gene1"],
+            "sensor_type": ["Transporter", "Transporter", "Transporter", "invalid"],
+        }
+    )
+
+    enzyme_prior, sensor_prior = validate_priors(enzyme, sensor, ["Gene1", "Gene2"])
+
+    assert enzyme_prior[["metabolite", "hmdb_id", "gene", "role"]].to_dict("records") == [
+        {"metabolite": "M1", "hmdb_id": "HMDB00001", "gene": "Gene1", "role": "production"}
+    ]
+    assert sensor_prior[["metabolite", "hmdb_id", "sensor_gene", "sensor_type"]].to_dict("records") == [
+        {"metabolite": "M1", "hmdb_id": "HMDB00001", "sensor_gene": "Gene2", "sensor_type": "Transporter"}
+    ]
 
 
 @pytest.fixture
@@ -138,14 +168,14 @@ def enzyme_interaction(enzyme_file, interaction_file):
 
 
 @pytest.fixture
-def reaction_table(enzyme_interaction):
+def enzyme_prior(enzyme_interaction):
     enzyme_df, _ = enzyme_interaction
-    return _enzyme_prior_to_availability_reactions(enzyme_df)
+    return enzyme_df
 
 
 @pytest.fixture
-def availability_result(real_adata, reaction_table):
-    return compute_metabolite_availability(real_adata, reaction_table, min_cells=1, return_intermediates=True)
+def availability_result(real_adata, enzyme_prior):
+    return compute_metabolite_availability(real_adata, enzyme_prior, min_cells=1, return_intermediates=True)
 
 
 @pytest.fixture
@@ -183,7 +213,7 @@ def synthetic_adata():
 class TestMetaboliteAvailability:
     """TC-A1 ~ TC-A7, TC-A10。"""
 
-    def test_tc_a1_basic_availability_real_data(self, real_adata, reaction_table, availability_result):
+    def test_tc_a1_basic_availability_real_data(self, real_adata, enzyme_prior, availability_result):
         availability = availability_result["availability"]
         n_celltypes = real_adata.obs["cell_type"].astype(str).nunique()
         assert not availability.empty
@@ -250,12 +280,29 @@ class TestMetaboliteAvailability:
                 "hmdb_id": ["HMDB9", "HMDB8"],
                 "reaction": ["sub", "prod"],
                 "gene": ["Gene1", "Gene2"],
-                "direction": ["substrate", "product"],
+                "role": ["degradation", "production"],
             }
         )
         result = compute_metabolite_availability(synthetic_adata, reactions, min_cells=1, return_intermediates=True)
         assert "OnlyConsumed" not in result["availability"].index.get_level_values("metabolite")
         assert "Produced" in result["availability"].index.get_level_values("metabolite")
+
+    def test_tc_a8_public_availability_accepts_enzyme_prior_roles(self, synthetic_adata):
+        enzyme = pd.DataFrame(
+            {
+                "metabolite": ["MetA", "MetA", "MetA"],
+                "hmdb_id": ["HMDB00001", "HMDB00001", "HMDB00001"],
+                "reaction": ["prod", "sub", "exp"],
+                "gene": ["Gene1", "Gene4", "Gene6"],
+                "role": ["production", "degradation", "export"],
+            }
+        )
+        result = compute_metabolite_availability(synthetic_adata, enzyme, min_cells=1, lower=0, upper=100, return_intermediates=True)
+        idx = ("MetA", "HMDB00001")
+        assert idx in result["availability"].index
+        assert result["metadata"].loc[idx, "has_product"]
+        assert result["metadata"].loc[idx, "has_substrate"]
+        assert result["metadata"].loc[idx, "has_exporter"]
 
     def test_tc_a10_dense_sparse_equivalence(self, synthetic_adata):
         dense_result, reactions = _availability_case(synthetic_adata)
@@ -274,16 +321,14 @@ class TestSensorScore:
         for _, row in receiver_scores.sample(min(5, len(receiver_scores)), random_state=0).iterrows():
             expected = robust_minmax(pseudobulk[row["sensor_gene"]].values)[pseudobulk.index.get_loc(row["receiver"])]
             expected = float(expected) if row["sensor_expr_frac"] >= full_result.parameters["min_expr_frac"] else 0.0
-            observed = row.get("sensor_score", row.get("receiver_score"))
-            assert np.isclose(observed, expected, atol=1e-6)
+            assert np.isclose(row["sensor_score"], expected, atol=1e-6)
 
     def test_tc_a9_min_expr_frac_cutoff(self, full_result):
         scores = full_result.receiver_scores
         low = scores[scores["sensor_expr_frac"] < full_result.parameters["min_expr_frac"]]
         if low.empty:
             pytest.skip("No receiver rows below min_expr_frac in this fixture")
-        score_col = "receiver_score" if "receiver_score" in low.columns else "sensor_score"
-        assert (low[score_col] == 0.0).all()
+        assert (low["sensor_score"] == 0.0).all()
 
 
 class TestCellMeshScore:
@@ -298,14 +343,15 @@ class TestCellMeshScore:
             "metabolite",
             "sensor_gene",
             "sensor_type",
-            "sender_score",
-            "receiver_score",
+            "metabolite_availability",
+            "sensor_score",
             "cell_mesh_score",
-            "communication_score",
             "sensor_expr_frac",
             "confidence_tier",
         }
         assert required.issubset(full_result.events.columns)
+        removed_aliases = {"sender_score", "receiver_score", "communication_score"}
+        assert removed_aliases.isdisjoint(full_result.events.columns)
         n_metabolites = full_result.availability_results["availability"].shape[0]
         n_celltypes = real_adata.obs["cell_type"].astype(str).nunique()
         assert full_result.sender_scores.shape == (n_metabolites, n_celltypes)
@@ -313,12 +359,8 @@ class TestCellMeshScore:
 
     def test_tc_b2_cell_mesh_score_formula(self, full_result):
         events = full_result.events
-        if "prior_weight" in events.columns:
-            expected = events["sender_score"] * events["receiver_score"] * events["prior_weight"]
-        else:
-            expected = np.sqrt(events["sender_score"] * events["receiver_score"])
+        expected = np.sqrt(events["metabolite_availability"] * events["sensor_score"])
         assert np.allclose(events["cell_mesh_score"], expected, atol=1e-10)
-        assert np.allclose(events["communication_score"], expected, atol=1e-10)
 
     def test_tc_b3_sender_scores_from_availability(self, full_result):
         availability = full_result.availability_results["availability"].copy()
@@ -339,7 +381,7 @@ class TestCellMeshScore:
         sensor = pd.DataFrame({"metabolite": ["M"], "hmdb_id": ["H"], "sensor_gene": ["Gene2"], "sensor_type": ["Transporter"]})
         result = run_cell_mesh(adata, enzyme, sensor, cell_type_key="cell_type", min_cells=1, allow_self=False, n_perms=0)
         assert result.events.empty
-        assert {"sender", "receiver", "communication_score", "confidence_tier"}.issubset(result.events.columns)
+        assert {"sender", "receiver", "cell_mesh_score", "confidence_tier"}.issubset(result.events.columns)
 
     def test_tc_b4c_events_match_metabolite_and_hmdb(self):
         adata = FakeAnnData(
@@ -397,10 +439,10 @@ class TestCellMeshScore:
 
     def test_tc_b5_confidence_tier_rules(self):
         cases = [
-            ({"fdr": 0.04, "communication_score": 0.6, "sensor_expr_frac": 0.2}, "Tier1_high"),
-            ({"fdr": 0.09, "communication_score": 0.3, "sensor_expr_frac": 0.0}, "Tier2_medium"),
-            ({"fdr": np.nan, "communication_score": 0.6, "sensor_expr_frac": 0.2}, "Tier2_no_permutation"),
-            ({"fdr": 0.5, "communication_score": 0.1, "sensor_expr_frac": 0.0}, "Tier3_exploratory"),
+            ({"fdr": 0.04, "cell_mesh_score": 0.6, "sensor_expr_frac": 0.2}, "Tier1_high"),
+            ({"fdr": 0.09, "cell_mesh_score": 0.3, "sensor_expr_frac": 0.0}, "Tier2_medium"),
+            ({"fdr": np.nan, "cell_mesh_score": 0.6, "sensor_expr_frac": 0.2}, "Tier2_no_permutation"),
+            ({"fdr": 0.5, "cell_mesh_score": 0.1, "sensor_expr_frac": 0.0}, "Tier3_exploratory"),
         ]
         for row, expected in cases:
             assert _confidence_tier(pd.Series(row)) == expected

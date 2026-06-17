@@ -12,23 +12,38 @@ where \(c_s\) is the sender cell group, \(c_r\) is the receiver cell group, \(m\
 
 ## Packaged database
 
-This version packages two uploaded CSV files:
+This version packages versioned prior CSV files plus fixed walkthrough/test files:
 
-1. `enzyme_test.csv`: metabolite-enzyme-reaction table
-2. `interaction_test.csv`: metabolite-sensor interaction table
+1. `Enzyme1.0.csv`: versioned metabolite-enzyme-reaction table
+2. `Interaction1.0.csv`: versioned metabolite-sensor interaction table
+3. `enzyme_test.csv`: legacy small enzyme prior used for compatibility tests
+4. `interaction_test.csv`: legacy small sensor prior used for compatibility tests
+5. `Enzyme_new.csv`: walkthrough/test enzyme prior
+6. `test_single_cell.h5ad`: walkthrough/test single-cell data
 
-At runtime, `load_cell_mesh_database()` normalizes these files into:
+At runtime, `load_cell_mesh_database()` independently selects the highest
+packaged enzyme file named `Enzyme<version>.csv` and the highest packaged
+interaction file named `Interaction<version>.csv`, then normalizes the selected
+prior files into:
 
 - `enzyme_metabolite`
 - `metabolite_sensor`
 
 Both priors must provide `hmdb_id`. Records without `hmdb_id` are excluded before scoring, and sender availability is matched to receiver sensors by exact `(metabolite, hmdb_id)`.
 
-The enzyme table maps reaction directions into the three enzyme roles used by the availability model:
+The normalized `enzyme_metabolite` table is the canonical enzyme prior passed through `run_cell_mesh()`. It uses three roles:
+
+- `production`
+- `degradation`
+- `export`
+
+Packaged enzyme files that contain reaction directions are normalized into these roles during `load_cell_mesh_database()`:
 
 - `product` -> `production`
 - `substrate` -> `degradation`
 - `exporter` -> `export`
+
+Availability scoring then maps those roles back to internal P/C/E directions. This is an internal normalization step, not a separate public reaction-table API.
 
 The interaction table maps annotations to the three supported sensor classes:
 
@@ -91,7 +106,7 @@ R_{m,s,c_r} \in [0, 1]
 \sqrt{A_{m,c_s} R_{m,s,c_r}}
 \]
 
-In the output table this is stored as `cell_mesh_score`. The column `communication_score` is also retained as a backward-compatible alias.
+In the output table this is stored as `cell_mesh_score`.
 
 ## Permutation testing
 

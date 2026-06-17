@@ -10,14 +10,15 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [{name = "CELL MESH developers"}]
-dependencies = ["numpy", "pandas", "scipy"]
+dependencies = ["numpy", "pandas", "scipy", "anndata"]
 
 [project.optional-dependencies]
-anndata = ["anndata", "scipy"]
-dev = ["pytest", "anndata", "scipy", "scikit-learn"]
+scanpy = ["scanpy"]
+notebook = ["matplotlib", "ipykernel", "notebook"]
+dev = ["pytest", "matplotlib"]
 
 [tool.setuptools.packages.find]
 include = ["cellmesh*"]
 
 [tool.setuptools.package-data]
-"cellmesh.data" = ["*.csv"]
+"cellmesh.data" = ["*.csv", "*.h5ad"]
