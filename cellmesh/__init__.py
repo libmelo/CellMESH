@@ -5,7 +5,7 @@ CELL MESH: Metabolite-mediated Event Scoring with Sensor Hierarchies.
 from .core import CellMeshResult, run_cell_mesh
 from .database import load_cell_mesh_database, load_default_priors
 from .io import read_anndata, read_example_data
-from .score import compute_metabolite_availability
+from .score import bounded_median_contrast, compute_metabolite_availability
 from .config import MIN_CELL_COUNT, DATA_DIR
 
 __version__ = "0.4.0"
@@ -15,6 +15,7 @@ __all__ = [
     "load_cell_mesh_database",
     "load_default_priors",
     "compute_metabolite_availability",
+    "bounded_median_contrast",
     "read_anndata",
     "read_example_data",
     "MIN_CELL_COUNT",

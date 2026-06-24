@@ -5,7 +5,6 @@ CellMESH Comprehensive Tests
 """
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 
 import numpy as np
@@ -24,7 +23,7 @@ from cellmesh import (
 )
 from cellmesh.core import _confidence_tier
 from cellmesh.database import validate_priors
-from cellmesh.score import robust_minmax
+from cellmesh.score import bounded_median_contrast
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -219,21 +218,21 @@ class TestMetaboliteAvailability:
         assert not availability.empty
         assert availability.shape == (availability.index.nunique(), n_celltypes)
         assert np.nanmin(availability.values) >= 0.0
-        assert np.nanmax(availability.values) <= 1.0
-        for key in ["P_norm", "C_norm", "E_norm"]:
+        assert np.nanmax(availability.values) <= 2.0
+        for key in ["P_contrast", "C_contrast", "E_contrast"]:
             values = availability_result[key].values
-            assert np.nanmin(values) >= 0.0
+            assert np.nanmin(values) >= -1.0
             assert np.nanmax(values) <= 1.0
         assert availability_result["pseudobulk"].shape == (n_celltypes, real_adata.n_vars)
         assert availability_result["metadata"]["has_product"].all()
 
     def test_tc_a2_availability_formula(self, availability_result):
         expected = (
-            availability_result["P_norm"]
-            * ((1.0 - availability_result["C_norm"]) ** 0.5)
-            * (0.8 + 0.2 * availability_result["E_norm"])
+            availability_result["P_plus"]
+            * (1.0 + availability_result["E_plus"])
+            * (1.0 - availability_result["relative_consumption_support"])
         )
-        pd.testing.assert_frame_equal(availability_result["availability"], expected.clip(0.0, 1.0), atol=1e-10, rtol=0)
+        pd.testing.assert_frame_equal(availability_result["availability"], expected, atol=1e-10, rtol=0)
 
     def test_tc_a3_pce_direction_aggregation(self, synthetic_adata):
         result, reactions = _availability_case(synthetic_adata)
@@ -250,28 +249,22 @@ class TestMetaboliteAvailability:
         observed = result["P"].loc[("MetA", "HMDB00001")] - pseudobulk["Gene1"]
         assert np.allclose(observed.values, expected, atol=1e-10)
 
-    def test_tc_a5_robust_minmax_manual(self, availability_result):
+    def test_tc_a5_bounded_median_contrast_manual(self, availability_result):
         P = availability_result["P"]
         manual = pd.DataFrame(index=P.index, columns=P.columns, dtype=float)
         for idx in P.index:
             values = P.loc[idx].to_numpy(dtype=float)
-            lo = np.nanpercentile(values, 5)
-            hi = np.nanpercentile(values, 95)
-            if np.isclose(hi, lo, rtol=1e-5):
-                norm = np.zeros_like(values)
-            else:
-                norm = np.clip((np.clip(values, lo, hi) - lo) / (hi - lo + 0.05), 0.0, 1.0)
-            manual.loc[idx] = norm
-        pd.testing.assert_frame_equal(availability_result["P_norm"], manual.astype(float), atol=1e-10, rtol=0)
+            manual.loc[idx] = bounded_median_contrast(values)
+        pd.testing.assert_frame_equal(availability_result["P_contrast"], manual.astype(float), atol=1e-10, rtol=0)
 
     def test_tc_a6_missing_substrate_exporter_defaults(self, availability_result):
         metadata = availability_result["metadata"]
         no_substrate = metadata.index[~metadata["has_substrate"]]
         no_exporter = metadata.index[~metadata["has_exporter"]]
         if len(no_substrate):
-            assert np.allclose(availability_result["C_norm"].loc[no_substrate].values, 0.2)
+            assert np.allclose(availability_result["relative_consumption_support"].loc[no_substrate].values, 0.0)
         if len(no_exporter):
-            assert np.allclose(availability_result["E_norm"].loc[no_exporter].values, 0.5)
+            assert np.allclose(availability_result["E_plus"].loc[no_exporter].values, 0.0)
 
     def test_tc_a7_metabolite_without_product_is_filtered(self, synthetic_adata):
         reactions = pd.DataFrame(
@@ -297,7 +290,7 @@ class TestMetaboliteAvailability:
                 "role": ["production", "degradation", "export"],
             }
         )
-        result = compute_metabolite_availability(synthetic_adata, enzyme, min_cells=1, lower=0, upper=100, return_intermediates=True)
+        result = compute_metabolite_availability(synthetic_adata, enzyme, min_cells=1, return_intermediates=True)
         idx = ("MetA", "HMDB00001")
         assert idx in result["availability"].index
         assert result["metadata"].loc[idx, "has_product"]
@@ -319,16 +312,14 @@ class TestSensorScore:
         assert not receiver_scores.empty
         pseudobulk = full_result.availability_results["pseudobulk"]
         for _, row in receiver_scores.sample(min(5, len(receiver_scores)), random_state=0).iterrows():
-            expected = robust_minmax(pseudobulk[row["sensor_gene"]].values)[pseudobulk.index.get_loc(row["receiver"])]
-            expected = float(expected) if row["sensor_expr_frac"] >= full_result.parameters["min_expr_frac"] else 0.0
+            expected = np.maximum(
+                0.0,
+                bounded_median_contrast(pseudobulk[row["sensor_gene"]].values),
+            )[pseudobulk.index.get_loc(row["receiver"])]
             assert np.isclose(row["sensor_score"], expected, atol=1e-6)
 
     def test_tc_a9_min_expr_frac_cutoff(self, full_result):
-        scores = full_result.receiver_scores
-        low = scores[scores["sensor_expr_frac"] < full_result.parameters["min_expr_frac"]]
-        if low.empty:
-            pytest.skip("No receiver rows below min_expr_frac in this fixture")
-        assert (low["sensor_score"] == 0.0).all()
+        assert full_result.parameters["min_expr_frac"] is None
 
 
 class TestCellMeshScore:
@@ -413,7 +404,7 @@ class TestCellMeshScore:
                 "sensor_type": ["Transporter"],
             }
         )
-        result = run_cell_mesh(adata, enzyme, sensor, cell_type_key="cell_type", min_cells=1, lower=0, upper=100, n_perms=0)
+        result = run_cell_mesh(adata, enzyme, sensor, cell_type_key="cell_type", min_cells=1, n_perms=0)
         assert set(result.events["hmdb_id"]) == {"H2"}
         assert (result.events["metabolite"] == "M").all()
 
@@ -471,22 +462,13 @@ class TestCellMeshScore:
 
     def test_tc_b9_parameter_passing_and_availability_formula(self, real_adata, enzyme_interaction):
         enzyme_df, interaction_df = enzyme_interaction
-        kwargs = {
-            "beta": 1.0,
-            "missing_C_norm": 0.41,
-            "missing_E_norm": 0.75,
-        }
-        sig = inspect.signature(run_cell_mesh)
-        if "beta_sensor" in sig.parameters:
-            kwargs["beta_sensor"] = 2.0
-        if "beta_specificity" in sig.parameters:
-            kwargs["beta_specificity"] = 0.5
+        kwargs = {"eps_num": 1e-10}
         result = run_cell_mesh(real_adata, enzyme_df, interaction_df, cell_type_key="cell_type", n_perms=0, min_cells=1, **kwargs)
         for key, value in kwargs.items():
             assert result.parameters[key] == value
         avail = result.availability_results
-        expected = avail["P_norm"] * ((1 - avail["C_norm"]) ** kwargs["beta"]) * (0.8 + 0.2 * avail["E_norm"])
-        pd.testing.assert_frame_equal(avail["availability"], expected.clip(0, 1), atol=1e-10, rtol=0)
+        expected = avail["P_plus"] * (1 + avail["E_plus"]) * (1 - avail["relative_consumption_support"])
+        pd.testing.assert_frame_equal(avail["availability"], expected, atol=1e-10, rtol=0)
 
     def test_tc_b10_result_save_load(self, tmp_path, full_result):
         prefix = tmp_path / "test_result"

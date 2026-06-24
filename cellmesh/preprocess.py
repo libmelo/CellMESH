@@ -19,6 +19,23 @@ def _as_1d_array(x) -> np.ndarray:
     return np.asarray(x).ravel()
 
 
+def _eligible_celltype_counts(
+    adata,
+    celltype_col: str = "cell_type",
+    min_cells: int = MIN_CELL_COUNT,
+) -> pd.Series:
+    """Return cell counts for cell types eligible for formal analysis."""
+    if celltype_col not in adata.obs:
+        raise KeyError(f"{celltype_col!r} not found in adata.obs")
+
+    labels = adata.obs[celltype_col].astype(str)
+    group_counts = labels.value_counts()
+    eligible = group_counts[group_counts >= min_cells]
+    if eligible.empty:
+        raise ValueError(f"No cell types with at least {min_cells} cells")
+    return eligible.astype(int)
+
+
 def _build_celltype_pseudobulk(
     adata,
     celltype_col: str = "cell_type",
@@ -28,17 +45,11 @@ def _build_celltype_pseudobulk(
     """
     构建细胞类型的 pseudobulk 表达矩阵
     """
-    if celltype_col not in adata.obs:
-        raise KeyError(f"{celltype_col!r} not found in adata.obs")
-
     X = adata.layers[layer] if layer is not None else adata.X
     genes = pd.Index(adata.var_names).astype(str)
     labels = adata.obs[celltype_col].astype(str)
 
-    group_counts = labels.value_counts()
-    valid_groups = group_counts[group_counts >= min_cells].index.tolist()
-    if not valid_groups:
-        raise ValueError(f"No cell types with at least {min_cells} cells")
+    valid_groups = _eligible_celltype_counts(adata, celltype_col, min_cells).index.tolist()
 
     pseudobulk = []
     group_names = []
@@ -59,17 +70,11 @@ def _compute_celltype_expr_frac(
     """
     计算每个基因在每个细胞类型中的表达比例（表达>0的细胞比例）
     """
-    if celltype_col not in adata.obs:
-        raise KeyError(f"{celltype_col!r} not found in adata.obs")
-
     X = adata.layers[layer] if layer is not None else adata.X
     genes = pd.Index(adata.var_names).astype(str)
     labels = adata.obs[celltype_col].astype(str)
 
-    group_counts = labels.value_counts()
-    valid_groups = group_counts[group_counts >= min_cells].index.tolist()
-    if not valid_groups:
-        raise ValueError(f"No cell types with at least {min_cells} cells")
+    valid_groups = _eligible_celltype_counts(adata, celltype_col, min_cells).index.tolist()
 
     expr_frac = []
     group_names = []

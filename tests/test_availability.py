@@ -9,7 +9,6 @@ from cellmesh import (
     compute_metabolite_availability
 )
 from cellmesh.config import MIN_CELL_COUNT
-from cellmesh.config import METABOLITE_AVAILABILITY_DEFAULTS
 
 
 class FakeAnnData:
@@ -18,28 +17,6 @@ class FakeAnnData:
         self.layers = {}
         self.var_names = pd.Index(var_names)
         self.obs = pd.DataFrame(obs)
-
-
-def test_robust_minmax():
-    """测试 robust minmax 函数"""
-    from cellmesh.score import robust_minmax
-    
-    # 测试正常情况
-    x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    result = robust_minmax(x, lower=10, upper=90)
-    assert len(result) == len(x)
-    assert result.min() >= 0
-    assert result.max() <= 1
-    
-    # 测试常数数组
-    x = np.array([5, 5, 5, 5, 5])
-    result = robust_minmax(x)
-    assert np.all(result == 0)
-    
-    # 测试包含 NaN 的情况
-    x = np.array([1, 2, np.nan, 4, 5])
-    result = robust_minmax(x)
-    assert not np.any(np.isnan(result))
 
 
 def test_compute_metabolite_availability():
@@ -79,8 +56,6 @@ def test_compute_metabolite_availability():
         adata,
         enzyme_metabolite,
         celltype_col='cell_type',
-        lower=0,  # 因为样本量小，使用全部数据
-        upper=100,
         min_cells=1,
         return_intermediates=True
     )
@@ -90,9 +65,9 @@ def test_compute_metabolite_availability():
     assert 'P' in result
     assert 'C' in result
     assert 'E' in result
-    assert 'P_norm' in result
-    assert 'C_norm' in result
-    assert 'E_norm' in result
+    assert 'P_contrast' in result
+    assert 'C_contrast' in result
+    assert 'E_contrast' in result
     assert 'metadata' in result
     
     availability = result['availability']
@@ -103,12 +78,12 @@ def test_compute_metabolite_availability():
     metc_idx = ('MetC', 'HMDB003')
     assert metc_idx in availability.index
     assert np.allclose(
-        result['C_norm'].loc[metc_idx].values,
-        METABOLITE_AVAILABILITY_DEFAULTS["missing_C_norm"],
+        result['relative_consumption_support'].loc[metc_idx].values,
+        0.0,
     )
     assert np.allclose(
-        result['E_norm'].loc[metc_idx].values,
-        METABOLITE_AVAILABILITY_DEFAULTS["missing_E_norm"],
+        result['E_plus'].loc[metc_idx].values,
+        0.0,
     )
 
 
@@ -146,7 +121,7 @@ def test_compute_availability_excludes_missing_hmdb_rows():
         }
     )
 
-    result = compute_metabolite_availability(adata, enzyme_metabolite, min_cells=1, lower=0, upper=100)
+    result = compute_metabolite_availability(adata, enzyme_metabolite, min_cells=1)
 
     assert ("MissingHMDB", np.nan) not in result["availability"].index
     assert result["availability"].index.tolist() == [("ValidHMDB", "HMDB00001")]
@@ -191,12 +166,12 @@ def test_sparse_vs_dense():
     
     # 计算 dense 结果
     result_dense = compute_metabolite_availability(
-        adata_dense, enzyme_metabolite, lower=0, upper=100, min_cells=1
+        adata_dense, enzyme_metabolite, min_cells=1
     )
     
     # 计算 sparse 结果
     result_sparse = compute_metabolite_availability(
-        adata_sparse, enzyme_metabolite, lower=0, upper=100, min_cells=1
+        adata_sparse, enzyme_metabolite, min_cells=1
     )
     
     # 比较结果
@@ -253,7 +228,7 @@ def test_boundary_cases():
         {'cell_type': ['A', 'A']}
     )
     
-    result3 = compute_metabolite_availability(adata3, enzyme3, lower=0, upper=100, min_cells=1)
+    result3 = compute_metabolite_availability(adata3, enzyme3, min_cells=1)
     expected3 = gmean(np.array([10.0, 1.0, 0.5]) + 1.0) - 1.0
     assert result3['P'].loc[('MultiGene', 'HMDB002'), 'A'] == pytest.approx(expected3)
     
@@ -272,7 +247,7 @@ def test_boundary_cases():
         {'cell_type': ['A', 'A']}
     )
     
-    result4 = compute_metabolite_availability(adata4, enzyme4, lower=0, upper=100, min_cells=1)
+    result4 = compute_metabolite_availability(adata4, enzyme4, min_cells=1)
     assert result4['P'].loc[('MultiRx', 'HMDB003'), 'A'] == pytest.approx(8.0)
 
 
@@ -327,8 +302,6 @@ def test_run_cell_mesh_with_availability():
         cell_type_key="cell_type",
         min_cells=2,
         allow_self=False,
-        lower=0,
-        upper=100
     )
     
     assert not res.events.empty

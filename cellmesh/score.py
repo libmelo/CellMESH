@@ -17,35 +17,36 @@ from .config import (
     VALID_ROLES,
 )
 from .database import _valid_hmdb_mask
-from .preprocess import _build_celltype_pseudobulk, _compute_celltype_expr_frac
+from .preprocess import (
+    _build_celltype_pseudobulk,
+    _compute_celltype_expr_frac,
+    _eligible_celltype_counts,
+)
 
 
-def robust_minmax(
-    x: np.ndarray,
-    lower: float = 5,
-    upper: float = 95,
-    eps: float = 1e-8,
+def bounded_median_contrast(
+    values: np.ndarray,
+    eps: float = 1e-12,
 ) -> np.ndarray:
-    """
-    Robust min-max 标准化,结果范围在 [0, 1] 之间
-    """
-    x = np.asarray(x, dtype=float)
-    nan_mask = np.isnan(x)
+    """Compute bounded relative deviation from the finite-value median."""
+    x = np.asarray(values, dtype=float)
+    result = np.zeros_like(x, dtype=float)
+    finite = np.isfinite(x)
+    if not finite.any():
+        return result
 
-    if np.all(nan_mask):
-        return np.zeros_like(x)
+    finite_values = x[finite]
+    if np.all(finite_values == 0):
+        return result
+    if np.any(finite_values < 0):
+        raise ValueError("bounded_median_contrast only supports non-negative values")
 
-    lo = np.nanpercentile(x, lower)
-    hi = np.nanpercentile(x, upper)
-
-    if np.isclose(hi, lo, rtol=1e-5):
-        result = np.zeros_like(x)
-    else:
-        x_clip = np.clip(x, lo, hi)
-        result = (x_clip - lo) / (hi - lo + eps)
-        result = np.clip(result, 0.0, 1.0)
-
-    result[nan_mask] = 0.0
+    baseline = float(np.median(finite_values))
+    denominator = finite_values + baseline
+    valid = denominator > eps
+    contrasted = np.zeros_like(finite_values, dtype=float)
+    contrasted[valid] = (finite_values[valid] - baseline) / denominator[valid]
+    result[finite] = np.clip(contrasted, -1.0, 1.0)
     return result
 
 
@@ -54,20 +55,22 @@ def compute_sensor_scores(
     sensor_prior: pd.DataFrame,
     celltype_col: str = "cell_type",
     layer: Optional[str] = None,
-    lower: float = METABOLITE_AVAILABILITY_DEFAULTS["lower"],
-    upper: float = METABOLITE_AVAILABILITY_DEFAULTS["upper"],
-    min_expr_frac: float = MIN_EXPR_FRAC,
+    min_expr_frac: Optional[float] = MIN_EXPR_FRAC,
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
+    eps_num: float = METABOLITE_AVAILABILITY_DEFAULTS["eps_num"],
     pseudobulk: Optional[pd.DataFrame] = None,
     expr_frac: Optional[pd.DataFrame] = None,
+    cell_counts: Optional[pd.Series] = None,
 ) -> pd.DataFrame:
     """
-    计算 sensor scores: robust min-max 标准化的 sensor 基因表达
+    Compute receiver scores as positive median-relative sensor expression.
     """
     if pseudobulk is None:
         pseudobulk = _build_celltype_pseudobulk(adata, celltype_col, layer, min_cells)
     if expr_frac is None:
         expr_frac = _compute_celltype_expr_frac(adata, celltype_col, layer, min_cells)
+    if cell_counts is None:
+        cell_counts = _eligible_celltype_counts(adata, celltype_col, min_cells)
 
     valid_genes = [g for g in sensor_prior["sensor_gene"].unique() if g in pseudobulk.columns]
     if not valid_genes:
@@ -80,14 +83,15 @@ def compute_sensor_scores(
                 "receiver",
                 "sensor_score",
                 "sensor_expr_frac",
+                "receiver_n_cells",
             ]
         )
 
     sensor_gene_scores = {}
     for gene in valid_genes:
         expr_values = pseudobulk[gene].values
-        norm_scores = robust_minmax(expr_values, lower=lower, upper=upper)
-        sensor_gene_scores[gene] = pd.Series(norm_scores, index=pseudobulk.index)
+        contrast = bounded_median_contrast(expr_values, eps=eps_num)
+        sensor_gene_scores[gene] = pd.Series(np.maximum(0.0, contrast), index=pseudobulk.index)
 
     rows = []
     for _, row in sensor_prior.iterrows():
@@ -97,7 +101,9 @@ def compute_sensor_scores(
 
         for receiver in pseudobulk.index:
             frac = expr_frac.loc[receiver, gene]
-            score = sensor_gene_scores[gene].loc[receiver] if frac >= min_expr_frac else 0.0
+            score = sensor_gene_scores[gene].loc[receiver]
+            if min_expr_frac is not None and frac < min_expr_frac:
+                score = 0.0
 
             rows.append(
                 {
@@ -108,6 +114,7 @@ def compute_sensor_scores(
                     "receiver": receiver,
                     "sensor_score": score,
                     "sensor_expr_frac": frac,
+                    "receiver_n_cells": int(cell_counts.loc[receiver]),
                 }
             )
 
@@ -297,50 +304,45 @@ def _safe_hmdb_compare(row: pd.Series, met: str, hmdb: Optional[str]) -> bool:
     return str(row["hmdb_id"]) == str(hmdb)
 
 
-def _normalize_PCE(
+def _contrast_PCE(
     P: pd.DataFrame,
     C: pd.DataFrame,
     E: pd.DataFrame,
     reaction_genes: pd.DataFrame,
-    lower: float = 5,
-    upper: float = 95,
-    missing_C_norm: float = 0.2,
-    missing_E_norm: float = 0.5,
-    eps: float = 1e-8,
+    eps_num: float = 1e-12,
 ) -> Dict[str, pd.DataFrame]:
-    """
-    对 P, C, E 矩阵进行标准化，结果都在 [0, 1] 范围内
-    """
-    missing_C_norm = np.clip(missing_C_norm, 0.0, 1.0)
-    missing_E_norm = np.clip(missing_E_norm, 0.0, 1.0)
-
-    P_norm = pd.DataFrame(index=P.index, columns=P.columns, dtype=float)
-    C_norm = pd.DataFrame(missing_C_norm, index=P.index, columns=P.columns, dtype=float)
-    E_norm = pd.DataFrame(missing_E_norm, index=P.index, columns=P.columns, dtype=float)
+    """Compute P/C/E median contrasts and prior-aware sender factors."""
+    P_contrast = pd.DataFrame(index=P.index, columns=P.columns, dtype=float)
+    C_contrast = pd.DataFrame(0.0, index=P.index, columns=P.columns, dtype=float)
+    E_contrast = pd.DataFrame(0.0, index=P.index, columns=P.columns, dtype=float)
+    has_substrate = pd.Series(False, index=P.index, dtype=bool)
+    has_exporter = pd.Series(False, index=P.index, dtype=bool)
 
     for met_idx in P.index:
         met, hmdb = met_idx
+        P_contrast.loc[met_idx] = bounded_median_contrast(P.loc[met_idx].to_numpy(), eps=eps_num)
 
-        p_vals = P.loc[met_idx].values.flatten()
-        P_norm.loc[met_idx] = robust_minmax(p_vals, lower=lower, upper=upper, eps=eps)
-
-        has_substrate = any(
+        has_substrate.loc[met_idx] = any(
             _safe_hmdb_compare(row, met, hmdb) and row["direction"] == "substrate"
             for _, row in reaction_genes.iterrows()
         )
-        if has_substrate and met_idx in C.index:
-            c_vals = C.loc[met_idx].values.flatten()
-            C_norm.loc[met_idx] = robust_minmax(c_vals, lower=lower, upper=upper, eps=eps)
+        if has_substrate.loc[met_idx]:
+            C_contrast.loc[met_idx] = bounded_median_contrast(C.loc[met_idx].to_numpy(), eps=eps_num)
 
-        has_exporter = any(
+        has_exporter.loc[met_idx] = any(
             _safe_hmdb_compare(row, met, hmdb) and row["direction"] == "exporter"
             for _, row in reaction_genes.iterrows()
         )
-        if has_exporter and met_idx in E.index:
-            e_vals = E.loc[met_idx].values.flatten()
-            E_norm.loc[met_idx] = robust_minmax(e_vals, lower=lower, upper=upper, eps=eps)
+        if has_exporter.loc[met_idx]:
+            E_contrast.loc[met_idx] = bounded_median_contrast(E.loc[met_idx].to_numpy(), eps=eps_num)
 
-    return {"P_norm": P_norm, "C_norm": C_norm, "E_norm": E_norm}
+    return {
+        "P_contrast": P_contrast,
+        "C_contrast": C_contrast,
+        "E_contrast": E_contrast,
+        "has_substrate": has_substrate,
+        "has_exporter": has_exporter,
+    }
 
 
 def compute_metabolite_availability(
@@ -348,21 +350,16 @@ def compute_metabolite_availability(
     enzyme_metabolite: pd.DataFrame,
     celltype_col: str = "cell_type",
     layer: Optional[str] = None,
-    lower: float = METABOLITE_AVAILABILITY_DEFAULTS["lower"],
-    upper: float = METABOLITE_AVAILABILITY_DEFAULTS["upper"],
-    eps: float = METABOLITE_AVAILABILITY_DEFAULTS["eps"],
-    beta: float = METABOLITE_AVAILABILITY_DEFAULTS["beta"],
-    missing_C_norm: float = METABOLITE_AVAILABILITY_DEFAULTS["missing_C_norm"],
-    missing_E_norm: float = METABOLITE_AVAILABILITY_DEFAULTS["missing_E_norm"],
+    eps_num: float = METABOLITE_AVAILABILITY_DEFAULTS["eps_num"],
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
     return_intermediates: bool = True,
 ) -> Dict[str, Any]:
     """
-    计算代谢物 availability,结果范围在 [0, 1] 之间
+    Compute sender scores from median-relative P/C/E context.
     """
-    eps = max(eps, 1e-8)
-    beta = max(beta, 0.0)
+    eps_num = max(float(eps_num), np.finfo(float).eps)
 
+    cell_counts = _eligible_celltype_counts(adata, celltype_col, min_cells)
     pseudobulk = _build_celltype_pseudobulk(adata, celltype_col=celltype_col, layer=layer, min_cells=min_cells)
     expr_frac = _compute_celltype_expr_frac(adata, celltype_col=celltype_col, layer=layer, min_cells=min_cells)
 
@@ -381,11 +378,15 @@ def compute_metabolite_availability(
                     "P": pd.DataFrame(),
                     "C": pd.DataFrame(),
                     "E": pd.DataFrame(),
-                    "P_norm": pd.DataFrame(),
-                    "C_norm": pd.DataFrame(),
-                    "E_norm": pd.DataFrame(),
+                    "P_contrast": pd.DataFrame(),
+                    "C_contrast": pd.DataFrame(),
+                    "E_contrast": pd.DataFrame(),
+                    "P_plus": pd.DataFrame(),
+                    "relative_consumption_support": pd.DataFrame(),
+                    "E_plus": pd.DataFrame(),
                     "pseudobulk": pd.DataFrame(),
                     "expr_frac": pd.DataFrame(),
+                    "cell_counts": cell_counts,
                     "reaction_genes": pd.DataFrame(),
                 }
             )
@@ -395,48 +396,42 @@ def compute_metabolite_availability(
     C = C.reindex(valid_mets, fill_value=0.0)
     E = E.reindex(valid_mets, fill_value=0.0)
 
-    normalized = _normalize_PCE(
-        P,
-        C,
-        E,
-        reaction_genes,
-        lower=lower,
-        upper=upper,
-        missing_C_norm=missing_C_norm,
-        missing_E_norm=missing_E_norm,
-        eps=eps,
-    )
-    P_norm, C_norm, E_norm = normalized["P_norm"], normalized["C_norm"], normalized["E_norm"]
+    contrasted = _contrast_PCE(P, C, E, reaction_genes, eps_num=eps_num)
+    P_contrast = contrasted["P_contrast"]
+    C_contrast = contrasted["C_contrast"]
+    E_contrast = contrasted["E_contrast"]
+    P_plus = P_contrast.clip(lower=0.0)
+    C_plus = C_contrast.clip(lower=0.0)
+    E_plus = E_contrast.clip(lower=0.0)
 
-    availability = pd.DataFrame(index=P_norm.index, columns=P_norm.columns, dtype=float)
-    for met_idx in P_norm.index:
-        p = P_norm.loc[met_idx].values.flatten()
-        c = C_norm.loc[met_idx].values.flatten()
-        e = E_norm.loc[met_idx].values.flatten()
-        avail = p * np.power((1 - c), beta) * (0.8 + 0.2 * e)
-        availability.loc[met_idx] = np.clip(avail, 0.0, 1.0)
+    availability = pd.DataFrame(index=P.index, columns=P.columns, dtype=float)
+    for met_idx in P.index:
+        exporter_factor = 1.0 + E_plus.loc[met_idx] if contrasted["has_exporter"].loc[met_idx] else 1.0
+        consumption_factor = 1.0 - C_plus.loc[met_idx] if contrasted["has_substrate"].loc[met_idx] else 1.0
+        availability.loc[met_idx] = P_plus.loc[met_idx] * exporter_factor * consumption_factor
+    availability = availability.clip(lower=0.0)
 
-    metadata = pd.DataFrame(index=P_norm.index)
+    metadata = pd.DataFrame(index=P.index)
     metadata["has_product"] = True
     metadata["has_substrate"] = [
         any(_safe_hmdb_compare(row, met, hmdb) and row["direction"] == "substrate" for _, row in reaction_genes.iterrows())
-        for met, hmdb in P_norm.index
+        for met, hmdb in P.index
     ]
     metadata["has_exporter"] = [
         any(_safe_hmdb_compare(row, met, hmdb) and row["direction"] == "exporter" for _, row in reaction_genes.iterrows())
-        for met, hmdb in P_norm.index
+        for met, hmdb in P.index
     ]
     metadata["n_product_reactions"] = [
         sum(_safe_hmdb_compare(row, met, hmdb) and row["direction"] == "product" for _, row in reaction_genes.iterrows())
-        for met, hmdb in P_norm.index
+        for met, hmdb in P.index
     ]
     metadata["n_substrate_reactions"] = [
         sum(_safe_hmdb_compare(row, met, hmdb) and row["direction"] == "substrate" for _, row in reaction_genes.iterrows())
-        for met, hmdb in P_norm.index
+        for met, hmdb in P.index
     ]
     metadata["n_exporter_reactions"] = [
         sum(_safe_hmdb_compare(row, met, hmdb) and row["direction"] == "exporter" for _, row in reaction_genes.iterrows())
-        for met, hmdb in P_norm.index
+        for met, hmdb in P.index
     ]
 
     result = {"availability": availability.astype(float), "metadata": metadata}
@@ -446,11 +441,15 @@ def compute_metabolite_availability(
                 "P": P.astype(float),
                 "C": C.astype(float),
                 "E": E.astype(float),
-                "P_norm": P_norm.astype(float),
-                "C_norm": C_norm.astype(float),
-                "E_norm": E_norm.astype(float),
+                "P_contrast": P_contrast.astype(float),
+                "C_contrast": C_contrast.astype(float),
+                "E_contrast": E_contrast.astype(float),
+                "P_plus": P_plus.astype(float),
+                "relative_consumption_support": C_plus.astype(float),
+                "E_plus": E_plus.astype(float),
                 "pseudobulk": pseudobulk.astype(float),
                 "expr_frac": expr_frac.astype(float),
+                "cell_counts": cell_counts,
                 "reaction_genes": reaction_genes,
             }
         )

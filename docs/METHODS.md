@@ -76,24 +76,32 @@ This weight semantics is a per-gene expression scaling step, not the normalized 
 
 ## Metabolite availability
 
-Reaction scores are aggregated into three metabolite matrices: production \(P\), consumption \(C\), and efflux \(E\). Each matrix is robust min-max normalized across cell groups for each metabolite. The `eps` parameter is the denominator stabilizer in this normalization.
+Only cell types with at least `min_cells` cells are eligible. Reaction scores
+are aggregated into unchanged production \(P\), consumption \(C\), and efflux
+\(E\) matrices. For each non-negative vector across eligible cell types:
 
 \[
-P^{norm}_{m,c}, C^{norm}_{m,c}, E^{norm}_{m,c} \in [0, 1]
+D(x_c;b)=\frac{x_c-b}{x_c+b}, \qquad b=\operatorname{median}_c(x_c)
 \]
 
-The sender-side metabolite availability is:
+with a numerical zero-denominator guard. Let \(p^+,c^+,e^+\) be the positive
+parts of the P/C/E contrasts. The sender score is:
 
 \[
-A_{m,c_s} =
-P^{norm}_{m,c_s}
-\times (1 - C^{norm}_{m,c_s})^\beta
-\times (0.8 + 0.2 E^{norm}_{m,c_s})
+A_{m,c}=p^+_{m,c}F^E_{m,c}F^C_{m,c}
 \]
+
+where \(F^E=1+e^+\) when an exporter prior exists and 1 otherwise, while
+\(F^C=1-c^+\) when a consumption/substrate prior exists and 1 otherwise.
+Production above the median is therefore required. The C term represents
+relative consumption support or turnover/consumption context, not necessarily
+true extracellular clearance flux.
 
 ## Receiver score
 
-Receiver-side sensor score uses robust min-max normalized pseudobulk sensor gene expression across cell groups. If the sensor expression fraction in the receiver group is below `min_expr_frac`, the score is set to 0.
+Receiver-side sensor score is the positive bounded median contrast of
+pseudobulk sensor expression across eligible cell types. If `min_expr_frac` is
+not `None`, it acts as an optional expression-fraction gate.
 
 \[
 R_{m,s,c_r} \in [0, 1]

@@ -33,6 +33,8 @@ EVENT_COLUMNS = [
     "metabolite_availability",
     "sensor_score",
     "sensor_expr_frac",
+    "sender_n_cells",
+    "receiver_n_cells",
     "cell_mesh_score",
 ]
 
@@ -93,13 +95,8 @@ def _compute_availability_scores(
     sensor_prior: pd.DataFrame,
     celltype_col: str = "cell_type",
     layer: Optional[str] = None,
-    min_expr_frac: float = MIN_EXPR_FRAC,
-    lower: float = METABOLITE_AVAILABILITY_DEFAULTS["lower"],
-    upper: float = METABOLITE_AVAILABILITY_DEFAULTS["upper"],
-    eps: float = METABOLITE_AVAILABILITY_DEFAULTS["eps"],
-    beta: float = METABOLITE_AVAILABILITY_DEFAULTS["beta"],
-    missing_C_norm: float = METABOLITE_AVAILABILITY_DEFAULTS["missing_C_norm"],
-    missing_E_norm: float = METABOLITE_AVAILABILITY_DEFAULTS["missing_E_norm"],
+    min_expr_frac: Optional[float] = MIN_EXPR_FRAC,
+    eps_num: float = METABOLITE_AVAILABILITY_DEFAULTS["eps_num"],
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
 ) -> tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """
@@ -111,24 +108,18 @@ def _compute_availability_scores(
         sensor_prior: 代谢物-传感器先验表
         celltype_col: 细胞类型列名
         layer: 表达层
-        min_expr_frac: 最小表达比例阈值
-        **kwargs: availability 计算参数
+        min_expr_frac: 可选 receiver 表达比例 gate
 
     返回:
         (sender_scores, receiver_scores, availability_results) 元组
     """
-    # 计算代谢物 availability（保持不变）
+    # Compute P/C/E and the median-contrast sender score.
     avail_results = compute_metabolite_availability(
         adata,
         enzyme_prior,
         celltype_col=celltype_col,
         layer=layer,
-        lower=lower,
-        upper=upper,
-        eps=eps,
-        beta=beta,
-        missing_C_norm=missing_C_norm,
-        missing_E_norm=missing_E_norm,
+        eps_num=eps_num,
         min_cells=min_cells,
         return_intermediates=True
     )
@@ -148,12 +139,12 @@ def _compute_availability_scores(
         sensor_prior,
         celltype_col=celltype_col,
         layer=layer,
-        lower=lower,
-        upper=upper,
         min_expr_frac=min_expr_frac,
         min_cells=min_cells,
+        eps_num=eps_num,
         pseudobulk=avail_results.get("pseudobulk"),
         expr_frac=avail_results.get("expr_frac"),
+        cell_counts=avail_results.get("cell_counts"),
     )
     
     return sender_scores, receiver_scores, avail_results
@@ -162,7 +153,8 @@ def _compute_availability_scores(
 def _make_cell_mesh_events(
     sender_scores: pd.DataFrame,
     receiver_scores: pd.DataFrame,
-    allow_self: bool
+    allow_self: bool,
+    cell_counts: Optional[pd.Series] = None,
 ) -> pd.DataFrame:
     """
     构建 CELL MESH 通信事件
@@ -214,6 +206,12 @@ def _make_cell_mesh_events(
                         "metabolite_availability": availability,
                         "sensor_score": sensor_score,
                         "sensor_expr_frac": float(rr["sensor_expr_frac"]),
+                        "sender_n_cells": (
+                            int(cell_counts.loc[sender])
+                            if cell_counts is not None and sender in cell_counts.index
+                            else np.nan
+                        ),
+                        "receiver_n_cells": int(rr["receiver_n_cells"]),
                         "cell_mesh_score": cell_mesh_score,
                     }
                 )
@@ -261,7 +259,7 @@ def _empirical_pvalues_by_sensor_type(
     sensor_prior: pd.DataFrame,
     n_perms: int,
     random_state: int,
-    min_expr_frac: float,
+    min_expr_frac: Optional[float],
     allow_self: bool,
     availability_kwargs: dict,
 ) -> pd.DataFrame:
@@ -305,7 +303,7 @@ def _empirical_pvalues_by_sensor_type(
             adata.obs[perm_key] = _permute_labels(original, sample_labels, rng).values
 
             # 2. 重新计算 availability 和得分
-            sender_perm, receiver_perm, _ = _compute_availability_scores(
+            sender_perm, receiver_perm, availability_perm = _compute_availability_scores(
                 adata,
                 enzyme_prior,
                 sensor_prior,
@@ -316,7 +314,12 @@ def _empirical_pvalues_by_sensor_type(
             )
 
             # 3. 构建置换事件
-            events_perm = _make_cell_mesh_events(sender_perm, receiver_perm, allow_self=allow_self)
+            events_perm = _make_cell_mesh_events(
+                sender_perm,
+                receiver_perm,
+                allow_self=allow_self,
+                cell_counts=availability_perm.get("cell_counts"),
+            )
             if events_perm.empty:
                 continue
 
@@ -380,16 +383,11 @@ def run_cell_mesh(
     cell_type_key: str = "cell_type",
     sample_key: Optional[str] = None,
     layer: Optional[str] = None,
-    min_expr_frac: float = MIN_EXPR_FRAC,
+    min_expr_frac: Optional[float] = MIN_EXPR_FRAC,
     allow_self: bool = True,
     n_perms: int = 0,
     random_state: int = 0,
-    lower: float = METABOLITE_AVAILABILITY_DEFAULTS["lower"],
-    upper: float = METABOLITE_AVAILABILITY_DEFAULTS["upper"],
-    eps: float = METABOLITE_AVAILABILITY_DEFAULTS["eps"],
-    beta: float = METABOLITE_AVAILABILITY_DEFAULTS["beta"],
-    missing_C_norm: float = METABOLITE_AVAILABILITY_DEFAULTS["missing_C_norm"],
-    missing_E_norm: float = METABOLITE_AVAILABILITY_DEFAULTS["missing_E_norm"],
+    eps_num: float = METABOLITE_AVAILABILITY_DEFAULTS["eps_num"],
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
 ) -> CellMeshResult:
     """
@@ -406,16 +404,11 @@ def run_cell_mesh(
         cell_type_key: 细胞类型列名,默认为 "cell_type"
         sample_key: 样本列名,用于置换检验时的样本内置换
         layer: 使用的表达层,None 表示使用 adata.X
-        min_expr_frac: 最小表达比例阈值,低于该值的基因表达视为不表达
+        min_expr_frac: 可选 receiver 表达比例 gate；None 表示不启用
         allow_self: 是否允许自分泌通信
         n_perms: 置换检验次数,0 表示不进行置换检验
         random_state: 随机种子
-        lower: availability 标准化的下限百分位数,默认 5
-        upper: availability 标准化的上限百分位数,默认 95
-        eps: availability 计算中的小常数,避免除以零,默认 0.05
-        beta: 消耗项的指数权重,默认 0.5
-        missing_C_norm: 当代谢物没有消耗证据时的默认 C_norm 值,默认 0.2
-        missing_E_norm: 当代谢物没有外排证据时的默认 E_norm 值,默认 0.5
+        eps_num: bounded median contrast 的数值保护常数,默认 1e-12
         min_cells: 每个细胞类型的最小细胞数,低于该值的细胞类型会被过滤
 
     返回:
@@ -427,10 +420,10 @@ def run_cell_mesh(
            - production → product → 进入 P (产生) 矩阵
            - degradation → substrate → 进入 C (消耗) 矩阵
            - export → exporter → 进入 E (外排) 矩阵
-        2. metabolite_availability 完全来自 metabolite availability 计算:
-           availability = P_norm * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
-           结果范围在 [0, 1] 之间,值越高代表该细胞类型释放该代谢物的能力越强
-        3. sensor_score 基于 robust min-max 标准化的 sensor 基因表达
+        2. sender score 以 production 的正向 median contrast 为必要锚点；
+           exporter 高于背景时加分，relative consumption support 高于背景时惩罚。
+           缺少 exporter 或 consumption prior 时对应 factor 为 1。
+        3. sensor_score 是 sensor 表达相对 eligible cell-type median 的正向 contrast
         4. cell_mesh_score = sqrt(metabolite_availability * sensor_score)
     """
     # 验证输入
@@ -453,12 +446,7 @@ def run_cell_mesh(
 
     # 计算 availability 和得分
     availability_kwargs = {
-        'lower': lower,
-        'upper': upper,
-        'eps': eps,
-        'beta': beta,
-        'missing_C_norm': missing_C_norm,
-        'missing_E_norm': missing_E_norm,
+        'eps_num': eps_num,
         'min_cells': min_cells,
     }
 
@@ -473,7 +461,12 @@ def run_cell_mesh(
     )
 
     # 构建事件
-    events = _make_cell_mesh_events(sender_scores, receiver_scores, allow_self=allow_self)
+    events = _make_cell_mesh_events(
+        sender_scores,
+        receiver_scores,
+        allow_self=allow_self,
+        cell_counts=availability_results.get("cell_counts"),
+    )
 
     # 计算显著性（按 sensor type 分别计算）
     events = _empirical_pvalues_by_sensor_type(
@@ -502,7 +495,7 @@ def run_cell_mesh(
     parameters = {
         "method": "CELL MESH",
         "acronym": "Metabolite-mediated Event Scoring with Sensor Hierarchies",
-        "algorithm": "metabolite availability + robust min-max sensor scoring",
+        "algorithm": "bounded cell-type median contrast scoring",
         "cell_type_key": cell_type_key,
         "sample_key": sample_key,
         "layer": layer,

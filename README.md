@@ -18,22 +18,33 @@ availability directions used to build the P/C/E matrices:
 | `degradation` | `substrate` | C | Metabolite consumption ability |
 | `export` | `exporter` | E | Metabolite efflux/transport ability |
 
-### 2. Metabolite Availability Calculation (Unchanged)
-The metabolite availability (sender score) is computed as:
+### 2. Sender Score
+Only cell types with at least `min_cells` cells are included. For each
+metabolite, P/C/E are compared with the equal-weight median across eligible cell
+types using:
+
+```text
+D(x; median) = (x - median) / (x + median)
 ```
-availability = P_norm * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
+
+The sender score is:
+
 ```
-Where:
-- `P_norm`: Normalized production score [0, 1]
-- `C_norm`: Normalized consumption score [0, 1]
-- `E_norm`: Normalized efflux score [0, 1]
-- Result range: Strictly between [0, 1], higher value indicates stronger ability to release the metabolite
+sender_score = P_plus * exporter_factor * consumption_factor
+```
+
+`P_plus` is the positive production contrast and is required for a nonzero
+sender score. An exporter prior contributes `1 + E_plus`; a
+consumption/substrate prior contributes `1 - C_plus`. Missing priors are neutral
+with factor 1. The C term is relative consumption support, or
+turnover/consumption context; it is not necessarily extracellular clearance
+flux.
 
 ### 3. Sensor Score Calculation
-Sensor score is based on robust min-max normalized sensor gene expression:
+Sensor score uses the same bounded median contrast:
 - First, compute pseudobulk mean expression of each sensor gene per cell type
-- Then apply robust min-max normalization across cell types for each gene
-- Genes with `sensor_expr_frac < min_expr_frac` get `sensor_score = 0`
+- Keep only the positive contrast above the eligible cell-type median
+- When `min_expr_frac` is not `None`, genes below that optional gate get score 0
 
 ### 4. Communication Score
 Communication score is the geometric mean of metabolite availability and sensor score:
@@ -133,22 +144,12 @@ res.availability_results  # All intermediate calculation results
 | `cell_type_key` | `"cell_type"` | Column name in adata.obs containing cell type annotations |
 | `sample_key` | `None` | Column name in adata.obs containing sample annotations (for permutation) |
 | `layer` | `None` | Name of expression layer to use. If None, uses adata.X |
-| `min_expr_frac` | `0.05` | Minimum fraction of cells expressing a sensor gene to be considered |
+| `min_expr_frac` | `None` | Optional receiver expression-fraction gate |
 | `allow_self` | `True` | Whether to allow self-communication events (sender == receiver) |
 | `n_perms` | `0` | Number of permutations for empirical p-value calculation. 0 = no permutation |
 | `random_state` | `0` | Random seed for reproducibility |
-| `lower` | `5` | Lower percentile for robust min-max normalization (for both availability and sensor scoring) |
-| `upper` | `95` | Upper percentile for robust min-max normalization (for both availability and sensor scoring) |
-| `eps` | `0.05` | Small constant used in robust min-max denominators for P/C/E normalization |
-| `beta` | `0.5` | Exponent weight for consumption term in availability formula |
-| `missing_C_norm` | `0.2` | Default C_norm value when no consumption evidence exists |
-| `missing_E_norm` | `0.5` | Default E_norm value when no efflux evidence exists |
+| `eps_num` | `1e-12` | Numerical protection only for bounded median contrast denominators |
 | `min_cells` | `100` | Minimum number of cells per cell type to be included |
-
-### Removed Parameters
-The following parameters are no longer available (old scoring mechanism removed):
-- `beta_sensor`
-- `beta_specificity`
 
 ## Inspect the Packaged Database
 
@@ -189,10 +190,11 @@ Contains one row per communication event. Important columns:
 - `sender`, `receiver`: Cell type pair
 - `metabolite`, `hmdb_id`: Metabolite information
 - `sensor_gene`, `sensor_type`: Sensor information (sensor_type is one of "Cell surface receptor", "Transporter", "Other receptor")
-- `metabolite_availability`: Metabolite availability in sender cell type [0, 1]
-- `sensor_score`: Robust min-max normalized sensor expression in receiver cell type [0, 1]
+- `metabolite_availability`: Median-relative sender score
+- `sensor_score`: Positive median-relative sensor expression in receiver cell type
 - `sensor_expr_frac`: Fraction of cells in receiver cell type expressing the sensor gene
-- `cell_mesh_score`: Geometric mean of availability and sensor score [0, 1]
+- `sender_n_cells`, `receiver_n_cells`: Eligible cell-type sizes
+- `cell_mesh_score`: Geometric mean of sender and receiver scores
 - `perm_pvalue`, `fdr`: Empirical p-value and FDR (computed separately within each sensor type)
 - `confidence_tier`: Confidence classification (`Tier1_high`, `Tier2_medium`, `Tier3_exploratory`)
 
@@ -203,7 +205,7 @@ Contains one row per communication event. Important columns:
 
 ## Notes
 - **Transcriptomics-only**: CELL MESH estimates metabolite availability using expression proxies and prior knowledge. Direct metabolomics, spatial data, or perturbation experiments should be used to validate predictions.
-- **Sensor scoring**: Uses robust min-max normalization of pseudobulk sensor gene expression
+- **Sensor scoring**: Uses positive bounded median contrast of pseudobulk sensor expression
 - **Communication score**: Geometric mean ensures both sender and receiver have meaningful scores
 - **Sensor type stratification**: P-values and FDR are computed separately for each sensor type to avoid confounding
 - **Permutation null**: Empirical p-values compare each observed full event key (`sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, `sensor_type`) against the same key after cell-type label permutation, with FDR stratified by sensor type.

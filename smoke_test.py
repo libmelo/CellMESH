@@ -62,13 +62,13 @@ print(f"  availability_results 包含的键: {list(res.availability_results.keys
 # 4. 检查结果
 print("\n4. 结果检查:")
 
-# 检查 availability 结果是否在 0-1 之间
+# Sender score is non-negative and may exceed 1 when exporter support is high.
 avail = res.availability_results['availability']
 if not avail.empty:
     min_val = avail.min().min()
     max_val = avail.max().max()
-    print(f"  availability 范围: [{min_val:.4f}, {max_val:.4f}] (预期在 0-1 之间)")
-    assert 0 <= min_val <= 1 and 0 <= max_val <= 1, "availability 结果超出 0-1 范围"
+    print(f"  availability 范围: [{min_val:.4f}, {max_val:.4f}]")
+    assert min_val >= 0, "availability 包含负值"
 
 # 检查事件结果
 if not res.events.empty:
@@ -81,8 +81,8 @@ if not res.events.empty:
     # 检查 score 范围
     min_score = res.events['cell_mesh_score'].min()
     max_score = res.events['cell_mesh_score'].max()
-    print(f"  cell_mesh_score 范围: [{min_score:.4f}, {max_score:.4f}] (预期在 0-1 之间)")
-    assert 0 <= min_score <= 1 and 0 <= max_score <= 1, "cell_mesh_score 超出 0-1 范围"
+    print(f"  cell_mesh_score 范围: [{min_score:.4f}, {max_score:.4f}]")
+    assert min_score >= 0, "cell_mesh_score 包含负值"
     
     # 检查 sensor_expr_frac 存在
     assert 'sensor_expr_frac' in res.events.columns, "缺少 sensor_expr_frac 列"
@@ -106,7 +106,7 @@ if not res.events.empty:
 print("\n5. 参数检查:")
 print(f"  包含的参数键: {list(res.parameters.keys())}")
 # 确认没有旧参数
-old_params = ['beta_sensor', 'beta_specificity']
+old_params = ['beta_sensor', 'beta_specificity', 'beta', 'missing_C_norm', 'missing_E_norm']
 for p in old_params:
     assert p not in res.parameters, f"旧参数 {p} 不应出现在结果中"
 print("  ✓ 所有旧参数已成功移除")

@@ -12,7 +12,6 @@ from scipy import sparse
 from scipy.stats import gmean
 
 import cellmesh
-from cellmesh.score import robust_minmax
 from cellmesh import compute_metabolite_availability
 
 
@@ -70,31 +69,6 @@ def toy_enzyme_prior():
     ])
 
 
-class TestRobustMinMax:
-    """Documentation tests 7: robust minmax on constant vector returns 0"""
-    
-    def test_normal_case(self):
-        """Test normal robust minmax with varying values"""
-        x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        result = robust_minmax(x, lower=0, upper=100)
-        assert len(result) == 10
-        assert result[0] == pytest.approx(0.0)
-        assert result[-1] == pytest.approx(1.0)
-        assert np.all(result >= 0) and np.all(result <= 1)
-    
-    def test_constant_vector_returns_zero(self):
-        """Documentation test 7: Constant vector returns all zeros"""
-        x = np.array([5.0, 5.0, 5.0, 5.0, 5.0])
-        result = robust_minmax(x)
-        assert np.all(result == 0.0)
-    
-    def test_nan_handling(self):
-        """Test that NaN values are handled properly"""
-        x = np.array([1, 2, np.nan, 4, 5])
-        result = robust_minmax(x)
-        assert not np.any(np.isnan(result))
-
-
 class TestMetaboliteAvailability:
     """Tests for metabolite availability calculations"""
     
@@ -102,7 +76,7 @@ class TestMetaboliteAvailability:
         """Documentation tests 1-2: multi-gene reaction uses geometric mean; multi-reaction sums"""
         result = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
-            min_cells=1, lower=0, upper=100, return_intermediates=True
+            min_cells=1, return_intermediates=True
         )
         
         # Get pseudobulk
@@ -150,49 +124,49 @@ class TestMetaboliteAvailability:
         included_mets = [idx[0] for idx in result['availability'].index]
         assert 'MetC' not in included_mets, "MetC should be skipped"
     
-    def test_5_missing_substrate_default_C_norm(self, toy_adata, toy_enzyme_prior):
-        """Documentation test 5: Missing substrate uses C_norm=0.41 (MetB)"""
+    def test_5_missing_substrate_is_neutral(self, toy_adata, toy_enzyme_prior):
+        """Missing substrate prior has neutral consumption factor."""
         result = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
-            min_cells=1, lower=0, upper=100, missing_C_norm=0.41, return_intermediates=True
+            min_cells=1, return_intermediates=True
         )
         
         # Find MetB index
         metB_idx = None
-        for idx in result['C_norm'].index:
+        for idx in result['relative_consumption_support'].index:
             if idx[0] == 'MetB':
                 metB_idx = idx
                 break
         
         assert metB_idx is not None, "MetB should be included"
-        assert np.allclose(result['C_norm'].loc[metB_idx].values, 0.41)
+        assert np.allclose(result['relative_consumption_support'].loc[metB_idx].values, 0.0)
     
-    def test_6_missing_transporter_default_E_norm(self, toy_adata, toy_enzyme_prior):
-        """Documentation test 6: Missing transporter uses E_norm=0.75 (MetB and MetF)"""
+    def test_6_missing_transporter_is_neutral(self, toy_adata, toy_enzyme_prior):
+        """Missing exporter prior has neutral exporter factor."""
         result = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
-            min_cells=1, lower=0, upper=100, missing_E_norm=0.75, return_intermediates=True
+            min_cells=1, return_intermediates=True
         )
         
         # Check MetB
         metB_idx = None
-        for idx in result['E_norm'].index:
+        for idx in result['E_plus'].index:
             if idx[0] == 'MetB':
                 metB_idx = idx
                 break
         
         assert metB_idx is not None, "MetB should be included"
-        assert np.allclose(result['E_norm'].loc[metB_idx].values, 0.75)
+        assert np.allclose(result['E_plus'].loc[metB_idx].values, 0.0)
         
         # Check MetF
         metF_idx = None
-        for idx in result['E_norm'].index:
+        for idx in result['E_plus'].index:
             if idx[0] == 'MetF':
                 metF_idx = idx
                 break
         
         assert metF_idx is not None, "MetF should be included"
-        assert np.allclose(result['E_norm'].loc[metF_idx].values, 0.75)
+        assert np.allclose(result['E_plus'].loc[metF_idx].values, 0.0)
     
     def test_8_dense_sparse_equivalent(self, toy_adata, toy_enzyme_prior):
         """Documentation test 8: Dense and sparse inputs produce identical outputs"""
@@ -206,12 +180,12 @@ class TestMetaboliteAvailability:
         # Compute both
         result_dense = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
-            min_cells=1, lower=0, upper=100
+            min_cells=1
         )
         
         result_sparse = compute_metabolite_availability(
             adata_sparse, toy_enzyme_prior, celltype_col="cell_type",
-            min_cells=1, lower=0, upper=100
+            min_cells=1
         )
         
         # Compare availability matrices
@@ -223,7 +197,7 @@ class TestMetaboliteAvailability:
         """Documentation test 9: Availability shape is correct"""
         result = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
-            min_cells=1, lower=0, upper=100, return_intermediates=True
+            min_cells=1, return_intermediates=True
         )
         
         availability = result['availability']

@@ -13,17 +13,12 @@ DATA_DIR = Path(__file__).parent / "data"
 # 最小细胞数阈值，低于该数量的细胞类型会被自动排除
 MIN_CELL_COUNT: int = 100
 
-# 最小细胞表达比例阈值
-MIN_EXPR_FRAC: float = 0.05
+# 新 contrast 模式默认不按表达比例过滤 receiver。
+MIN_EXPR_FRAC = None
 
 # ==================== 代谢物可用性计算默认参数 ====================
 METABOLITE_AVAILABILITY_DEFAULTS: Dict[str, Any] = {
-    "lower": 5,
-    "upper": 95,
-    "eps": 0.05,
-    "beta": 0.5,
-    "missing_C_norm": 0.2,
-    "missing_E_norm": 0.5,
+    "eps_num": 1e-12,
     "min_cells": MIN_CELL_COUNT,
 }
 

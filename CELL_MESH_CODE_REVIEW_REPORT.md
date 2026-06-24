@@ -1,5 +1,9 @@
 # CELL MESH 包测试补充与代码审查报告
 
+> 历史审查记录。本报告中的公式与 API 描述对应 median-contrast 改造前的实现，
+> 不属于当前方法文档。现行方法以 `README.md`、`docs/METHODS.md` 和
+> `AVAILABILITY_IMPLEMENTATION.md` 为准。
+
 生成时间：2026-06-14  
 审查对象：`developer/cell_mesh_pkg`  
 Conda 环境：`cellmesh`  
