@@ -78,7 +78,9 @@ This weight semantics is a per-gene expression scaling step, not the normalized 
 
 Only cell types with at least `min_cells` cells are eligible. Reaction scores
 are aggregated into unchanged production \(P\), consumption \(C\), and efflux
-\(E\) matrices. For each non-negative vector across eligible cell types:
+\(E\) matrices. Here, \(C\) is an expression-derived proxy for the level of
+metabolite-consuming enzyme complexes. For each non-negative vector across
+eligible cell types:
 
 \[
 D(x_c;b)=\frac{x_c-b}{x_c+b}, \qquad b=\operatorname{median}_c(x_c)
@@ -93,9 +95,10 @@ A_{m,c}=p^+_{m,c}F^E_{m,c}F^C_{m,c}
 
 where \(F^E=1+e^+\) when an exporter prior exists and 1 otherwise, while
 \(F^C=1-c^+\) when a consumption/substrate prior exists and 1 otherwise.
-Production above the median is therefore required. The C term represents
-relative consumption support or turnover/consumption context, not necessarily
-true extracellular clearance flux.
+Production above the median is therefore required. The derived \(c^+\) term is
+the positive deviation of the consumption ability proxy above the eligible
+cell-type median. It is not a direct measurement of extracellular clearance
+flux.
 
 ## Receiver score
 

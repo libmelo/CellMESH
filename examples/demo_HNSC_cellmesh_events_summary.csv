@@ -1,0 +1,613 @@
+sender,receiver,metabolite,hmdb_id,sensor_gene,sensor_type,metabolite_availability,sensor_score,cell_mesh_score,perm_pvalue,fdr,confidence_tier,sender_n_cells,receiver_n_cells,sensor_expr_frac
+Malignant cells,Malignant cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.9956270381600434,0.9785532969159636,0.9870532511927542,0.009900990099009901,0.14002828854314003,Tier3_exploratory,84,84,0.25
+Malignant cells,Malignant cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.9956270381600434,0.9184783309025585,0.9562749919404431,0.009900990099009901,0.14002828854314003,Tier3_exploratory,84,84,0.47619047619047616
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.7114411096565488,0.8163785405771867,0.7621058028961777,0.009900990099009901,0.14002828854314003,Tier3_exploratory,84,68,0.3088235294117647
+Stromal cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.3279141416907826,1.0,0.5726378800697546,0.009900990099009901,0.14002828854314003,Tier3_exploratory,68,84,0.10714285714285714
+Stromal cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.3001702564928322,0.8726870414233466,0.5118150965554034,0.009900990099009901,0.14002828854314003,Tier3_exploratory,68,48,0.625
+Malignant cells,Malignant cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.1011449361901755,0.9785532969159636,0.31460405397141816,0.009900990099009901,0.14002828854314003,Tier3_exploratory,84,84,0.25
+Malignant cells,Malignant cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.05892954408958705,0.9785532969159636,0.2401368352723506,0.009900990099009901,0.14002828854314003,Tier3_exploratory,84,84,0.25
+Malignant cells,Stromal cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.9838463185556413,1.0,0.9918902754617778,0.009900990099009901,0.1782178217821782,Tier3_exploratory,84,68,0.1323529411764706
+Stromal cells,Stromal cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.8373482341819557,0.9541285519514237,0.8938332384506134,0.009900990099009901,0.1782178217821782,Tier3_exploratory,68,68,0.058823529411764705
+Stromal cells,Stromal cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.8373482341819557,0.5057581207781718,0.650765448803781,0.019801980198019802,0.2376237623762376,Tier3_exploratory,68,68,0.10294117647058823
+Stromal cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.3279141416907826,0.20446340894780882,0.2589332795379771,0.0297029702970297,0.26732673267326734,Tier3_exploratory,68,68,0.38235294117647056
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.7114411096565488,1.0,0.8434696850845019,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.09523809523809523
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.7114411096565488,0.6941733615941067,0.7027542007462695,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,68,0.1323529411764706
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.7114411096565488,0.6767170168880723,0.69386187776698,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,68,0.11764705882352941
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.7114411096565488,0.641058750404338,0.6753336573447993,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.44047619047619047
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.7114411096565488,0.5515431842401545,0.6264108037217444,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,48,0.22916666666666666
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.7114411096565488,0.49094684910871056,0.5909989603309699,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,68,0.1323529411764706
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.7114411096565488,0.4887544217009015,0.5896778680978575,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,48,0.375
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.7114411096565488,0.4835280210437426,0.5865165912754688,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,68,0.08823529411764706
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.7114411096565488,0.3531842565210658,0.5012681910639954,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.6309523809523809
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.7114411096565488,0.2512224361898074,0.42276467304340615,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.4166666666666667
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.7114411096565488,0.25025775704124537,0.42195219678250595,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.08333333333333333
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.7114411096565488,0.2003713231872889,0.37756111626028943,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.15476190476190477
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.7114411096565488,0.20009261078593576,0.37729843499757865,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.4523809523809524
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.7114411096565488,0.1693567987908654,0.34711293386973374,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.32142857142857145
+Malignant cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.6035866376147456,0.1693567987908654,0.3197209732553926,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,84,0.32142857142857145
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.7114411096565488,0.11354277595009661,0.28421646418781166,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,68,0.39705882352941174
+Malignant cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.6035866376147456,0.059622936889433154,0.18970400101687138,0.009900990099009901,0.27781013395457194,Tier3_exploratory,84,68,0.17647058823529413
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.7114411096565488,0.24057876172575707,0.41371200272891656,0.019801980198019802,0.47227722772277225,Tier3_exploratory,84,68,0.11764705882352941
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.7114411096565488,0.059622936889433154,0.20595681193298926,0.019801980198019802,0.47227722772277225,Tier3_exploratory,84,68,0.17647058823529413
+Stromal cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.3001702564928322,0.11354277595009661,0.18461355361903597,0.019801980198019802,0.47227722772277225,Tier3_exploratory,68,68,0.39705882352941174
+Stromal cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.3279141416907826,0.25025775704124537,0.28646650345483743,0.0297029702970297,0.644014401440144,Tier3_exploratory,68,84,0.08333333333333333
+Stromal cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.3001702564928322,0.25025775704124537,0.274080161851221,0.0297029702970297,0.644014401440144,Tier3_exploratory,68,84,0.08333333333333333
+Stromal cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.14180811866274007,0.25025775704124537,0.18838413337321191,0.039603960396039604,0.787128712871287,Tier3_exploratory,68,84,0.08333333333333333
+Malignant cells,Malignant cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.14048368085383126,0.23984119307717586,0.18355863810743447,0.039603960396039604,0.787128712871287,Tier3_exploratory,84,84,0.6309523809523809
+Stromal cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.14180811866274007,0.11354277595009661,0.12689084854798716,0.0594059405940594,1.0,Tier3_exploratory,68,68,0.39705882352941174
+Malignant cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.5238095238095238
+Stromal cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.20833333333333334
+Stromal cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.14180811866274007,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.5238095238095238
+Immune cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.20833333333333334
+Immune cells,Stromal cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Stromal cells,Immune cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.08333333333333333
+Immune cells,Immune cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.08333333333333333
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.34523809523809523
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.34523809523809523
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.34523809523809523
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.27941176470588236
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.27941176470588236
+Immune cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.5238095238095238
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.0,0.4887544217009015,0.0,1.0,1.0,Tier3_exploratory,68,48,0.375
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.0,0.4887544217009015,0.0,1.0,1.0,Tier3_exploratory,48,48,0.375
+Malignant cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.5238095238095238
+Stromal cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.5238095238095238
+Immune cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.5238095238095238
+Malignant cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.0,0.11354277595009661,0.0,1.0,1.0,Tier3_exploratory,84,68,0.39705882352941174
+Immune cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.0,0.11354277595009661,0.0,1.0,1.0,Tier3_exploratory,48,68,0.39705882352941174
+Malignant cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.20833333333333334
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR3C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.27941176470588236
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.04411764705882353
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.041666666666666664
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.041666666666666664
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.041666666666666664
+Malignant cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.05952380952380952
+Stromal cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.05952380952380952
+Immune cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.05952380952380952
+Malignant cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.04411764705882353
+Malignant cells,Immune cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.08333333333333333
+Immune cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.04411764705882353
+Malignant cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.041666666666666664
+Stromal cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.041666666666666664
+Immune cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.041666666666666664
+Malignant cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.011904761904761904
+Stromal cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.14180811866274007,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.011904761904761904
+Immune cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.011904761904761904
+Stromal cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.14180811866274007,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Stromal cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.04411764705882353
+Malignant cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.0,0.11354277595009661,0.0,1.0,1.0,Tier3_exploratory,84,68,0.39705882352941174
+Immune cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.0,0.11354277595009661,0.0,1.0,1.0,Tier3_exploratory,48,68,0.39705882352941174
+Malignant cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.20833333333333334
+Stromal cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.14180811866274007,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.20833333333333334
+Immune cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.20833333333333334
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.5238095238095238
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.5238095238095238
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.5238095238095238
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.04411764705882353
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.0,0.11354277595009661,0.0,1.0,1.0,Tier3_exploratory,48,68,0.39705882352941174
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.20833333333333334
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.20833333333333334
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.20833333333333334
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.05952380952380952
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.05952380952380952
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.05952380952380952
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.04411764705882353
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H2,Other receptor,0.0,0.11354277595009661,0.0,1.0,1.0,Tier3_exploratory,68,68,0.39705882352941174
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.014705882352941176
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.014705882352941176
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.014705882352941176
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Malignant cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.047619047619047616
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.047619047619047616
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.047619047619047616
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.0,0.24057876172575707,0.0,1.0,1.0,Tier3_exploratory,68,68,0.11764705882352941
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.0,0.24057876172575707,0.0,1.0,1.0,Tier3_exploratory,48,68,0.11764705882352941
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.041666666666666664
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.041666666666666664
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,THRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.041666666666666664
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.011904761904761904
+Stromal cells,Malignant cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Stromal cells,Stromal cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.0,1.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.1323529411764706
+Immune cells,Stromal cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.0,1.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.1323529411764706
+Malignant cells,Immune cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.9838463185556413,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.011904761904761904
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.011904761904761904
+Malignant cells,Malignant cells,20-Hydroxyeicosatetraenoic acid,HMDB0005998,TRPC6,Transporter,0.9838463185556413,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.625
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.625
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.625
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.08333333333333333
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.08333333333333333
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.08333333333333333
+Malignant cells,Malignant cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,17alpha-Estradiol,HMDB0000429,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,AR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Malignant cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,NR1I2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.0,1.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.09523809523809523
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.0,1.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.09523809523809523
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.4852941176470588
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.0,0.3531842565210658,0.0,1.0,1.0,Tier3_exploratory,68,84,0.6309523809523809
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.0,0.3531842565210658,0.0,1.0,1.0,Tier3_exploratory,48,84,0.6309523809523809
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.4852941176470588
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PPARD,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.4852941176470588
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR0B1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.0,0.20009261078593576,0.0,1.0,1.0,Tier3_exploratory,68,84,0.4523809523809524
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.0,0.20009261078593576,0.0,1.0,1.0,Tier3_exploratory,48,84,0.4523809523809524
+Immune cells,Stromal cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.25
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.25
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.2916666666666667
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.2916666666666667
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.2916666666666667
+Stromal cells,Malignant cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.0,0.23984119307717586,0.0,1.0,1.0,Tier3_exploratory,68,84,0.6309523809523809
+Immune cells,Malignant cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.0,0.23984119307717586,0.0,1.0,1.0,Tier3_exploratory,48,84,0.6309523809523809
+Malignant cells,Stromal cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.14048368085383126,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.16176470588235295
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2C1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.25
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.047619047619047616
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.0,0.2003713231872889,0.0,1.0,1.0,Tier3_exploratory,48,84,0.15476190476190477
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.047619047619047616
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F6,Other receptor,0.0,0.2003713231872889,0.0,1.0,1.0,Tier3_exploratory,68,84,0.15476190476190477
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR6A1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.047619047619047616
+Stromal cells,Immune cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.8373482341819557,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.16666666666666666
+Immune cells,Immune cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.16666666666666666
+Malignant cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Immune cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.014705882352941176
+Stromal cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.014705882352941176
+Immune cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.014705882352941176
+Malignant cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Stromal cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.16176470588235295
+Immune cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.0,1.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.10714285714285714
+Immune cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.0,1.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.10714285714285714
+Malignant cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,LPAR3,Cell surface receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Stromal cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Stromal cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.16176470588235295
+Malignant cells,Immune cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.14048368085383126,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.20833333333333334
+Stromal cells,Immune cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.20833333333333334
+Immune cells,Immune cells,(R)-5-Diphosphomevalonic acid,HMDB0001090,PMVK,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.20833333333333334
+Malignant cells,Malignant cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.011904761904761904
+Stromal cells,Malignant cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.8373482341819557,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.011904761904761904
+Immune cells,Malignant cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.011904761904761904
+Malignant cells,Stromal cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.0,0.9541285519514237,0.0,1.0,1.0,Tier3_exploratory,84,68,0.058823529411764705
+Malignant cells,Immune cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.16666666666666666
+Immune cells,Stromal cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.0,0.9541285519514237,0.0,1.0,1.0,Tier3_exploratory,48,68,0.058823529411764705
+Malignant cells,Immune cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.8373482341819557,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM3,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.09523809523809523
+Stromal cells,Malignant cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.8373482341819557,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.09523809523809523
+Immune cells,Malignant cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.09523809523809523
+Malignant cells,Stromal cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.0,0.5057581207781718,0.0,1.0,1.0,Tier3_exploratory,84,68,0.10294117647058823
+Immune cells,Stromal cells,3beta-Hydroxypregn-5-en-20-one sulfate,HMDB0060382,TRPM1,Transporter,0.0,0.5057581207781718,0.0,1.0,1.0,Tier3_exploratory,48,68,0.10294117647058823
+Immune cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Stromal cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,84,84,0.08333333333333333
+Immune cells,Malignant cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,48,84,0.08333333333333333
+Malignant cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.058823529411764705
+Stromal cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.14180811866274007,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.058823529411764705
+Immune cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.058823529411764705
+Malignant cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,68,84,0.08333333333333333
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,48,84,0.08333333333333333
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.058823529411764705
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.058823529411764705
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.058823529411764705
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Stromal cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,NR1H3,Other receptor,0.14180811866274007,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Stromal cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.14180811866274007,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,24-Hydroxycholesterol,HMDB0001419,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.2405433806990724,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.011904761904761904
+Stromal cells,Malignant cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.011904761904761904
+Immune cells,Malignant cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.011904761904761904
+Malignant cells,Stromal cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.2405433806990724,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Malignant cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Immune cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.2405433806990724,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,84,84,0.08333333333333333
+Immune cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,48,84,0.08333333333333333
+Malignant cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.058823529411764705
+Stromal cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.058823529411764705
+Immune cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.058823529411764705
+Stromal cells,Stromal cells,20alpha-Hydroxycholesterol,HMDB0006283,RORC,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2E1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.0,0.1693567987908654,0.0,1.0,1.0,Tier3_exploratory,68,84,0.32142857142857145
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.0,0.1693567987908654,0.0,1.0,1.0,Tier3_exploratory,48,84,0.32142857142857145
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.14705882352941177
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.14705882352941177
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.14705882352941177
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Stromal cells,Malignant cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Immune cells,Malignant cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Malignant cells,Stromal cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1I3,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Malignant cells,Malignant cells,17alpha-Estradiol,HMDB0000429,OXTR,Cell surface receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Stromal cells,Malignant cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.0,0.9785532969159636,0.0,1.0,1.0,Tier3_exploratory,68,84,0.25
+Immune cells,Malignant cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.0,0.9785532969159636,0.0,1.0,1.0,Tier3_exploratory,48,84,0.25
+Malignant cells,Stromal cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.9956270381600434,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Malignant cells,Immune cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.9956270381600434,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.38095238095238093
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.38095238095238093
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.14705882352941177
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.14705882352941177
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.14705882352941177
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.0,0.5515431842401545,0.0,1.0,1.0,Tier3_exploratory,68,48,0.22916666666666666
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.0,0.5515431842401545,0.0,1.0,1.0,Tier3_exploratory,48,48,0.22916666666666666
+Stromal cells,Malignant cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.0,0.9184783309025585,0.0,1.0,1.0,Tier3_exploratory,68,84,0.47619047619047616
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,VDR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.38095238095238093
+Malignant cells,Immune cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.11251986937280353,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.0,0.9785532969159636,0.0,1.0,1.0,Tier3_exploratory,68,84,0.25
+Immune cells,Malignant cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.0,0.9785532969159636,0.0,1.0,1.0,Tier3_exploratory,48,84,0.25
+Malignant cells,Stromal cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.05892954408958705,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Immune cells,Immune cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Immune cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.0,0.9785532969159636,0.0,1.0,1.0,Tier3_exploratory,68,84,0.25
+Immune cells,Malignant cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.0,0.9785532969159636,0.0,1.0,1.0,Tier3_exploratory,48,84,0.25
+Malignant cells,Stromal cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.1011449361901755,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Malignant cells,Immune cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.1011449361901755,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,15-HETE,HMDB0003876,LTB4R2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Malignant cells,Immune cells,12-HETE,HMDB0006111,LTB4R2,Cell surface receptor,0.05892954408958705,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.08333333333333333
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.08333333333333333
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.08333333333333333
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.014705882352941176
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.014705882352941176
+Immune cells,Malignant cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.0,0.9184783309025585,0.0,1.0,1.0,Tier3_exploratory,48,84,0.47619047619047616
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Malignant cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Stromal cells,Malignant cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Immune cells,Malignant cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Malignant cells,Stromal cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR1H4,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.014705882352941176
+Malignant cells,Stromal cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.9956270381600434,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.20588235294117646
+Stromal cells,Stromal cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.20588235294117646
+Immune cells,Stromal cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.20588235294117646
+Malignant cells,Immune cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.9956270381600434,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.4166666666666667
+Stromal cells,Immune cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.4166666666666667
+Immune cells,Immune cells,20-Hydroxy-leukotriene B4,HMDB0001509,LTB4R,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.4166666666666667
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.11904761904761904
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.11904761904761904
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.0,0.059622936889433154,0.0,1.0,1.0,Tier3_exploratory,48,68,0.17647058823529413
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.0,0.8163785405771867,0.0,1.0,1.0,Tier3_exploratory,68,68,0.3088235294117647
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.0,0.8163785405771867,0.0,1.0,1.0,Tier3_exploratory,48,68,0.3088235294117647
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.2619047619047619
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.2619047619047619
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.2619047619047619
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRB,Other receptor,0.0,0.059622936889433154,0.0,1.0,1.0,Tier3_exploratory,68,68,0.17647058823529413
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2F2,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.11904761904761904
+Immune cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Malignant cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Malignant cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Immune cells,Stromal cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Immune cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.014705882352941176
+Stromal cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.014705882352941176
+Immune cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.014705882352941176
+Malignant cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.2619047619047619
+Stromal cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.4523809523809524
+Malignant cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.0,0.20446340894780882,0.0,1.0,1.0,Tier3_exploratory,84,68,0.38235294117647056
+Stromal cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Malignant cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.4523809523809524
+Immune cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.0,0.20446340894780882,0.0,1.0,1.0,Tier3_exploratory,48,68,0.38235294117647056
+Malignant cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.08333333333333333
+Stromal cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.08333333333333333
+Immune cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.08333333333333333
+Stromal cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,LPAR4,Cell surface receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Stromal cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Immune cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Malignant cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Malignant cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Malignant cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Malignant cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.023809523809523808
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.023809523809523808
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.023809523809523808
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Stromal cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.2619047619047619
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.11251986937280353,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,5'-Deoxyadenosine,HMDB0001983,ADORA1,Cell surface receptor,0.11251986937280353,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PPARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Immune cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.2619047619047619
+Stromal cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.0,0.059622936889433154,0.0,1.0,1.0,Tier3_exploratory,68,68,0.17647058823529413
+Immune cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.0,0.059622936889433154,0.0,1.0,1.0,Tier3_exploratory,48,68,0.17647058823529413
+Malignant cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.08333333333333333
+Stromal cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.08333333333333333
+Immune cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.08333333333333333
+Stromal cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.0,0.1693567987908654,0.0,1.0,1.0,Tier3_exploratory,68,84,0.32142857142857145
+Immune cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.0,0.1693567987908654,0.0,1.0,1.0,Tier3_exploratory,48,84,0.32142857142857145
+Immune cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.058823529411764705
+Stromal cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.14705882352941177
+Immune cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.14705882352941177
+Malignant cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,84,84,0.08333333333333333
+Immune cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.0,0.25025775704124537,0.0,1.0,1.0,Tier3_exploratory,48,84,0.08333333333333333
+Malignant cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.058823529411764705
+Stromal cells,Stromal cells,25-Hydroxycholesterol,HMDB0006247,NR1H3,Other receptor,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.058823529411764705
+Malignant cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,RXRA,Other receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.14705882352941177
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.0,0.2512224361898074,0.0,1.0,1.0,Tier3_exploratory,68,84,0.4166666666666667
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.0,0.2512224361898074,0.0,1.0,1.0,Tier3_exploratory,48,84,0.4166666666666667
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.11764705882352941
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.11764705882352941
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.11764705882352941
+Immune cells,Stromal cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.10416666666666667
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.10416666666666667
+Malignant cells,Malignant cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.011904761904761904
+Stromal cells,Malignant cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.011904761904761904
+Immune cells,Malignant cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.011904761904761904
+Malignant cells,Stromal cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESRRA,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.10416666666666667
+Malignant cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.058823529411764705
+Stromal cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.058823529411764705
+Immune cells,Stromal cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.058823529411764705
+Malignant cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.0,0.8726870414233466,0.0,1.0,1.0,Tier3_exploratory,84,48,0.625
+Immune cells,Immune cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.0,0.8726870414233466,0.0,1.0,1.0,Tier3_exploratory,48,48,0.625
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.17857142857142858
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.17857142857142858
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.17857142857142858
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.0,0.49094684910871056,0.0,1.0,1.0,Tier3_exploratory,48,68,0.1323529411764706
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.10416666666666667
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.10416666666666667
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.10416666666666667
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESRRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR2C2,Other receptor,0.0,0.49094684910871056,0.0,1.0,1.0,Tier3_exploratory,68,68,0.1323529411764706
+Immune cells,Immune cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Malignant cells,Immune cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Malignant cells,25-Hydroxycholesterol,HMDB0006247,ABCA1,Transporter,0.3279141416907826,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.4523809523809524
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.0,0.641058750404338,0.0,1.0,1.0,Tier3_exploratory,68,84,0.44047619047619047
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.0,0.641058750404338,0.0,1.0,1.0,Tier3_exploratory,48,84,0.44047619047619047
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.11764705882352941
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.11764705882352941
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.11764705882352941
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Stromal cells,Immune cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17alpha-Estradiol,HMDB0000429,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.011904761904761904
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.011904761904761904
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.011904761904761904
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Stromal cells,Immune cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,17alpha-Estradiol,HMDB0000429,PGR,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESR2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Malignant cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Stromal cells,Malignant cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Immune cells,Malignant cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Malignant cells,Stromal cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.6767170168880723,0.0,1.0,1.0,Tier3_exploratory,84,68,0.11764705882352941
+Stromal cells,Stromal cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.6767170168880723,0.0,1.0,1.0,Tier3_exploratory,68,68,0.11764705882352941
+Immune cells,Stromal cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.6767170168880723,0.0,1.0,1.0,Tier3_exploratory,48,68,0.11764705882352941
+Immune cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.047619047619047616
+Stromal cells,Immune cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.0,0.6767170168880723,0.0,1.0,1.0,Tier3_exploratory,68,68,0.11764705882352941
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.0,0.6767170168880723,0.0,1.0,1.0,Tier3_exploratory,48,68,0.11764705882352941
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Malignant cells,Immune cells,11beta-Hydroxyprogesterone,HMDB0004031,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Malignant cells,Immune cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.06367507365660756,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,17alpha-Estradiol,HMDB0000429,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Malignant cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.6550234033063062,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Stromal cells,Malignant cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Immune cells,Malignant cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Malignant cells,Stromal cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.6550234033063062,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Malignant cells,Immune cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.6550234033063062,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.020833333333333332
+Stromal cells,Immune cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.020833333333333332
+Immune cells,Immune cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.020833333333333332
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.03571428571428571
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.03571428571428571
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.03571428571428571
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.029411764705882353
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.029411764705882353
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Immune cells,Stromal cells,16a-Hydroxyestrone,HMDB0000335,ESR1,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.029411764705882353
+Stromal cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.0
+Stromal cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.0
+Immune cells,Stromal cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.0
+Malignant cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.08333333333333333
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.08333333333333333
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.0,0.6941733615941067,0.0,1.0,1.0,Tier3_exploratory,68,68,0.1323529411764706
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.0,0.6941733615941067,0.0,1.0,1.0,Tier3_exploratory,48,68,0.1323529411764706
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.047619047619047616
+Stromal cells,Malignant cells,27-Hydroxycholesterol,HMDB0002103,GPR183,Cell surface receptor,0.3001702564928322,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.047619047619047616
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RARB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.08333333333333333
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,NR3C2,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.0
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.0
+Malignant cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,68,0.014705882352941176
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,68,0.014705882352941176
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,68,0.014705882352941176
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Malignant cells,Malignant cells,13-cis-Retinoic acid,HMDB0006219,HTR2B,Cell surface receptor,0.6035866376147456,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Malignant cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,84,0.047619047619047616
+Stromal cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,84,0.047619047619047616
+Immune cells,Malignant cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,84,0.047619047619047616
+Stromal cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.0,0.4835280210437426,0.0,1.0,1.0,Tier3_exploratory,68,68,0.08823529411764706
+Immune cells,Stromal cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.0,0.4835280210437426,0.0,1.0,1.0,Tier3_exploratory,48,68,0.08823529411764706
+Malignant cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.7114411096565488,0.0,0.0,1.0,1.0,Tier3_exploratory,84,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0
+Immune cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,THRB,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,48,48,0.0
+Stromal cells,Immune cells,17-Hydroxyprogesterone,HMDB0000374,RXRG,Other receptor,0.0,0.0,0.0,1.0,1.0,Tier3_exploratory,68,48,0.0

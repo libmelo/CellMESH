@@ -421,7 +421,7 @@ def run_cell_mesh(
            - degradation → substrate → 进入 C (消耗) 矩阵
            - export → exporter → 进入 E (外排) 矩阵
         2. sender score 以 production 的正向 median contrast 为必要锚点；
-           exporter 高于背景时加分，relative consumption support 高于背景时惩罚。
+           exporter 高于背景时加分，消耗型复合酶水平高于背景时惩罚。
            缺少 exporter 或 consumption prior 时对应 factor 为 1。
         3. sensor_score 是 sensor 表达相对 eligible cell-type median 的正向 contrast
         4. cell_mesh_score = sqrt(metabolite_availability * sensor_score)

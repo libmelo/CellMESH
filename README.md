@@ -15,7 +15,7 @@ availability directions used to build the P/C/E matrices:
 | Role in prior | Direction | Matrix | Meaning |
 |---|---|---|---|
 | `production` | `product` | P | Metabolite production ability |
-| `degradation` | `substrate` | C | Metabolite consumption ability |
+| `degradation` | `substrate` | C | Metabolite consumption-enzyme ability proxy |
 | `export` | `exporter` | E | Metabolite efflux/transport ability |
 
 ### 2. Sender Score
@@ -36,9 +36,10 @@ sender_score = P_plus * exporter_factor * consumption_factor
 `P_plus` is the positive production contrast and is required for a nonzero
 sender score. An exporter prior contributes `1 + E_plus`; a
 consumption/substrate prior contributes `1 - C_plus`. Missing priors are neutral
-with factor 1. The C term is relative consumption support, or
-turnover/consumption context; it is not necessarily extracellular clearance
-flux.
+with factor 1. Raw C represents the expression-derived level of
+metabolite-consuming enzyme complexes. `C_plus` is only the positive deviation
+of that consumption ability proxy above the eligible cell-type median; it is
+not a direct measurement of extracellular clearance flux.
 
 ### 3. Sensor Score Calculation
 Sensor score uses the same bounded median contrast:

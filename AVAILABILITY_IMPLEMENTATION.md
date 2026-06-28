@@ -29,9 +29,10 @@ S^{sender}_{m,c}=p^+_{m,c}F^E_{m,c}F^C_{m,c}
 - \(F^C=1-c^+\) when a consumption/substrate prior exists, otherwise 1.
 - Missing exporter or consumption priors are neutral.
 
-The C-derived output is named `relative_consumption_support`. It describes
-relative turnover/consumption context and is not measured extracellular
-clearance flux.
+Raw C is the expression-derived proxy for metabolite consumption-enzyme
+ability. The C-derived output is named `relative_consumption_support` because
+it retains only the positive deviation of that proxy above the eligible
+cell-type median. It is not measured extracellular clearance flux.
 
 Intermediates include `P`, `C`, `E`, `P_contrast`, `C_contrast`, `E_contrast`,
 `P_plus`, `E_plus`, `relative_consumption_support`, `pseudobulk`, `expr_frac`,

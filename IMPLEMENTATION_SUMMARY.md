@@ -8,7 +8,9 @@ pseudobulk, P/C/E, sender, and receiver calculations.
   eligible-cell-type median.
 - Positive production contrast is the required sender anchor.
 - Exporter positive contrast adds support only when an exporter prior exists.
-- Relative consumption support penalizes only when a consumption/substrate
+- The C matrix represents the expression-derived level of
+  metabolite-consuming enzyme complexes.
+- Its positive median deviation penalizes only when a consumption/substrate
   prior exists.
 - Missing exporter or consumption priors use neutral factor 1.
 - Receiver scores use positive bounded median contrast of sensor pseudobulk.
@@ -17,6 +19,6 @@ pseudobulk, P/C/E, sender, and receiver calculations.
 - Event score is `sqrt(sender_score * receiver_score)`.
 - Events record `sender_n_cells` and `receiver_n_cells`.
 
-The C component is turnover/consumption context, exposed as
-`relative_consumption_support`; it is not a direct extracellular clearance-flux
-measurement.
+The derived C component is exposed as `relative_consumption_support`: it is the
+positive deviation of the consumption ability proxy above the eligible
+cell-type median, not a direct extracellular clearance-flux measurement.
