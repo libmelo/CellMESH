@@ -23,12 +23,12 @@ print("\n2. 构建测试 prior 表...")
 # 酶-代谢物 prior，只包含 3 个 roles
 enzyme_metabolite = pd.DataFrame([
     # ATP 相关
-    {"metabolite": "ATP", "gene": "Gene1", "role": "production", "weight": 1.0},
-    {"metabolite": "ATP", "gene": "Gene2", "role": "degradation", "weight": 0.8},
-    {"metabolite": "ATP", "gene": "Gene4", "role": "export", "weight": 1.2},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene1", "role": "production", "weight": 1.0},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene2", "role": "degradation", "weight": 0.8},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene4", "role": "export", "weight": 1.2},
     # 谷氨酸相关
-    {"metabolite": "Glutamate", "gene": "Gene6", "role": "production", "weight": 1.0},
-    {"metabolite": "Glutamate", "gene": "Gene7", "role": "export", "weight": 1.0},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene6", "role": "production", "weight": 1.0},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene7", "role": "export", "weight": 1.0},
 ])
 
 # 代谢物-传感器 prior，使用 3 种 sensor types
@@ -62,27 +62,27 @@ print(f"  availability_results 包含的键: {list(res.availability_results.keys
 # 4. 检查结果
 print("\n4. 结果检查:")
 
-# 检查 availability 结果是否在 0-1 之间
+# Sender score is non-negative and may exceed 1 when exporter support is high.
 avail = res.availability_results['availability']
 if not avail.empty:
     min_val = avail.min().min()
     max_val = avail.max().max()
-    print(f"  availability 范围: [{min_val:.4f}, {max_val:.4f}] (预期在 0-1 之间)")
-    assert 0 <= min_val <= 1 and 0 <= max_val <= 1, "availability 结果超出 0-1 范围"
+    print(f"  availability 范围: [{min_val:.4f}, {max_val:.4f}]")
+    assert min_val >= 0, "availability 包含负值"
 
 # 检查事件结果
 if not res.events.empty:
     print(f"  事件前 5 行:")
     display_cols = ['sender', 'receiver', 'metabolite', 'sensor_gene', 'sensor_type', 
-                   'communication_score', 'sensor_expr_frac', 'perm_pvalue', 'fdr']
+                   'cell_mesh_score', 'sensor_expr_frac', 'perm_pvalue', 'fdr']
     available_cols = [c for c in display_cols if c in res.events.columns]
     print(res.events[available_cols].head())
     
     # 检查 score 范围
-    min_score = res.events['communication_score'].min()
-    max_score = res.events['communication_score'].max()
-    print(f"  communication_score 范围: [{min_score:.4f}, {max_score:.4f}] (预期在 0-1 之间)")
-    assert 0 <= min_score <= 1 and 0 <= max_score <= 1, "communication_score 超出 0-1 范围"
+    min_score = res.events['cell_mesh_score'].min()
+    max_score = res.events['cell_mesh_score'].max()
+    print(f"  cell_mesh_score 范围: [{min_score:.4f}, {max_score:.4f}]")
+    assert min_score >= 0, "cell_mesh_score 包含负值"
     
     # 检查 sensor_expr_frac 存在
     assert 'sensor_expr_frac' in res.events.columns, "缺少 sensor_expr_frac 列"
@@ -92,21 +92,21 @@ if not res.events.empty:
     sensor_types = res.events['sensor_type'].unique()
     print(f"  检测到的 sensor types: {list(sensor_types)}")
     
-    # 验证 communication score 是几何均值
+    # 验证 cell_mesh_score 是几何均值
     # 检查一些样本
     sample = res.events.iloc[0]
-    avail_score = sample['sender_score']
+    avail_score = sample['metabolite_availability']
     sensor_score = sample['sensor_score']
     expected = np.sqrt(avail_score * sensor_score)
-    actual = sample['communication_score']
+    actual = sample['cell_mesh_score']
     print(f"  几何均值验证: sqrt({avail_score:.4f} * {sensor_score:.4f}) = {expected:.4f} (实际: {actual:.4f})")
-    assert np.isclose(expected, actual), "communication score 不是几何均值"
+    assert np.isclose(expected, actual), "cell_mesh_score 不是几何均值"
 
 # 5. 检查参数是否正确
 print("\n5. 参数检查:")
 print(f"  包含的参数键: {list(res.parameters.keys())}")
 # 确认没有旧参数
-old_params = ['beta_sensor', 'beta_specificity']
+old_params = ['beta_sensor', 'beta_specificity', 'beta', 'missing_C_norm', 'missing_E_norm']
 for p in old_params:
     assert p not in res.parameters, f"旧参数 {p} 不应出现在结果中"
 print("  ✓ 所有旧参数已成功移除")
@@ -122,4 +122,3 @@ if not res.receiver_scores.empty:
 print("\n" + "=" * 60)
 print("✅ 所有冒烟测试通过！新 Sensor 评分算法成功！")
 print("=" * 60)
-

@@ -12,23 +12,44 @@ where \(c_s\) is the sender cell group, \(c_r\) is the receiver cell group, \(m\
 
 ## Packaged database
 
-This version packages two uploaded CSV files:
+This version packages versioned prior CSV files plus fixed walkthrough/test files:
 
-1. `enzyme_test.csv`: metabolite-enzyme-reaction table
-2. `interaction_test.csv`: metabolite-sensor interaction table
+1. `Enzyme1.0.csv`: versioned metabolite-enzyme-reaction table
+2. `Interaction1.0.csv`: versioned metabolite-sensor interaction table
+3. `enzyme_test.csv`: legacy small enzyme prior used for compatibility tests
+4. `interaction_test.csv`: legacy small sensor prior used for compatibility tests
+5. `Enzyme_new.csv`: walkthrough/test enzyme prior
+6. `test_single_cell.h5ad`: walkthrough/test single-cell data
 
-At runtime, `load_cell_mesh_database()` normalizes these files into:
+At runtime, `load_cell_mesh_database()` independently selects the highest
+packaged enzyme file named `Enzyme<version>.csv` and the highest packaged
+interaction file named `Interaction<version>.csv`, then normalizes the selected
+prior files into:
 
 - `enzyme_metabolite`
 - `metabolite_sensor`
 
-The enzyme table maps `Direction = product` to `production` and `Direction = substrate` to `degradation`. The interaction table maps annotations to CELL MESH sensor classes:
+Both priors must provide `hmdb_id`. Records without `hmdb_id` are excluded before scoring, and sender availability is matched to receiver sensors by exact `(metabolite, hmdb_id)`.
 
-- Cell surface receptor -> `surface_receptor`
-- Other receptor -> `surface_receptor`
-- Transporter -> `transporter`
-- Nuclear receptor -> `nuclear_receptor`
-- Intracellular sensor -> `intracellular_sensor`
+The normalized `enzyme_metabolite` table is the canonical enzyme prior passed through `run_cell_mesh()`. It uses three roles:
+
+- `production`
+- `degradation`
+- `export`
+
+Packaged enzyme files that contain reaction directions are normalized into these roles during `load_cell_mesh_database()`:
+
+- `product` -> `production`
+- `substrate` -> `degradation`
+- `exporter` -> `export`
+
+Availability scoring then maps those roles back to internal P/C/E directions. This is an internal normalization step, not a separate public reaction-table API.
+
+The interaction table maps annotations to the three supported sensor classes:
+
+- `Cell surface receptor`
+- `Transporter`
+- `Other receptor`
 
 ## Expression aggregation
 
@@ -44,90 +65,59 @@ and expression fraction:
 \phi_{g,c} = \frac{1}{|C_c|}\sum_{i \in C_c} I(x_{i,g} > 0)
 \]
 
-Mean expression is z-scored across cell groups:
+For each reaction, CELL MESH scales each valid gene expression value by its gene weight and then applies an ordinary geometric mean:
 
 \[
-z_{g,c} = \frac{\bar{x}_{g,c} - \mu_g}{\sigma_g + \epsilon}
+\operatorname{rxn}_{r,c} =
+\operatorname{gmean}_{g \in G_r}(w_g \bar{x}_{g,c} + 1) - 1
 \]
 
-## Metabolite role scores
+This weight semantics is a per-gene expression scaling step, not the normalized weighted geometric mean \(\exp(\sum w \log x / \sum w)\).
 
-For metabolite \(m\), cell group \(c\), and role \(r\), CELL MESH computes:
+## Metabolite availability
+
+Only cell types with at least `min_cells` cells are eligible. Reaction scores
+are aggregated into unchanged production \(P\), consumption \(C\), and efflux
+\(E\) matrices. Here, \(C\) is an expression-derived proxy for the level of
+metabolite-consuming enzyme complexes. For each non-negative vector across
+eligible cell types:
 
 \[
-A_{m,c}^{(r)} = \operatorname{Agg}_{g \in G_{m,r}}(w_g z_{g,c})
+D(x_c;b)=\frac{x_c-b}{x_c+b}, \qquad b=\operatorname{median}_c(x_c)
 \]
 
-where \(r\) can be `production`, `degradation`, `export`, `import`, or `usage`.
-
-The default aggregation is a weighted mean:
+with a numerical zero-denominator guard. Let \(p^+,c^+,e^+\) be the positive
+parts of the P/C/E contrasts. The sender score is:
 
 \[
-A_{m,c}^{(r)} = \frac{\sum_g w_g z_{g,c}}{\sum_g |w_g|}
+A_{m,c}=p^+_{m,c}F^E_{m,c}F^C_{m,c}
 \]
 
-A `softmin` option is available for bottleneck-like pathways.
+where \(F^E=1+e^+\) when an exporter prior exists and 1 otherwise, while
+\(F^C=1-c^+\) when a consumption/substrate prior exists and 1 otherwise.
+Production above the median is therefore required. The derived \(c^+\) term is
+the positive deviation of the consumption ability proxy above the eligible
+cell-type median. It is not a direct measurement of extracellular clearance
+flux.
 
-## Sender score
+## Receiver score
 
-CELL MESH models sender-side metabolite availability as:
-
-\[
-\tilde{S}_{m,c_s} =
-\alpha_1 A_{m,c_s}^{prod}
-- \alpha_2 A_{m,c_s}^{deg}
-+ \alpha_3 A_{m,c_s}^{export}
-+ \alpha_4 Q_{m,c_s}^{send}
-\]
-
-where \(Q\) is a cell-group specificity term. The bounded sender score is:
+Receiver-side sensor score is the positive bounded median contrast of
+pseudobulk sensor expression across eligible cell types. If `min_expr_frac` is
+not `None`, it acts as an optional expression-fraction gate.
 
 \[
-S_{m,c_s} = \sigma(\tilde{S}_{m,c_s})
-\]
-
-## Receiver score with sensor hierarchy
-
-CELL MESH differs from a unified metabolite-sensor scoring scheme by using different receiver models for different sensor classes.
-
-### Surface receptor
-
-\[
-R^{surface}_{m,s,c_r} = \sigma(\beta_1 z_{s,c_r} + \beta_2 Q_{s,c_r}^{recv})
-\]
-
-### Transporter
-
-\[
-R^{transporter}_{m,s,c_r} = \sigma(
-\beta_1 z_{s,c_r}
-+ \beta_2 Q_{s,c_r}^{recv}
-+ \beta_3 A_{m,c_r}^{import}
-+ \beta_4 A_{m,c_r}^{usage}
-)
-\]
-
-### Nuclear/intracellular sensor
-
-\[
-R^{intracellular}_{m,s,c_r} = \sigma(
-\beta_1 z_{s,c_r}
-+ \beta_2 Q_{s,c_r}^{recv}
-+ \beta_3 A_{m,c_r}^{import}
-+ \beta_5 A_{m,c_r}^{usage}
-)
+R_{m,s,c_r} \in [0, 1]
 \]
 
 ## CELL MESH event score
 
-The final event score is:
-
 \[
 \text{CELL\_MESH}_{c_s \to c_r}^{m,s} =
-S_{m,c_s} \times R_{m,s,c_r}^{type(s)} \times W_{m,s}^{prior}
+\sqrt{A_{m,c_s} R_{m,s,c_r}}
 \]
 
-In the output table this is stored as `cell_mesh_score`. The column `communication_score` is also retained as a backward-compatible alias.
+In the output table this is stored as `cell_mesh_score`.
 
 ## Permutation testing
 
@@ -137,4 +127,4 @@ CELL MESH optionally estimates empirical p-values by shuffling cell group labels
 p = \frac{1 + \sum_b I(C_b \ge C_{obs})}{B + 1}
 \]
 
-P-values are adjusted using Benjamini-Hochberg FDR.
+The current null is defined at the full event-key level: `sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, and `sensor_type` must match between observed and permuted events before scores are compared. P-values are adjusted using Benjamini-Hochberg FDR separately within each sensor type.

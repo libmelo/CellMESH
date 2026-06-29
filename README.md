@@ -7,36 +7,52 @@ CELL MESH is a Python package for inferring metabolite-mediated cell-cell commun
 
 ## Algorithm Overview
 
-### 1. Enzyme Prior to Reaction Mapping
-The enzyme-metabolite prior table is internally converted to reaction matrices using the following mapping:
+### 1. Enzyme Prior Normalization
+The enzyme-metabolite prior table is the canonical enzyme input. `run_cell_mesh()`
+validates this prior once with `validate_priors()` and passes it directly into
+the availability calculation. Internally, enzyme roles are normalized to the
+availability directions used to build the P/C/E matrices:
 | Role in prior | Direction | Matrix | Meaning |
 |---|---|---|---|
 | `production` | `product` | P | Metabolite production ability |
-| `degradation` | `substrate` | C | Metabolite consumption ability |
+| `degradation` | `substrate` | C | Metabolite consumption-enzyme ability proxy |
 | `export` | `exporter` | E | Metabolite efflux/transport ability |
 
-### 2. Metabolite Availability Calculation (Unchanged)
-The metabolite availability (sender score) is computed as:
+### 2. Sender Score
+Only cell types with at least `min_cells` cells are included. For each
+metabolite, P/C/E are compared with the equal-weight median across eligible cell
+types using:
+
+```text
+D(x; median) = (x - median) / (x + median)
 ```
-availability = P_norm * ((1 - C_norm) ** beta) * (0.8 + 0.2 * E_norm)
+
+The sender score is:
+
 ```
-Where:
-- `P_norm`: Normalized production score [0, 1]
-- `C_norm`: Normalized consumption score [0, 1]
-- `E_norm`: Normalized efflux score [0, 1]
-- Result range: Strictly between [0, 1], higher value indicates stronger ability to release the metabolite
+sender_score = P_plus * exporter_factor * consumption_factor
+```
+
+`P_plus` is the positive production contrast and is required for a nonzero
+sender score. An exporter prior contributes `1 + E_plus`; a
+consumption/substrate prior contributes `1 - C_plus`. Missing priors are neutral
+with factor 1. Raw C represents the expression-derived level of
+metabolite-consuming enzyme complexes. `C_plus` is only the positive deviation
+of that consumption ability proxy above the eligible cell-type median; it is
+not a direct measurement of extracellular clearance flux.
 
 ### 3. Sensor Score Calculation
-Sensor score is based on robust min-max normalized sensor gene expression:
+Sensor score uses the same bounded median contrast:
 - First, compute pseudobulk mean expression of each sensor gene per cell type
-- Then apply robust min-max normalization across cell types for each gene
-- Genes with `sensor_expr_frac < min_expr_frac` get `sensor_score = 0`
+- Keep only the positive contrast above the eligible cell-type median
+- When `min_expr_frac` is not `None`, genes below that optional gate get score 0
 
 ### 4. Communication Score
 Communication score is the geometric mean of metabolite availability and sensor score:
 ```
-communication_score = sqrt(metabolite_availability * sensor_score)
+cell_mesh_score = sqrt(metabolite_availability * sensor_score)
 ```
+Events are matched by `hmdb_id` on both the sender availability side and receiver sensor side. Prior rows without `hmdb_id` are excluded before event construction.
 
 ### 5. Sensor Types
 Sensors are categorized into three types based on the `Annotation` column in `interaction_test.csv`:
@@ -46,23 +62,59 @@ Sensors are categorized into three types based on the `Annotation` column in `in
 
 Permutation p-values and FDR are computed separately within each sensor type.
 
-## Included Databases
-The package includes built-in prior databases:
-- `cell_mesh/data/enzyme_test.csv`: enzyme/reaction/metabolite table
-- `cell_mesh/data/interaction_test.csv`: metabolite-receptor/sensor interaction table (with `HMDB_ID`, `Gene_name`, `Annotation` columns)
+## Included Data
+The package includes built-in prior databases and a small AnnData example file:
 
-These are automatically loaded if not explicitly provided.
+- `cellmesh/data/Enzyme1.0.csv`: versioned enzyme/reaction/metabolite table
+- `cellmesh/data/Interaction1.0.csv`: versioned metabolite-sensor interaction table
+- `cellmesh/data/enzyme_test.csv`: legacy small enzyme prior used for compatibility tests
+- `cellmesh/data/interaction_test.csv`: legacy small sensor prior used for compatibility tests
+- `cellmesh/data/Enzyme_new.csv`: walkthrough/test enzyme prior
+- `cellmesh/data/test_single_cell.h5ad`: walkthrough/test single-cell data
+
+`load_cell_mesh_database()` automatically loads the highest packaged enzyme file
+named `Enzyme<version>.csv` and the highest packaged interaction file named
+`Interaction<version>.csv` if file paths are not explicitly provided. The two
+version numbers do not need to match: if the highest enzyme prior is
+`Enzyme1.2.csv` and the highest interaction prior is `Interaction2.2.csv`, those
+two files are selected together. With the current packaged files, the default is
+`Enzyme1.0.csv` and `Interaction1.0.csv`. If no versioned files are available,
+the loader falls back to the legacy `enzyme_test.csv` / `interaction_test.csv`
+pair. The comprehensive walkthrough notebook uses `Enzyme_new.csv`,
+`Interaction1.0.csv`, and `test_single_cell.h5ad` so its calculations are fully
+reproducible from packaged files.
 
 ## Install
+
+From a local checkout:
 
 ```bash
 pip install -e .
 ```
 
+For running the walkthrough notebook:
+
+```bash
+pip install -e ".[notebook]"
+```
+
+For development and tests:
+
+```bash
+pip install -e ".[dev]"
+pytest -q
+```
+
+10X directory loading uses Scanpy and can be enabled with:
+
+```bash
+pip install -e ".[scanpy]"
+```
+
 ## Basic Usage
 
 ```python
-from cell_mesh import run_cell_mesh
+from cellmesh import run_cell_mesh
 
 res = run_cell_mesh(
     adata,
@@ -93,27 +145,17 @@ res.availability_results  # All intermediate calculation results
 | `cell_type_key` | `"cell_type"` | Column name in adata.obs containing cell type annotations |
 | `sample_key` | `None` | Column name in adata.obs containing sample annotations (for permutation) |
 | `layer` | `None` | Name of expression layer to use. If None, uses adata.X |
-| `min_expr_frac` | `0.05` | Minimum fraction of cells expressing a sensor gene to be considered |
+| `min_expr_frac` | `None` | Optional receiver expression-fraction gate |
 | `allow_self` | `True` | Whether to allow self-communication events (sender == receiver) |
 | `n_perms` | `0` | Number of permutations for empirical p-value calculation. 0 = no permutation |
 | `random_state` | `0` | Random seed for reproducibility |
-| `lower` | `5` | Lower percentile for robust min-max normalization (for both availability and sensor scoring) |
-| `upper` | `95` | Upper percentile for robust min-max normalization (for both availability and sensor scoring) |
-| `eps` | `0.05` | Small constant (reserved for backward compatibility, no longer used in availability formula) |
-| `beta` | `0.5` | Exponent weight for consumption term in availability formula |
-| `missing_C_norm` | `0.2` | Default C_norm value when no consumption evidence exists |
-| `missing_E_norm` | `0.5` | Default E_norm value when no efflux evidence exists |
-| `min_cells` | `1` | Minimum number of cells per cell type to be included |
-
-### Removed Parameters
-The following parameters are no longer available (old scoring mechanism removed):
-- `beta_sensor`
-- `beta_specificity`
+| `eps_num` | `1e-12` | Numerical protection only for bounded median contrast denominators |
+| `min_cells` | `100` | Minimum number of cells per cell type to be included |
 
 ## Inspect the Packaged Database
 
 ```python
-from cell_mesh import load_cell_mesh_database
+from cellmesh import load_cell_mesh_database
 
 enzyme_metabolite, metabolite_sensor = load_cell_mesh_database()
 
@@ -126,14 +168,18 @@ print(metabolite_sensor.head())
 metabolite, hmdb_id, gene, role, weight, evidence_level, source, reaction
 ```
 
-### Sensor Table Columns (from interaction_test.csv)
+`compute_metabolite_availability()` also accepts this standard
+`enzyme_metabolite` schema directly. Legacy direction-style inputs are only
+kept as a compatibility path for low-level availability tests.
+
+### Sensor Table Columns (from interaction_test.csv / Interaction1.0.csv)
 ```
 ID, HMDB_ID, standard_metName, Gene_name, Protein_name, Annotation, Database source, Reference
 ```
 
 ## Supported Sensor Types
 
-From the `Annotation` column in `interaction_test.csv`:
+From the `Annotation` column in the packaged interaction CSV:
 - `Cell surface receptor`
 - `Transporter`
 - `Other receptor` (includes nuclear receptors, intracellular sensors, and other annotations)
@@ -145,22 +191,22 @@ Contains one row per communication event. Important columns:
 - `sender`, `receiver`: Cell type pair
 - `metabolite`, `hmdb_id`: Metabolite information
 - `sensor_gene`, `sensor_type`: Sensor information (sensor_type is one of "Cell surface receptor", "Transporter", "Other receptor")
-- `sender_score` / `metabolite_availability`: Metabolite availability in sender cell type [0, 1]
-- `receiver_score` / `sensor_score`: Robust min-max normalized sensor expression in receiver cell type [0, 1]
+- `metabolite_availability`: Median-relative sender score
+- `sensor_score`: Positive median-relative sensor expression in receiver cell type
 - `sensor_expr_frac`: Fraction of cells in receiver cell type expressing the sensor gene
-- `cell_mesh_score` / `communication_score`: Geometric mean of availability and sensor score [0, 1]
+- `sender_n_cells`, `receiver_n_cells`: Eligible cell-type sizes
+- `cell_mesh_score`: Geometric mean of sender and receiver scores
 - `perm_pvalue`, `fdr`: Empirical p-value and FDR (computed separately within each sensor type)
 - `confidence_tier`: Confidence classification (`Tier1_high`, `Tier2_medium`, `Tier3_exploratory`)
 
 ### Other Outputs
-- `res.sender_scores`: Metabolite × cell type matrix of availability scores
+- `res.sender_scores`: `(metabolite, hmdb_id)` × cell type matrix of availability scores
 - `res.receiver_scores`: Table of sensor scores per metabolite-sensor-cell type combination
 - `res.availability_results`: Dictionary containing all intermediate calculation results (P/C/E matrices, pseudobulk, etc.)
-- `res.role_scores`: Empty dict (kept for backward compatibility)
 
 ## Notes
 - **Transcriptomics-only**: CELL MESH estimates metabolite availability using expression proxies and prior knowledge. Direct metabolomics, spatial data, or perturbation experiments should be used to validate predictions.
-- **Sensor scoring**: Uses robust min-max normalization of pseudobulk sensor gene expression
+- **Sensor scoring**: Uses positive bounded median contrast of pseudobulk sensor expression
 - **Communication score**: Geometric mean ensures both sender and receiver have meaningful scores
 - **Sensor type stratification**: P-values and FDR are computed separately for each sensor type to avoid confounding
-
+- **Permutation null**: Empirical p-values compare each observed full event key (`sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, `sensor_type`) against the same key after cell-type label permutation, with FDR stratified by sensor type.
