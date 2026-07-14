@@ -120,6 +120,7 @@ res = run_cell_mesh(
     adata,
     cell_type_key="cell_type",
     sample_key="sample",      # optional, for within-sample permutation
+    sample_mode="pooled_stratified",
     layer="lognorm",          # optional, use specific expression layer
     n_perms=1000,             # optional, number of permutations for p-value calculation
     min_expr_frac=0.10,       # optional, minimum expression fraction for sensor genes
@@ -143,14 +144,32 @@ res.availability_results  # All intermediate calculation results
 | `enzyme_metabolite` | `None` | Enzyme-metabolite prior table. If None, uses built-in database |
 | `metabolite_sensor` | `None` | Metabolite-sensor prior table. If None, uses built-in database |
 | `cell_type_key` | `"cell_type"` | Column name in adata.obs containing cell type annotations |
-| `sample_key` | `None` | Column name in adata.obs containing sample annotations (for permutation) |
+| `sample_key` | `None` | Column name in adata.obs containing sample annotations |
+| `sample_mode` | `"pooled_stratified"` | `"pooled_stratified"` computes pooled cell-type pseudobulks; `"sample_aware"` computes and scores `(sample, cell type)` units separately before aggregating event scores across samples |
 | `layer` | `None` | Name of expression layer to use. If None, uses adata.X |
 | `min_expr_frac` | `None` | Optional receiver expression-fraction gate |
 | `allow_self` | `True` | Whether to allow self-communication events (sender == receiver) |
 | `n_perms` | `0` | Number of permutations for empirical p-value calculation. 0 = no permutation |
 | `random_state` | `0` | Random seed for reproducibility |
 | `eps_num` | `1e-12` | Numerical protection only for bounded median contrast denominators |
-| `min_cells` | `100` | Minimum number of cells per cell type to be included |
+| `min_cells` | `100` | Minimum number of cells required to construct a pseudobulk expression unit |
+
+`min_cells : int`
+    Minimum number of cells required to construct a pseudobulk expression unit.
+    In ``pooled_stratified`` mode, this filters cell types using their total
+    cell count across the full AnnData object. In ``sample_aware`` mode, this
+    filters each ``(sample, cell type)`` unit independently. Units below this
+    threshold are excluded from pseudobulk calculation and are represented as
+    missing values (NA), not zero, in sample-level outputs.
+
+`sample_mode : {"pooled_stratified", "sample_aware"}, default="pooled_stratified"`
+    ``pooled_stratified`` computes pooled cell-type pseudobulks across all
+    cells. When ``sample_key`` is provided, it is used only to stratify label
+    permutations within samples.
+
+    ``sample_aware`` computes pseudobulks, P/C/E scores, sender scores,
+    receiver scores, and event scores separately for each ``(sample, cell
+    type)`` unit, then aggregates event scores across samples.
 
 ## Inspect the Packaged Database
 
@@ -196,17 +215,26 @@ Contains one row per communication event. Important columns:
 - `sensor_expr_frac`: Fraction of cells in receiver cell type expressing the sensor gene
 - `sender_n_cells`, `receiver_n_cells`: Eligible cell-type sizes
 - `cell_mesh_score`: Geometric mean of sender and receiver scores
-- `perm_pvalue`, `fdr`: Empirical p-value and FDR (computed separately within each sensor type)
+- `perm_pvalue`: One-sided empirical p-value from label permutation
+- `fdr`: Compatibility alias for `fdr_sensor_type`
+- In `sample_aware` mode, `fdr_global` is Benjamini-Hochberg correction across
+  all events, while `fdr_sensor_type` is corrected separately within each
+  sensor type. `permutation_mode` records `"within_sample_label_shuffle"`.
 - `confidence_tier`: Confidence classification (`Tier1_high`, `Tier2_medium`, `Tier3_exploratory`)
 
 ### Other Outputs
 - `res.sender_scores`: `(metabolite, hmdb_id)` × cell type matrix of availability scores
 - `res.receiver_scores`: Table of sensor scores per metabolite-sensor-cell type combination
 - `res.availability_results`: Dictionary containing all intermediate calculation results (P/C/E matrices, pseudobulk, etc.)
+- In `sample_aware` mode, `res.availability_results["sample_validation"]` reports
+  `sample`, `cell_type`, `n_cells`, `eligible_in_sample`,
+  `n_eligible_celltypes_in_sample`, and `n_valid_samples_for_celltype`.
+  Sample-level outputs such as `sample_sender_scores` and `sample_event_scores`
+  use NA for `(sample, cell type)` units that fail `min_cells`.
 
 ## Notes
 - **Transcriptomics-only**: CELL MESH estimates metabolite availability using expression proxies and prior knowledge. Direct metabolomics, spatial data, or perturbation experiments should be used to validate predictions.
 - **Sensor scoring**: Uses positive bounded median contrast of pseudobulk sensor expression
 - **Communication score**: Geometric mean ensures both sender and receiver have meaningful scores
-- **Sensor type stratification**: P-values and FDR are computed separately for each sensor type to avoid confounding
+- **Sensor type stratification**: In pooled permutation output, `fdr` is computed separately for each sensor type. In `sample_aware` output, both `fdr_global` and `fdr_sensor_type` are reported, and `fdr` remains an alias for `fdr_sensor_type`.
 - **Permutation null**: Empirical p-values compare each observed full event key (`sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, `sensor_type`) against the same key after cell-type label permutation, with FDR stratified by sensor type.

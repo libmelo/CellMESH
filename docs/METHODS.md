@@ -76,9 +76,13 @@ This weight semantics is a per-gene expression scaling step, not the normalized 
 
 ## Metabolite availability
 
-Only cell types with at least `min_cells` cells are eligible. Reaction scores
-are aggregated into unchanged production \(P\), consumption \(C\), and efflux
-\(E\) matrices. Here, \(C\) is an expression-derived proxy for the level of
+Only cell types with at least `min_cells` cells are eligible in the default
+`pooled_stratified` mode. In `sample_aware` mode, eligibility is evaluated for
+each `(sample, cell type)` unit independently; units below `min_cells` are
+excluded from pseudobulk calculation and represented as missing values (NA),
+not zero, in sample-level outputs. Reaction scores are aggregated into unchanged
+production \(P\), consumption \(C\), and efflux \(E\) matrices. Here, \(C\) is
+an expression-derived proxy for the level of
 metabolite-consuming enzyme complexes. For each non-negative vector across
 eligible cell types:
 
@@ -121,10 +125,26 @@ In the output table this is stored as `cell_mesh_score`.
 
 ## Permutation testing
 
-CELL MESH optionally estimates empirical p-values by shuffling cell group labels. If `sample_key` is provided, labels are shuffled within sample.
+In `pooled_stratified` mode, empirical p-values use the existing pooled label
+permutation procedure. If `sample_key` is supplied, labels are permuted within
+samples.
+
+In `sample_aware` mode, permutations are also within-sample label shuffles, but
+the analysis structure is fixed before the first permutation. Only cells from
+eligible `(sample, cell type)` units enter the null calculation, and each
+permutation preserves the observed cell count for every eligible unit within
+each sample. Each permutation recomputes sample-level pseudobulks, P/C/E scores,
+sender scores, receiver scores, sample-level event scores, and the cross-sample
+median event score. The event universe is fixed from the observed analysis; if
+an event has no computable sample-level score in a permutation, that null score
+is set to 0 rather than dropping the event from the null distribution.
+
+For `sample_aware` events, `perm_pvalue` is a one-sided empirical p-value
+against `event_score_median`. `fdr_global` applies Benjamini-Hochberg correction
+across all events with non-missing p-values. `fdr_sensor_type` applies the same
+correction separately within each sensor type, and the legacy `fdr` column is a
+compatibility alias for `fdr_sensor_type`.
 
 \[
 p = \frac{1 + \sum_b I(C_b \ge C_{obs})}{B + 1}
 \]
-
-The current null is defined at the full event-key level: `sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, and `sensor_type` must match between observed and permuted events before scores are compared. P-values are adjusted using Benjamini-Hochberg FDR separately within each sensor type.

@@ -28,8 +28,8 @@ def test_load_packaged_database():
 def test_default_database_uses_highest_packaged_version():
     enzyme_path, interaction_path = _default_database_paths()
 
-    assert enzyme_path.name == "Enzyme1.0.csv"
-    assert interaction_path.name == "Interaction1.0.csv"
+    assert enzyme_path.name == "Enzyme2.0.csv"
+    assert interaction_path.name == "Interaction4.0.csv"
 
 
 def test_versioned_database_discovery_ignores_noncanonical_names():
