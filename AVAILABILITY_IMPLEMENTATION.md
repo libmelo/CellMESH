@@ -22,11 +22,12 @@ reaction identity are rejected instead of being merged into an artificial
 multi-gene complex.
 Reaction grouping uses `canonical_hmdb_id + reaction + direction`; metabolite
 name is display metadata. Exact gene symbols define each reaction's gene set.
-Within the same HMDB ID and direction, only reactions whose complete gene sets
-are identical are deduplicated, independent of gene order. Partially overlapping
-reactions retain their full gene sets and both contribute. The unique reaction
-gene sets are summed into one HMDB-level capacity, and reaction-count metadata
-counts these contributing sets.
+Within the same HMDB ID and direction, complete gene sets are compared
+independent of gene order. Identical sets contribute once, and strict subsets
+are omitted in favor of their supersets. Incomparable sets, including overlaps
+where neither contains the other, retain their full gene sets and all
+contribute. These inclusion-maximal reaction gene sets are summed into one
+HMDB-level capacity, and reaction-count metadata counts the contributing sets.
 
 For each metabolite and each direction `X` in `P`, `C`, and `E`, the reference
 is calculated from strictly positive adjusted capacities:

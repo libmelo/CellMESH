@@ -19,6 +19,6 @@ The current input and aggregation safeguards also require a non-empty reaction
 identifier, reject missing/empty cell-type labels and duplicate gene names,
 join sender and receiver evidence by canonicalized HMDB ID, and distinguish
 sample-aware component medians from the median sample-level event score. Within
-each canonical HMDB ID and P/C/E direction, reactions are deduplicated only
-when their complete gene sets are identical; partially overlapping reaction
-gene sets remain intact.
+each canonical HMDB ID and P/C/E direction, identical reaction gene sets
+contribute once and strict subsets are omitted, leaving all inclusion-maximal
+gene sets for P/C/E aggregation.

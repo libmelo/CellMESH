@@ -6,10 +6,10 @@
   `geometric_mean(expression + 1) - 1`.
 - `reaction` is required and non-empty; unknown reactions are never collapsed
   into an inferred multi-gene complex.
-- Reaction grouping uses canonical HMDB ID, reaction, and direction. Across
-  reactions for one HMDB ID/direction, only identical complete gene sets are
-  deduplicated; partially overlapping reactions remain intact. Metabolite name
-  is display-only.
+- Reaction grouping uses canonical HMDB ID, reaction, and direction. For one
+  HMDB ID/direction, identical gene sets contribute once and strict subsets are
+  omitted; all inclusion-maximal sets contribute. Metabolite name is
+  display-only.
 - Sender reaction activity is multiplied by
   `cell_fraction ** sender_abundance_exponent` before P/C/E construction.
 - P/C/E use positive-reference saturation `X / (X + X_ref)`, with the positive

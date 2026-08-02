@@ -44,10 +44,12 @@ but are marked as not passing min-cells QC. In pooled mode, fractions use all
 cells in the full AnnData object and the same QC-only rule applies.
 
 Production, consumption, and exporter reaction capacities are summed into the
-P/C/E matrices after reaction-level deduplication. Within one HMDB ID and one
-direction, two reactions are considered duplicates only when their complete
-gene sets are identical; partially overlapping reactions are both retained
-intact. For each metabolite and each direction \(X \in \{P,C,E\}\),
+P/C/E matrices after reaction-level maximal-gene-set filtering. Within one HMDB
+ID and one direction, identical complete gene sets contribute once, and a
+reaction whose gene set is a strict subset of another reaction is omitted.
+Incomparable sets, including sets that overlap without either containing the
+other, are both retained intact. For each metabolite and each direction
+\(X \in \{P,C,E\}\),
 CELL MESH calculates a reference from the strictly positive capacities across
 observed cell types and applies a continuous saturation transform:
 
@@ -410,12 +412,13 @@ Reaction genes are grouped by `canonical_hmdb_id + reaction + direction`, not
 by metabolite name. Exact symbols are deduplicated within a reaction to define
 its gene set and are combined by the equal-weight geometric mean. Reactions in
 the same canonical HMDB ID and direction are compared by their complete gene
-sets, ignoring gene order. If two sets are identical, only the first reaction
-contributes; if they overlap only partially, both reactions retain their full
-gene sets and both contribute. The retained reaction activities are summed
-into one P, C, or E value. Reaction-count metadata counts these contributing
-reaction gene sets. The first enzyme-prior metabolite name observed for an
-HMDB ID is retained only as display metadata.
+sets, ignoring gene order. Identical sets contribute once. Any strict subset is
+omitted in favor of its superset, so only inclusion-maximal gene sets remain.
+Sets that are not subsets of one another retain all their genes and all
+contribute. The retained reaction activities are summed into one P, C, or E
+value. Reaction-count metadata counts these maximal contributing gene sets.
+The first enzyme-prior metabolite name observed for an HMDB ID is retained only
+as display metadata.
 
 `compute_metabolite_availability()` also accepts this standard
 `enzyme_metabolite` schema directly. Legacy direction-style inputs are only

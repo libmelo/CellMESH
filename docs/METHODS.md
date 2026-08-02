@@ -21,14 +21,15 @@ between the two priors and do not participate in the join.
 
 The reaction key is `canonical_hmdb_id + reaction + direction`. Exact symbols
 are deduplicated within a reaction to define its gene set. Across reactions for
-the same canonical HMDB ID and direction, deduplication occurs only when the
-complete gene sets are identical, independent of gene order. The first such
-reaction contributes and later equivalent reactions are omitted. Partially
-overlapping gene sets are not modified: both reactions retain all their genes
-and both equal-weight geometric means contribute. The retained reactions are
-summed into one HMDB-level P, C, or E capacity. Reported reaction counts refer
-to these unique contributing gene sets. The first enzyme-prior metabolite name
-for each HMDB ID is retained only for display.
+the same canonical HMDB ID and direction, complete gene sets are compared
+independent of gene order. Identical sets contribute once. A reaction is omitted
+when its gene set is a strict subset of another reaction gene set, leaving only
+inclusion-maximal sets. Incomparable sets—including overlapping sets for which
+neither contains the other—remain intact and both equal-weight geometric means
+contribute. The retained reactions are summed into one HMDB-level P, C, or E
+capacity. Reported reaction counts refer to these maximal contributing gene
+sets. The first enzyme-prior metabolite name for each HMDB ID is retained only
+for display.
 
 Sensors are normalized to `Cell surface receptor`, `Transporter`, or
 `Other receptor`. Evidence level, source, protein name, and references remain

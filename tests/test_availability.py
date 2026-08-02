@@ -173,32 +173,44 @@ def test_reactions_group_by_hmdb_and_preserve_partially_overlapping_gene_sets():
     assert result["metadata"].iloc[0]["n_product_reactions"] == 2
 
 
-def test_identical_reaction_gene_sets_are_counted_once_for_each_pce_direction():
+def test_only_maximal_reaction_gene_sets_contribute_for_each_pce_direction():
     adata = FakeAnnData(
-        np.array([[6.0, 4.0, 2.0], [2.0, 8.0, 10.0]]),
-        ["GP", "GC", "GE"],
+        np.array(
+            [
+                [6.0, 2.0, 4.0, 2.0, 2.0, 8.0],
+                [2.0, 6.0, 8.0, 4.0, 10.0, 2.0],
+            ]
+        ),
+        ["GP1", "GP2", "GC1", "GC2", "GE1", "GE2"],
         {"cell_type": ["A", "B"]},
     )
     rows = []
-    for role, gene, prefix in [
-        ("production", "GP", "prod"),
-        ("degradation", "GC", "cons"),
-        ("export", "GE", "export"),
+    for role, genes, prefix in [
+        ("production", ("GP1", "GP2"), "prod"),
+        ("degradation", ("GC1", "GC2"), "cons"),
+        ("export", ("GE1", "GE2"), "export"),
     ]:
         rows.extend(
             [
                 {
                     "metabolite": "Met",
                     "hmdb_id": "HMDB00001",
-                    "reaction": f"{prefix}_first",
-                    "gene": gene,
+                    "reaction": f"{prefix}_subset",
+                    "gene": genes[0],
                     "role": role,
                 },
                 {
                     "metabolite": "Met",
                     "hmdb_id": "HMDB00001",
-                    "reaction": f"{prefix}_duplicate",
-                    "gene": gene,
+                    "reaction": f"{prefix}_maximal",
+                    "gene": ";".join(genes),
+                    "role": role,
+                },
+                {
+                    "metabolite": "Met",
+                    "hmdb_id": "HMDB00001",
+                    "reaction": f"{prefix}_same_maximal_set",
+                    "gene": ";".join(reversed(genes)),
                     "role": role,
                 },
             ]
@@ -212,15 +224,20 @@ def test_identical_reaction_gene_sets_are_counted_once_for_each_pce_direction():
     )
     idx = ("Met", "HMDB00001")
 
-    # Each cell type has fraction 0.5. A duplicated gene in another reaction
-    # must not double the corresponding HMDB-level capacity.
-    assert np.allclose(result["P"].loc[idx], np.array([3.0, 1.0]))
-    assert np.allclose(result["C"].loc[idx], np.array([2.0, 4.0]))
-    assert np.allclose(result["E"].loc[idx], np.array([1.0, 5.0]))
+    # Each cell type has fraction 0.5. The singleton subset is omitted and the
+    # two equivalent maximal sets contribute only once.
+    weights = result["sender_abundance_weights"].to_numpy(dtype=float)
+    for matrix, columns in [
+        ("P", [0, 1]),
+        ("C", [2, 3]),
+        ("E", [4, 5]),
+    ]:
+        expected = (gmean(adata.X[:, columns] + 1.0, axis=1) - 1.0) * weights
+        assert np.allclose(result[matrix].loc[idx], expected)
     assert result["reaction_genes"]["reaction"].tolist() == [
-        "prod_first",
-        "cons_first",
-        "export_first",
+        "prod_maximal",
+        "cons_maximal",
+        "export_maximal",
     ]
     assert result["metadata"].loc[idx, "n_product_reactions"] == 1
     assert result["metadata"].loc[idx, "n_substrate_reactions"] == 1

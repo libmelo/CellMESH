@@ -286,10 +286,10 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
     Group genes by canonical HMDB ID, reaction, and direction.
 
     The first metabolite name observed for an HMDB ID is retained only as
-    display metadata. Gene symbols are deduplicated within each reaction. Across
-    reactions for the same HMDB ID and direction, only reactions with an exactly
-    identical gene set are deduplicated. Partially overlapping gene sets remain
-    intact because they represent distinct reaction definitions.
+    display metadata. Gene symbols are deduplicated within each reaction. For
+    the same HMDB ID and direction, only maximal gene sets contribute: exact
+    duplicates are retained once, strict subsets are omitted, and partially
+    overlapping sets that are not subsets of one another remain intact.
     """
     df = reaction_table.copy()
     if df.empty:
@@ -336,7 +336,7 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
             if gene not in reaction_dict[rid]["genes"]:
                 reaction_dict[rid]["genes"].append(gene)
 
-    result = []
+    candidates = []
     seen_gene_sets: Dict[tuple[str, str], set[frozenset[str]]] = {}
     for _, info in reaction_dict.items():
         aggregation_key = (str(info["hmdb_id"]), str(info["direction"]))
@@ -345,6 +345,19 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
         if gene_set in seen:
             continue
         seen.add(gene_set)
+        candidates.append((aggregation_key, gene_set, info))
+
+    gene_sets_by_group = {
+        key: sets
+        for key, sets in seen_gene_sets.items()
+    }
+    result = []
+    for aggregation_key, gene_set, info in candidates:
+        if any(
+            gene_set < other_gene_set
+            for other_gene_set in gene_sets_by_group[aggregation_key]
+        ):
+            continue
         result.append(
             {
                 "metabolite": info["metabolite"],
