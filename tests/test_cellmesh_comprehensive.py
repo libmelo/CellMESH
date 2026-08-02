@@ -232,12 +232,21 @@ class TestMetaboliteAvailability:
     def test_tc_a2_availability_formula(self, availability_result):
         p_score = availability_result["P_score"]
         c_score = availability_result["C_score"]
-        expected = (
+        expected_base = (
             p_score.pow(2)
             .div((p_score + c_score).where((p_score + c_score) > 0.0))
             .fillna(0.0)
         )
-        pd.testing.assert_frame_equal(availability_result["availability"], expected, atol=1e-10, rtol=0)
+        pd.testing.assert_frame_equal(
+            availability_result["base_availability"],
+            expected_base,
+            atol=1e-10,
+            rtol=0,
+        )
+        expected = expected_base * availability_result["E_factor"]
+        pd.testing.assert_frame_equal(
+            availability_result["availability"], expected, atol=1e-10, rtol=0
+        )
 
     def test_tc_a3_pce_direction_aggregation(self, synthetic_adata):
         result, reactions = _availability_case(synthetic_adata)
@@ -286,6 +295,8 @@ class TestMetaboliteAvailability:
             assert np.allclose(availability_result["C_score"].loc[no_substrate].values, 0.0)
         if len(no_exporter):
             assert np.allclose(availability_result["E_score"].loc[no_exporter].values, 0.0)
+            assert np.allclose(availability_result["E_effective"].loc[no_exporter].values, 0.5)
+            assert np.allclose(availability_result["E_factor"].loc[no_exporter].values, 0.9)
 
     def test_tc_a7_metabolite_without_product_is_filtered(self, synthetic_adata):
         reactions = pd.DataFrame(
@@ -575,7 +586,7 @@ class TestCellMeshScore:
 
     def test_tc_b9_parameter_passing_and_availability_formula(self, real_adata, enzyme_interaction):
         enzyme_df, interaction_df = enzyme_interaction
-        kwargs = {"pce_reference": "median"}
+        kwargs = {"pce_reference": "median", "export_weight": 0.35}
         result = run_cell_mesh(real_adata, enzyme_df, interaction_df, cell_type_key="cell_type", n_perms=0, min_cells=1, **kwargs)
         for key, value in kwargs.items():
             assert result.parameters[key] == value
@@ -586,11 +597,15 @@ class TestCellMeshScore:
             expected_ref = values.loc[values > 0.0].median()
             assert avail["P_ref"].loc[idx] == pytest.approx(expected_ref)
         denominator = avail["P_score"] + avail["C_score"]
-        expected = (
+        expected_base = (
             avail["P_score"].pow(2)
             .div(denominator.where(denominator > 0.0))
             .fillna(0.0)
         )
+        pd.testing.assert_frame_equal(
+            avail["base_availability"], expected_base, atol=1e-10, rtol=0
+        )
+        expected = expected_base * avail["E_factor"]
         pd.testing.assert_frame_equal(avail["availability"], expected, atol=1e-10, rtol=0)
 
     def test_tc_b10_result_save_load(self, tmp_path, full_result):

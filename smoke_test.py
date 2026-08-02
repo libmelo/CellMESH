@@ -62,7 +62,8 @@ print(f"  availability_results 包含的键: {list(res.availability_results.keys
 # 4. 检查结果
 print("\n4. 结果检查:")
 
-# Sender score is bounded in [0, 1]; exporter evidence does not enter it.
+# Sender score is bounded in [0, 1]; exporter evidence enters through a
+# bounded non-increasing factor.
 avail = res.availability_results['availability']
 if not avail.empty:
     min_val = avail.min().min()

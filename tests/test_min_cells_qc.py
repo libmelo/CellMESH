@@ -141,6 +141,9 @@ def _assert_pooled_numerics_equal(left, right):
         "P_score",
         "C_score",
         "E_score",
+        "base_availability",
+        "E_effective",
+        "E_factor",
         "availability",
     ]:
         pd.testing.assert_frame_equal(
@@ -282,6 +285,9 @@ def _assert_sample_aware_numerics_equal(left, right):
             "P_score",
             "C_score",
             "E_score",
+            "base_availability",
+            "E_effective",
+            "E_factor",
             "availability",
         ]:
             pd.testing.assert_frame_equal(

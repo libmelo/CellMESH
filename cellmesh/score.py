@@ -11,6 +11,7 @@ from scipy.stats import gmean
 
 from .config import (
     METABOLITE_AVAILABILITY_DEFAULTS,
+    MISSING_EXPORT_SCORE,
     MIN_EXPR_FRAC,
     PCE_REFERENCE_METHODS,
     RECEIVER_REFERENCE_METHODS,
@@ -76,6 +77,18 @@ def _validate_sender_abundance_exponent(value: Any) -> float:
             "sender_abundance_exponent must be a finite non-negative number"
         )
     return exponent
+
+
+def _validate_export_weight(value: Any) -> float:
+    """Return a normalized finite exporter-modulation weight in [0, 1]."""
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value, (int, float, np.integer, np.floating)
+    ):
+        raise TypeError("export_weight must be a real number")
+    weight = float(value)
+    if not np.isfinite(weight) or not 0.0 <= weight <= 1.0:
+        raise ValueError("export_weight must be between 0 and 1 inclusive")
+    return weight
 
 
 def _validate_pce_reference(value: Any) -> str:
@@ -273,8 +286,10 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
     Group genes by canonical HMDB ID, reaction, and direction.
 
     The first metabolite name observed for an HMDB ID is retained only as
-    display metadata. Gene symbols are deduplicated within each reaction while
-    preserving their first-seen order.
+    display metadata. Gene symbols are deduplicated within each reaction. Across
+    reactions for the same HMDB ID and direction, only reactions with an exactly
+    identical gene set are deduplicated. Partially overlapping gene sets remain
+    intact because they represent distinct reaction definitions.
     """
     df = reaction_table.copy()
     if df.empty:
@@ -322,7 +337,14 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
                 reaction_dict[rid]["genes"].append(gene)
 
     result = []
+    seen_gene_sets: Dict[tuple[str, str], set[frozenset[str]]] = {}
     for _, info in reaction_dict.items():
+        aggregation_key = (str(info["hmdb_id"]), str(info["direction"]))
+        gene_set = frozenset(info["genes"])
+        seen = seen_gene_sets.setdefault(aggregation_key, set())
+        if gene_set in seen:
+            continue
+        seen.add(gene_set)
         result.append(
             {
                 "metabolite": info["metabolite"],
@@ -506,6 +528,7 @@ def compute_metabolite_availability(
         "sender_abundance_exponent"
     ],
     pce_reference: str = METABOLITE_AVAILABILITY_DEFAULTS["pce_reference"],
+    export_weight: float = METABOLITE_AVAILABILITY_DEFAULTS["export_weight"],
     _prior_role_coverage: Optional[Dict[tuple[str, str], bool]] = None,
 ) -> Dict[str, Any]:
     """
@@ -517,9 +540,15 @@ def compute_metabolite_availability(
     sender abundance effect. Each P/C/E direction is normalized against the
     arithmetic mean of its strictly positive cell-type capacities by default;
     ``pce_reference="median"`` selects the positive median instead. The formal
-    sender score is
-    ``P_score ** 2 / (P_score + C_score)``; E is retained as support metadata
-    and does not enter that score. ``min_cells`` only annotates cell-count QC;
+    base sender score is ``P_score ** 2 / (P_score + C_score)``. Normalized
+    exporter evidence then has a bounded effect:
+    ``availability = base * ((1 - export_weight) + export_weight * E_effective)``.
+    ``E_effective`` is the normalized E score when exporter evidence is
+    evaluable, 0 for an evaluable prior with no expression, and the fixed
+    neutral value 0.5 when the prior is missing or its genes are unavailable.
+    The default ``export_weight=0.2`` therefore constrains the E factor to
+    [0.8, 1.0], while 0 exactly recovers the base formula.
+    ``min_cells`` only annotates cell-count QC;
     all observed cell types contribute to pseudobulk, fractions, references,
     and scores. ``_prior_role_coverage`` is an internal
     sidecar used by :func:`run_cell_mesh` to distinguish a genuinely missing
@@ -531,6 +560,7 @@ def compute_metabolite_availability(
         sender_abundance_exponent
     )
     pce_reference = _validate_pce_reference(pce_reference)
+    export_weight = _validate_export_weight(export_weight)
 
     # ``min_cells`` is a QC/reporting threshold only. All observed cell types
     # participate in pseudobulk construction, abundance adjustment, P/C/E
@@ -597,6 +627,7 @@ def compute_metabolite_availability(
             "availability": empty_matrix.copy(),
             "metadata": metadata,
             "pce_reference": pce_reference,
+            "export_weight": export_weight,
             "celltype_qc": celltype_qc,
         }
         if return_intermediates:
@@ -608,6 +639,9 @@ def compute_metabolite_availability(
                     "P_score": empty_matrix.copy(),
                     "C_score": empty_matrix.copy(),
                     "E_score": empty_matrix.copy(),
+                    "base_availability": empty_matrix.copy(),
+                    "E_effective": empty_matrix.copy(),
+                    "E_factor": empty_matrix.copy(),
                     "P_ref": pd.Series(index=empty_index, dtype=float, name="P_ref"),
                     "C_ref": pd.Series(index=empty_index, dtype=float, name="C_ref"),
                     "E_ref": pd.Series(index=empty_index, dtype=float, name="E_ref"),
@@ -636,7 +670,7 @@ def compute_metabolite_availability(
     C_score = scored["C_score"]
     E_score = scored["E_score"]
     denominator = P_score + C_score
-    availability = (
+    base_availability = (
         P_score.pow(2)
         .div(denominator.where(denominator > 0.0))
         .fillna(0.0)
@@ -669,6 +703,17 @@ def compute_metabolite_availability(
         for met_idx in P.index
     }
 
+    E_effective = pd.DataFrame(0.0, index=P.index, columns=P.columns, dtype=float)
+    for met_idx, state in export_states.items():
+        if state == "supported":
+            E_effective.loc[met_idx] = E_score.loc[met_idx]
+        elif state in {"prior_missing", "prior_gene_unavailable"}:
+            E_effective.loc[met_idx] = MISSING_EXPORT_SCORE
+        # ``prior_no_expression`` remains zero: the prior is evaluable and
+        # supplies direct evidence that exporter expression is absent.
+    E_factor = (1.0 - export_weight) + export_weight * E_effective
+    availability = (base_availability * E_factor).clip(lower=0.0, upper=1.0)
+
     metadata = pd.DataFrame(index=P.index)
     metadata["n_product_reactions"] = [
         sum(_safe_hmdb_compare(row, hmdb) and row["direction"] == "product" for _, row in reaction_genes.iterrows())
@@ -689,6 +734,7 @@ def compute_metabolite_availability(
         "availability": availability.astype(float),
         "metadata": metadata,
         "pce_reference": pce_reference,
+        "export_weight": export_weight,
         "celltype_qc": celltype_qc,
     }
     if return_intermediates:
@@ -700,6 +746,9 @@ def compute_metabolite_availability(
                 "P_score": P_score.astype(float),
                 "C_score": C_score.astype(float),
                 "E_score": E_score.astype(float),
+                "base_availability": base_availability.astype(float),
+                "E_effective": E_effective.astype(float),
+                "E_factor": E_factor.astype(float),
                 "P_ref": scored["P_ref"].astype(float),
                 "C_ref": scored["C_ref"].astype(float),
                 "E_ref": scored["E_ref"].astype(float),

@@ -1813,9 +1813,8 @@ def plot_metabolite_secretion_violin(
     production reactions for the metabolite are summed. Violin fill color
     represents the formal abundance-adjusted cell-type
     ``metabolite_availability`` score. That score incorporates the configured
-    sender abundance exponent and normalized production/consumption capacity.
-    Export capacity is available separately as support evidence and does not
-    enter the formal sender score.
+    sender abundance exponent, normalized production/consumption capacity, and
+    the configured bounded exporter modulation.
 
     ``adata`` is required because ``CellMeshResult`` intentionally stores
     cell-type summaries rather than a copy of the single-cell expression

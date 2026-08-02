@@ -408,6 +408,7 @@ def test_pooled_mode_min_cells_records_qc_without_filtering_cell_types():
     assert result.parameters["sender_abundance_exponent"] == 0.5
     assert result.parameters["pce_reference"] == "mean"
     assert result.parameters["receiver_reference"] == "median"
+    assert result.parameters["export_weight"] == pytest.approx(0.2)
     assert result.availability_results["pce_reference"] == "mean"
     pd.testing.assert_series_equal(
         result.availability_results["sender_abundance_weights"],
@@ -488,7 +489,10 @@ def test_prior_gene_unavailable_status_is_consistent_across_public_apis():
         )
         assert "has_substrate" not in result["metadata"]
         assert "has_usable_substrate" not in result["metadata"]
-        pd.testing.assert_frame_equal(result["availability"], result["P_score"])
+        pd.testing.assert_frame_equal(result["base_availability"], result["P_score"])
+        pd.testing.assert_frame_equal(
+            result["availability"], result["base_availability"] * 0.9
+        )
 
 
 def test_all_zero_product_keeps_receiver_schema_and_intermediates():
@@ -588,6 +592,33 @@ def test_run_cell_mesh_validates_pce_reference_before_scoring(invalid, error_typ
             sample_mode="sample_aware",
             min_cells=100,
             pce_reference=invalid,
+            n_perms=0,
+        )
+
+
+@pytest.mark.parametrize(
+    ("invalid", "error_type"),
+    [
+        (-0.1, ValueError),
+        (1.1, ValueError),
+        (np.nan, ValueError),
+        (np.inf, ValueError),
+        ("invalid", TypeError),
+        (True, TypeError),
+    ],
+)
+def test_run_cell_mesh_validates_export_weight_before_scoring(invalid, error_type):
+    adata, enzyme, sensor = _sample_mode_case()
+    with pytest.raises(error_type, match="export_weight"):
+        run_cell_mesh(
+            adata,
+            enzyme,
+            sensor,
+            cell_type_key="cell_type",
+            sample_key="sample",
+            sample_mode="sample_aware",
+            min_cells=100,
+            export_weight=invalid,
             n_perms=0,
         )
 
@@ -832,6 +863,7 @@ def test_sample_aware_applies_configured_reference_with_nondefault_exponent():
     )
     idx = ("Met", "HMDB0000001")
     assert result.parameters["receiver_reference"] == "mean"
+    assert result.availability_results["export_weight"] == pytest.approx(0.2)
 
     for sample in ("S1", "S2"):
         sample_result = result.availability_results["availability_by_sample"][sample]
@@ -862,11 +894,17 @@ def test_sample_aware_applies_configured_reference_with_nondefault_exponent():
 
         p_score = sample_result["P_score"].loc[idx]
         c_score = sample_result["C_score"].loc[idx]
-        expected_sender = (
+        expected_base = (
             p_score.pow(2)
             .div((p_score + c_score).where((p_score + c_score) > 0.0))
             .fillna(0.0)
         )
+        pd.testing.assert_series_equal(
+            sample_result["base_availability"].loc[idx],
+            expected_base,
+            check_names=False,
+        )
+        expected_sender = expected_base * 0.9
         pd.testing.assert_series_equal(
             sample_result["availability"].loc[idx],
             expected_sender,

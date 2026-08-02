@@ -44,7 +44,10 @@ but are marked as not passing min-cells QC. In pooled mode, fractions use all
 cells in the full AnnData object and the same QC-only rule applies.
 
 Production, consumption, and exporter reaction capacities are summed into the
-P/C/E matrices. For each metabolite and each direction \(X \in \{P,C,E\}\),
+P/C/E matrices after reaction-level deduplication. Within one HMDB ID and one
+direction, two reactions are considered duplicates only when their complete
+gene sets are identical; partially overlapping reactions are both retained
+intact. For each metabolite and each direction \(X \in \{P,C,E\}\),
 CELL MESH calculates a reference from the strictly positive capacities across
 observed cell types and applies a continuous saturation transform:
 
@@ -67,10 +70,10 @@ and `1`.
 
 ### 3. Sender Score
 
-The sender score is:
+The base sender score is:
 
 ```text
-sender_score(m,t) = P_score(m,t)^2 / (P_score(m,t) + C_score(m,t))
+base_sender_score(m,t) = P_score(m,t)^2 / (P_score(m,t) + C_score(m,t))
 ```
 
 The result is defined as zero when the denominator is zero. Production is the
@@ -83,11 +86,21 @@ observed expression, `C_score = 0` and the sender score reduces to `P_score`.
 `supported`. The first three all give `C_score = 0`, but retain distinct
 evidence semantics.
 
-`E_score` is still calculated and reported as export-support evidence, together
-with the same four-state `export_status`, but it does not enter the formal
-sender score. This avoids assigning an unsupported numerical boost when
-exporter coverage in the prior is sparse, and keeps the normalized export
-evidence bounded below one.
+Exporter evidence supplies a bounded, non-increasing modulation:
+
+```text
+E_factor(m,t) = (1 - export_weight) + export_weight * E_effective(m,t)
+sender_score(m,t) = base_sender_score(m,t) * E_factor(m,t)
+```
+
+For a supported exporter prior, `E_effective = E_score`. When the exporter
+prior is missing or none of its genes were measured, `E_effective = 0.5` is a
+fixed neutral-evidence convention. When measured exporter genes are present
+but all capacities are zero, `E_effective = 0`. With the default
+`export_weight=0.2`, `E_factor` is restricted to `[0.8, 1.0]`; setting the
+weight to zero exactly recovers the base score. The fixed weight is motivated
+by the approximately 17.1% unique-HMDB exporter coverage of the current prior,
+but database coverage itself is not inserted into individual event scores.
 
 Raw C is an expression-derived proxy for metabolite-consuming enzyme capacity;
 it is not a direct measurement of extracellular clearance flux.
@@ -283,8 +296,7 @@ sample_plot = plot_sample_event_scores(
 # MEBOCOST-style single-cell violins. The metabolite violin shape shows the
 # distribution of production-reaction enzyme activity in sender cells; its
 # fill color is the formal CELL MESH metabolite availability score based on
-# normalized production and consumption. Export is returned as support-only
-# evidence and does not change this color.
+# normalized production, consumption, and bounded exporter modulation.
 secretion_plot = plot_metabolite_secretion_violin(
     res,
     adata,
@@ -333,6 +345,7 @@ it does not change the stored numerical scores or inference results. Set
 | `min_cells` | `100` | Positive-integer, QC-only cell-count threshold; observed units remain in every numerical calculation regardless of this flag |
 | `sender_abundance_exponent` | `1.0` | Finite non-negative exponent applied to sender cell fraction before P/C/E construction; `0` disables sender abundance adjustment |
 | `pce_reference` | `"mean"` | Strictly-positive P/C/E reference statistic; accepts `"mean"` or `"median"` |
+| `export_weight` | `0.2` | Bounded exporter modulation weight in `[0, 1]`; `0` exactly disables the E contribution |
 | `receiver_reference` | `"median"` | Strictly-positive, unweighted receiver-expression reference statistic; accepts `"median"` or `"mean"` |
 
 `min_cells : int >= 1`
@@ -394,11 +407,15 @@ reaction identifier must be non-empty; CELL MESH never infers a shared enzyme
 complex from rows whose reaction identity is unknown.
 
 Reaction genes are grouped by `canonical_hmdb_id + reaction + direction`, not
-by metabolite name. Within that group, exact gene symbols are deduplicated in
-first-seen order and combined by the equal-weight geometric mean. Multiple
-reactions in the same direction are then summed into a single P, C, or E value
-for the HMDB ID. The first enzyme-prior metabolite name observed for an HMDB ID
-is retained only as display metadata.
+by metabolite name. Exact symbols are deduplicated within a reaction to define
+its gene set and are combined by the equal-weight geometric mean. Reactions in
+the same canonical HMDB ID and direction are compared by their complete gene
+sets, ignoring gene order. If two sets are identical, only the first reaction
+contributes; if they overlap only partially, both reactions retain their full
+gene sets and both contribute. The retained reaction activities are summed
+into one P, C, or E value. Reaction-count metadata counts these contributing
+reaction gene sets. The first enzyme-prior metabolite name observed for an
+HMDB ID is retained only as display metadata.
 
 `compute_metabolite_availability()` also accepts this standard
 `enzyme_metabolite` schema directly. Legacy direction-style inputs are only
@@ -496,8 +513,10 @@ Contains one row per communication event. Important columns:
 - **Min-cells QC**: `min_cells` never filters observed units from calculation or
   inference. It supplies QC flags, while event visualizations use
   `qc_only=True` by default to display only passing rows
-- **Export evidence**: E is normalized and reported but does not enter the
-  formal sender score
+- **Export evidence**: Normalized E applies the bounded factor
+  `(1-export_weight) + export_weight*E_effective`; missing or unavailable
+  exporter evidence uses fixed `E_effective=0.5`, while measured all-zero
+  exporter capacity uses `0`
 - **Sensor scoring**: Uses `R / (R + R_ref)` with the strictly-positive,
   unweighted cell-type median as the default reference; set
   `receiver_reference="mean"` for the arithmetic-mean option. Receiver

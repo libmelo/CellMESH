@@ -22,7 +22,13 @@ METABOLITE_AVAILABILITY_DEFAULTS: Dict[str, Any] = {
     "sender_abundance_exponent": 1.0,
     "pce_reference": "mean",
     "receiver_reference": "median",
+    "export_weight": 0.2,
 }
+
+# Neutral evidence score used only when an exporter prior is absent or its
+# genes are unavailable in the expression matrix. This is intentionally fixed
+# rather than exposed as another tuning parameter.
+MISSING_EXPORT_SCORE = 0.5
 
 PCE_REFERENCE_METHODS = {"mean", "median"}
 RECEIVER_REFERENCE_METHODS = {"mean", "median"}

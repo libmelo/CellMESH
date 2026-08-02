@@ -146,7 +146,7 @@ class TestMetaboliteAvailability:
         assert result['metadata'].loc[metB_idx, 'consumption_status'] == 'prior_missing'
     
     def test_6_missing_transporter_is_neutral(self, toy_adata, toy_enzyme_prior):
-        """Missing exporter prior yields zero support-only E score."""
+        """Missing exporter prior yields neutral effective export evidence."""
         result = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, return_intermediates=True
@@ -161,6 +161,8 @@ class TestMetaboliteAvailability:
         
         assert metB_idx is not None, "MetB should be included"
         assert np.allclose(result['E_score'].loc[metB_idx].values, 0.0)
+        assert np.allclose(result['E_effective'].loc[metB_idx].values, 0.5)
+        assert np.allclose(result['E_factor'].loc[metB_idx].values, 0.9)
         
         # Check MetF
         metF_idx = None
@@ -171,6 +173,8 @@ class TestMetaboliteAvailability:
         
         assert metF_idx is not None, "MetF should be included"
         assert np.allclose(result['E_score'].loc[metF_idx].values, 0.0)
+        assert np.allclose(result['E_effective'].loc[metF_idx].values, 0.5)
+        assert np.allclose(result['E_factor'].loc[metF_idx].values, 0.9)
     
     def test_8_dense_sparse_equivalent(self, toy_adata, toy_enzyme_prior):
         """Documentation test 8: Dense and sparse inputs produce identical outputs"""

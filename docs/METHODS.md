@@ -19,11 +19,16 @@ a valid HMDB identifier are excluded, and sender and receiver evidence is joined
 by a stripped, case-normalized HMDB identifier. Metabolite names may differ
 between the two priors and do not participate in the join.
 
-The reaction key is `canonical_hmdb_id + reaction + direction`. Exact gene
-symbols are deduplicated within that key before reaction activity is calculated.
-Multiple reactions in one direction are summed into one HMDB-level P, C, or E
-capacity. The first enzyme-prior metabolite name for each HMDB ID is retained
-only for display.
+The reaction key is `canonical_hmdb_id + reaction + direction`. Exact symbols
+are deduplicated within a reaction to define its gene set. Across reactions for
+the same canonical HMDB ID and direction, deduplication occurs only when the
+complete gene sets are identical, independent of gene order. The first such
+reaction contributes and later equivalent reactions are omitted. Partially
+overlapping gene sets are not modified: both reactions retain all their genes
+and both equal-weight geometric means contribute. The retained reactions are
+summed into one HMDB-level P, C, or E capacity. Reported reaction counts refer
+to these unique contributing gene sets. The first enzyme-prior metabolite name
+for each HMDB ID is retained only for display.
 
 Sensors are normalized to `Cell surface receptor`, `Transporter`, or
 `Other receptor`. Evidence level, source, protein name, and references remain
@@ -69,16 +74,20 @@ X_score(m,t) = 0                                    if X(m,t) = 0
 X_score(m,t) = X(m,t) / (X(m,t) + X_ref(m))         otherwise
 ```
 
-The formal sender score is:
+The base sender score and bounded exporter modulation are:
 
 ```text
-sender_score(m,t) = P_score(m,t)^2 / (P_score(m,t) + C_score(m,t))
+base_sender_score(m,t) = P_score(m,t)^2 / (P_score(m,t) + C_score(m,t))
+E_factor(m,t) = (1 - export_weight) + export_weight * E_effective(m,t)
+sender_score(m,t) = base_sender_score(m,t) * E_factor(m,t)
 ```
 
-It is zero when the denominator is zero. E, E_score, and E_ref are retained as
-export-support evidence but do not enter the formal sender score. Metadata keeps
-`consumption_status` and `export_status` to distinguish missing priors,
-unmeasured genes, zero expression, and supported evidence.
+The base is zero when its denominator is zero. For supported exporter evidence,
+`E_effective=E_score`; missing or gene-unavailable exporter priors use the fixed
+neutral value `0.5`, and measured all-zero exporter capacity uses `0`. The
+default `export_weight=0.2` restricts `E_factor` to `[0.8, 1.0]`, and zero
+weight exactly recovers the base formula. Metadata keeps `consumption_status`
+and `export_status` to distinguish these evidence states.
 
 ## Receiver and event scores
 

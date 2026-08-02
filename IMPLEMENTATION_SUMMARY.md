@@ -6,14 +6,18 @@
   `geometric_mean(expression + 1) - 1`.
 - `reaction` is required and non-empty; unknown reactions are never collapsed
   into an inferred multi-gene complex.
-- Reaction grouping uses canonical HMDB ID, reaction, and direction. Exact gene
-  symbols are deduplicated within a reaction; metabolite name is display-only.
+- Reaction grouping uses canonical HMDB ID, reaction, and direction. Across
+  reactions for one HMDB ID/direction, only identical complete gene sets are
+  deduplicated; partially overlapping reactions remain intact. Metabolite name
+  is display-only.
 - Sender reaction activity is multiplied by
   `cell_fraction ** sender_abundance_exponent` before P/C/E construction.
 - P/C/E use positive-reference saturation `X / (X + X_ref)`, with the positive
   mean as default and positive median as an option.
-- The formal sender score is `P_score^2 / (P_score + C_score)`.
-- E remains normalized export-support evidence but does not enter sender score.
+- The base sender score is `P_score^2 / (P_score + C_score)`.
+- E applies the bounded factor `(1-export_weight) + export_weight*E_effective`.
+  The default weight is 0.2; missing/gene-unavailable evidence uses fixed
+  `E_effective=0.5`, while measured all-zero exporter capacity uses 0.
 - Receiver score is `R / (R + R_ref)` and does not use receiver abundance.
 - Pooled and sample-level event score is `sqrt(sender_score * receiver_score)`.
 - Sample-aware mode scores each sample independently and aggregates event scores

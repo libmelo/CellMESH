@@ -13,12 +13,14 @@ import pandas as pd
 # 导入集中配置
 from .config import (
     MIN_EXPR_FRAC,
-    METABOLITE_AVAILABILITY_DEFAULTS
+    METABOLITE_AVAILABILITY_DEFAULTS,
+    MISSING_EXPORT_SCORE,
 )
 
 from .database import _normalize_hmdb_id, load_cell_mesh_database, validate_priors
 from .score import (
     _build_prior_role_coverage,
+    _validate_export_weight,
     _validate_min_expr_frac,
     _validate_min_cells,
     _validate_pce_reference,
@@ -147,6 +149,7 @@ def _compute_availability_scores(
         "sender_abundance_exponent"
     ],
     pce_reference: str = METABOLITE_AVAILABILITY_DEFAULTS["pce_reference"],
+    export_weight: float = METABOLITE_AVAILABILITY_DEFAULTS["export_weight"],
     receiver_reference: str = METABOLITE_AVAILABILITY_DEFAULTS[
         "receiver_reference"
     ],
@@ -177,6 +180,7 @@ def _compute_availability_scores(
         cell_fractions=cell_fractions,
         sender_abundance_exponent=sender_abundance_exponent,
         pce_reference=pce_reference,
+        export_weight=export_weight,
         _prior_role_coverage=_prior_role_coverage,
     )
     
@@ -619,6 +623,10 @@ def _compute_sample_aware_scores(
         "sample_receiver_scores": sample_receiver_scores,
         "sample_events": sample_events_df,
         "availability_by_sample": availability_by_sample,
+        "export_weight": availability_kwargs.get(
+            "export_weight",
+            METABOLITE_AVAILABILITY_DEFAULTS["export_weight"],
+        ),
         "receiver_reference": availability_kwargs.get(
             "receiver_reference",
             METABOLITE_AVAILABILITY_DEFAULTS["receiver_reference"],
@@ -891,6 +899,7 @@ def run_cell_mesh(
     pce_reference: Literal["mean", "median"] = METABOLITE_AVAILABILITY_DEFAULTS[
         "pce_reference"
     ],
+    export_weight: float = METABOLITE_AVAILABILITY_DEFAULTS["export_weight"],
     receiver_reference: Literal["mean", "median"] = METABOLITE_AVAILABILITY_DEFAULTS[
         "receiver_reference"
     ],
@@ -935,6 +944,9 @@ def run_cell_mesh(
         pce_reference : {"mean", "median"}, default="mean"
             Statistic calculated over strictly positive abundance-adjusted
             capacities to define each metabolite/direction reference.
+        export_weight : float, default=0.2
+            Bounded contribution of normalized exporter evidence to the sender
+            score. Must be in [0, 1]; 0 exactly disables exporter modulation.
         receiver_reference : {"mean", "median"}, default="median"
             Unweighted statistic calculated over strictly positive observed
             cell-type mean sensor expression to define the receiver reference.
@@ -954,9 +966,13 @@ def run_cell_mesh(
            每条 reaction activity 在 P/C/E normalization 前乘对应细胞类型中的
            cell_fraction ** sender_abundance_exponent；sample-aware 模式按样本
            分别计算 fraction。
-           sender_score = P_score ** 2 / (P_score + C_score)；P 为必要锚点，
-           C 作为平滑竞争项。E 继续计算和输出，但不进入正式 sender score。
-           缺少 consumption prior 时 C_score = 0，因此 sender_score = P_score。
+           base_sender_score = P_score ** 2 / (P_score + C_score)；P 为必要锚点，
+           C 作为平滑竞争项。正式 sender score 为
+           base_sender_score * ((1-export_weight) + export_weight*E_effective)。
+           E 可计算时 E_effective=E_score；外排先验缺失或其基因未测到时取固定
+           中性值 0.5；先验可计算但表达全零时取 0。
+           缺少 consumption prior 时 C_score = 0，因此 base_sender_score = P_score；
+           正式 sender score 仍乘以上述 E_factor。
            prior 存在但基因未测到、或基因已测到但表达全零时，C_score 同样为
            0，并由 consumption_status 区分其证据状态。
         3. sensor_score 默认使用正表达 observed cell types 的等权中位数
@@ -986,6 +1002,7 @@ def run_cell_mesh(
         sender_abundance_exponent
     )
     pce_reference = _validate_pce_reference(pce_reference)
+    export_weight = _validate_export_weight(export_weight)
     receiver_reference = _validate_receiver_reference(receiver_reference)
 
     # 加载默认数据库
@@ -1014,6 +1031,7 @@ def run_cell_mesh(
         'min_cells': min_cells,
         'sender_abundance_exponent': sender_abundance_exponent,
         'pce_reference': pce_reference,
+        'export_weight': export_weight,
         'receiver_reference': receiver_reference,
         '_prior_role_coverage': prior_role_coverage,
     }
@@ -1087,8 +1105,11 @@ def run_cell_mesh(
         "population_adjustment": "sender_cell_fraction_power_before_pce_normalization",
         "pce_normalization": "positive_reference_saturation",
         "pce_reference": pce_reference,
-        "sender_formula": "P_score^2/(P_score+C_score)",
-        "export_in_sender_score": False,
+        "sender_formula": "base_sender_score*((1-export_weight)+export_weight*E_effective)",
+        "base_sender_formula": "P_score^2/(P_score+C_score)",
+        "export_in_sender_score": True,
+        "export_weight": export_weight,
+        "missing_export_score": MISSING_EXPORT_SCORE,
         "receiver_normalization": "positive_reference_saturation",
         "receiver_reference": receiver_reference,
         "receiver_formula": "R/(R+R_ref)",

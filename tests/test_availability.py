@@ -139,7 +139,7 @@ def test_compute_availability_requires_nonempty_reaction(reaction):
         compute_metabolite_availability(adata, enzyme, min_cells=1)
 
 
-def test_reactions_group_by_hmdb_and_deduplicate_genes_across_name_variants():
+def test_reactions_group_by_hmdb_and_preserve_partially_overlapping_gene_sets():
     adata = FakeAnnData(
         np.array([[3.0, 3.0, 1.0], [1.0, 1.0, 3.0]]),
         ["G1", "G2", "G3"],
@@ -147,11 +147,11 @@ def test_reactions_group_by_hmdb_and_deduplicate_genes_across_name_variants():
     )
     enzyme = pd.DataFrame(
         {
-            "metabolite": ["Canonical name", "Alias name", "Alias name", "Alias name"],
-            "hmdb_id": [" hmdb00001 ", "HMDB00001", "HMDB00001", "HMDB00001"],
-            "gene": ["G1; G1", "G1", "G2", "G3"],
-            "role": ["production"] * 4,
-            "reaction": ["shared", "shared", "shared", "second"],
+            "metabolite": ["Canonical name", "Alias name", "Alias name", "Alias name", "Alias name", "Alias name"],
+            "hmdb_id": [" hmdb00001 ", "HMDB00001", "HMDB00001", "HMDB00001", "HMDB00001", "HMDB00001"],
+            "gene": ["G1; G1", "G1", "G2", "G1", "G3", "G2; G1"],
+            "role": ["production"] * 6,
+            "reaction": ["shared", "shared", "shared", "second", "second", "same_set_different_order"],
         }
     )
 
@@ -165,10 +165,66 @@ def test_reactions_group_by_hmdb_and_deduplicate_genes_across_name_variants():
         {"hmdb_id": "HMDB00001", "reaction": "second", "direction": "product"},
     ]
     assert reactions.loc[reactions["reaction"] == "shared", "genes"].iloc[0] == ["G1", "G2"]
+    assert reactions.loc[reactions["reaction"] == "second", "genes"].iloc[0] == ["G1", "G3"]
     expected_shared = np.sqrt((adata.X[:, 0] + 1.0) * (adata.X[:, 1] + 1.0)) - 1.0
-    expected_p = (expected_shared + adata.X[:, 2]) * 0.5
+    expected_second = np.sqrt((adata.X[:, 0] + 1.0) * (adata.X[:, 2] + 1.0)) - 1.0
+    expected_p = (expected_shared + expected_second) * 0.5
     assert np.allclose(result["P"].iloc[0].to_numpy(dtype=float), expected_p)
     assert result["metadata"].iloc[0]["n_product_reactions"] == 2
+
+
+def test_identical_reaction_gene_sets_are_counted_once_for_each_pce_direction():
+    adata = FakeAnnData(
+        np.array([[6.0, 4.0, 2.0], [2.0, 8.0, 10.0]]),
+        ["GP", "GC", "GE"],
+        {"cell_type": ["A", "B"]},
+    )
+    rows = []
+    for role, gene, prefix in [
+        ("production", "GP", "prod"),
+        ("degradation", "GC", "cons"),
+        ("export", "GE", "export"),
+    ]:
+        rows.extend(
+            [
+                {
+                    "metabolite": "Met",
+                    "hmdb_id": "HMDB00001",
+                    "reaction": f"{prefix}_first",
+                    "gene": gene,
+                    "role": role,
+                },
+                {
+                    "metabolite": "Met",
+                    "hmdb_id": "HMDB00001",
+                    "reaction": f"{prefix}_duplicate",
+                    "gene": gene,
+                    "role": role,
+                },
+            ]
+        )
+
+    result = compute_metabolite_availability(
+        adata,
+        pd.DataFrame(rows),
+        min_cells=1,
+        return_intermediates=True,
+    )
+    idx = ("Met", "HMDB00001")
+
+    # Each cell type has fraction 0.5. A duplicated gene in another reaction
+    # must not double the corresponding HMDB-level capacity.
+    assert np.allclose(result["P"].loc[idx], np.array([3.0, 1.0]))
+    assert np.allclose(result["C"].loc[idx], np.array([2.0, 4.0]))
+    assert np.allclose(result["E"].loc[idx], np.array([1.0, 5.0]))
+    assert result["reaction_genes"]["reaction"].tolist() == [
+        "prod_first",
+        "cons_first",
+        "export_first",
+    ]
+    assert result["metadata"].loc[idx, "n_product_reactions"] == 1
+    assert result["metadata"].loc[idx, "n_substrate_reactions"] == 1
+    assert result["metadata"].loc[idx, "n_exporter_reactions"] == 1
 
 
 def test_sender_pce_uses_configurable_cell_fraction_exponent_before_normalization():
@@ -232,7 +288,12 @@ def test_sender_pce_uses_configurable_cell_fraction_exponent_before_normalizatio
     )
     assert result["P_score"].loc[("Met", "HMDB00001"), "Rare"] == pytest.approx(6.0 / 13.0)
     assert result["P_score"].loc[("Met", "HMDB00001"), "Ineligible"] == pytest.approx(0.3)
-    pd.testing.assert_frame_equal(result["availability"], result["P_score"])
+    pd.testing.assert_frame_equal(result["base_availability"], result["P_score"])
+    assert np.allclose(result["E_effective"], 0.5)
+    assert np.allclose(result["E_factor"], 0.9)
+    pd.testing.assert_frame_equal(
+        result["availability"], result["base_availability"] * 0.9
+    )
 
     tempered = compute_metabolite_availability(
         adata,
@@ -256,7 +317,9 @@ def test_sender_pce_uses_configurable_cell_fraction_exponent_before_normalizatio
     assert np.allclose(unadjusted["sender_abundance_weights"], 1.0)
     assert np.allclose(unadjusted["P"].loc[("Met", "HMDB00001")], 2.0)
     assert np.allclose(unadjusted["P_score"].loc[("Met", "HMDB00001")], 0.5)
-    assert np.allclose(unadjusted["availability"].loc[("Met", "HMDB00001")], 0.5)
+    assert np.allclose(
+        unadjusted["availability"].loc[("Met", "HMDB00001")], 0.45
+    )
 
     for invalid, error_type in [
         (-0.1, ValueError),
@@ -274,7 +337,7 @@ def test_sender_pce_uses_configurable_cell_fraction_exponent_before_normalizatio
             )
 
 
-def test_sender_formula_excludes_export_and_tracks_missing_prior_status():
+def test_sender_formula_uses_bounded_export_modulation_and_tracks_prior_status():
     adata = FakeAnnData(
         np.array(
             [
@@ -328,8 +391,18 @@ def test_sender_formula_excludes_export_and_tracks_missing_prior_status():
     )
     idx = ("Met", "HMDB00001")
 
+    pd.testing.assert_frame_equal(product_only["base_availability"], product_only["P_score"])
+    assert product_only["export_weight"] == pytest.approx(0.2)
+    assert np.allclose(product_only["E_effective"], 0.5)
+    assert np.allclose(product_only["E_factor"], 0.9)
     pd.testing.assert_frame_equal(
-        product_only["availability"], product_only["P_score"]
+        product_only["availability"], product_only["base_availability"] * 0.9
+    )
+    export_disabled = compute_metabolite_availability(
+        adata, pd.DataFrame([product]), min_cells=2, export_weight=0.0
+    )
+    pd.testing.assert_frame_equal(
+        export_disabled["availability"], export_disabled["base_availability"]
     )
     assert product_only["pce_reference"] == "mean"
     assert product_only_median["pce_reference"] == "median"
@@ -354,18 +427,26 @@ def test_sender_formula_excludes_export_and_tracks_missing_prior_status():
         .div(denominator.where(denominator > 0.0))
         .fillna(0.0)
     )
-    pd.testing.assert_frame_equal(with_consumption["availability"], expected)
+    pd.testing.assert_frame_equal(with_consumption["base_availability"], expected)
+    pd.testing.assert_frame_equal(with_consumption["availability"], expected * 0.9)
     assert with_consumption["metadata"].loc[idx, "consumption_status"] == "supported"
 
-    # E remains available as support evidence but cannot increase, decrease,
-    # or cancel C in the formal sender score.
+    # E has a bounded multiplicative effect and cannot increase the base score.
     assert with_consumption_and_export["E_score"].loc[idx].max() > 0.0
     pd.testing.assert_frame_equal(
+        with_consumption_and_export["E_effective"],
+        with_consumption_and_export["E_score"],
+    )
+    pd.testing.assert_frame_equal(
+        with_consumption_and_export["E_factor"],
+        0.8 + 0.2 * with_consumption_and_export["E_score"],
+    )
+    pd.testing.assert_frame_equal(
         with_consumption_and_export["availability"],
-        with_consumption["availability"],
+        with_consumption_and_export["base_availability"]
+        * with_consumption_and_export["E_factor"],
     )
     assert with_consumption_and_export["metadata"].loc[idx, "export_status"] == "supported"
-    assert "export_used_in_sender_score" not in with_consumption_and_export["metadata"]
 
     no_consumption_expression = compute_metabolite_availability(
         adata,
@@ -387,7 +468,7 @@ def test_sender_formula_excludes_export_and_tracks_missing_prior_status():
     )
     pd.testing.assert_frame_equal(
         no_consumption_expression["availability"],
-        no_consumption_expression["P_score"],
+        no_consumption_expression["P_score"] * 0.9,
     )
 
     no_export_expression = compute_metabolite_availability(
@@ -410,9 +491,11 @@ def test_sender_formula_excludes_export_and_tracks_missing_prior_status():
     )
     assert np.isnan(no_export_expression["E_ref"].loc[idx])
     assert np.allclose(no_export_expression["E_score"].loc[idx], 0.0)
+    assert np.allclose(no_export_expression["E_effective"].loc[idx], 0.0)
+    assert np.allclose(no_export_expression["E_factor"].loc[idx], 0.8)
     pd.testing.assert_frame_equal(
         no_export_expression["availability"],
-        no_export_expression["P_score"],
+        no_export_expression["P_score"] * 0.8,
     )
 
     unavailable_consumption = compute_metabolite_availability(
@@ -437,8 +520,35 @@ def test_sender_formula_excludes_export_and_tracks_missing_prior_status():
     assert "has_usable_substrate" not in unavailable_consumption["metadata"]
     pd.testing.assert_frame_equal(
         unavailable_consumption["availability"],
-        unavailable_consumption["P_score"],
+        unavailable_consumption["P_score"] * 0.9,
     )
+
+    unavailable_export = compute_metabolite_availability(
+        adata,
+        pd.DataFrame(
+            [product, {**export, "gene": "NOT_MEASURED", "reaction": "export_unavailable"}]
+        ),
+        min_cells=2,
+    )
+    assert unavailable_export["metadata"].loc[idx, "export_status"] == "prior_gene_unavailable"
+    assert np.allclose(unavailable_export["E_effective"].loc[idx], 0.5)
+    assert np.allclose(unavailable_export["E_factor"].loc[idx], 0.9)
+
+    for invalid_weight, error_type in [
+        (-0.1, ValueError),
+        (1.1, ValueError),
+        (np.nan, ValueError),
+        (np.inf, ValueError),
+        ("invalid", TypeError),
+        (False, TypeError),
+    ]:
+        with pytest.raises(error_type, match="export_weight"):
+            compute_metabolite_availability(
+                adata,
+                pd.DataFrame([product]),
+                min_cells=2,
+                export_weight=invalid_weight,
+            )
 
     for invalid_reference, error_type in [
         (None, TypeError),
