@@ -120,7 +120,6 @@ def _read_mtx(
     path: Path,
     genes_path: Optional[Union[str, Path]] = None,
     barcodes_path: Optional[Union[str, Path]] = None,
-    **kwargs,
 ):
     try:
         import anndata

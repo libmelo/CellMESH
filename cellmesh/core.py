@@ -16,12 +16,22 @@ from .config import (
     METABOLITE_AVAILABILITY_DEFAULTS
 )
 
-from .database import load_cell_mesh_database, validate_priors
+from .database import _normalize_hmdb_id, load_cell_mesh_database, validate_priors
 from .score import (
+    _build_prior_role_coverage,
+    _validate_min_expr_frac,
+    _validate_min_cells,
+    _validate_pce_reference,
+    _validate_receiver_reference,
+    _validate_sender_abundance_exponent,
     compute_metabolite_availability,
     compute_sensor_scores
 )
-from .preprocess import _eligible_celltype_counts
+from .preprocess import (
+    _compute_celltype_fractions,
+    _validated_celltype_labels,
+    _validated_gene_names,
+)
 
 
 EVENT_COLUMNS = [
@@ -36,11 +46,33 @@ EVENT_COLUMNS = [
     "sensor_expr_frac",
     "sender_n_cells",
     "receiver_n_cells",
+    "sender_passes_min_cells",
+    "receiver_passes_min_cells",
+    "passes_min_cells",
     "cell_mesh_score",
 ]
 
 SAMPLE_MODES = {"pooled_stratified", "sample_aware"}
 EVENT_KEY_COLUMNS = ["sender", "receiver", "metabolite", "hmdb_id", "sensor_gene", "sensor_type"]
+SAMPLE_AWARE_EVENT_COLUMNS = EVENT_KEY_COLUMNS + [
+    "metabolite_availability_median",
+    "sensor_score_median",
+    "sensor_expr_frac_median",
+    "sender_n_cells",
+    "receiver_n_cells",
+    "sender_passes_min_cells",
+    "receiver_passes_min_cells",
+    "passes_min_cells",
+    "cell_mesh_score",
+    "event_score_median",
+    "event_score_iqr",
+    "n_samples_coobserved",
+    "n_samples_positive",
+    "event_prevalence",
+    "n_samples_passing_min_cells",
+    "min_cells_pass_prevalence",
+    "inference_mode",
+]
 
 
 @dataclass
@@ -55,6 +87,7 @@ class CellMeshResult:
     sample_sender_scores: Optional[pd.DataFrame] = None
     sample_receiver_scores: Optional[pd.DataFrame] = None
     sample_events: Optional[pd.DataFrame] = None
+    celltype_qc: Optional[pd.DataFrame] = None
 
     def to_csv(self, prefix: str) -> None:
         """
@@ -66,6 +99,8 @@ class CellMeshResult:
         self.events.to_csv(f"{prefix}.events.csv", index=False)
         self.sender_scores.to_csv(f"{prefix}.sender_scores.csv", index=False)
         self.receiver_scores.to_csv(f"{prefix}.receiver_scores.csv", index=False)
+        if self.celltype_qc is not None:
+            self.celltype_qc.to_csv(f"{prefix}.celltype_qc.csv")
 
 
 def _bh_fdr(pvalues: np.ndarray) -> np.ndarray:
@@ -92,9 +127,11 @@ def _bh_fdr(pvalues: np.ndarray) -> np.ndarray:
 
 
 def _same_hmdb(left: object, right: object) -> bool:
-    if pd.isna(left) or pd.isna(right):
+    left_id = _normalize_hmdb_id(left)
+    right_id = _normalize_hmdb_id(right)
+    if pd.isna(left_id) or pd.isna(right_id):
         return False
-    return str(left) == str(right)
+    return left_id == right_id
 
 
 def _compute_availability_scores(
@@ -104,8 +141,16 @@ def _compute_availability_scores(
     celltype_col: str = "cell_type",
     layer: Optional[str] = None,
     min_expr_frac: Optional[float] = MIN_EXPR_FRAC,
-    eps_num: float = METABOLITE_AVAILABILITY_DEFAULTS["eps_num"],
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
+    cell_fractions: Optional[pd.Series] = None,
+    sender_abundance_exponent: float = METABOLITE_AVAILABILITY_DEFAULTS[
+        "sender_abundance_exponent"
+    ],
+    pce_reference: str = METABOLITE_AVAILABILITY_DEFAULTS["pce_reference"],
+    receiver_reference: str = METABOLITE_AVAILABILITY_DEFAULTS[
+        "receiver_reference"
+    ],
+    _prior_role_coverage: Optional[Dict[tuple[str, str], bool]] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """
     基于 metabolite availability 计算 sender 和 receiver 得分
@@ -121,25 +166,24 @@ def _compute_availability_scores(
     返回:
         (sender_scores, receiver_scores, availability_results) 元组
     """
-    # Compute P/C/E and the median-contrast sender score.
+    # Compute abundance-adjusted P/C/E and the continuous sender score.
     avail_results = compute_metabolite_availability(
         adata,
         enzyme_prior,
         celltype_col=celltype_col,
         layer=layer,
-        eps_num=eps_num,
         min_cells=min_cells,
-        return_intermediates=True
+        return_intermediates=True,
+        cell_fractions=cell_fractions,
+        sender_abundance_exponent=sender_abundance_exponent,
+        pce_reference=pce_reference,
+        _prior_role_coverage=_prior_role_coverage,
     )
     
     availability = avail_results['availability']
-    
-    # 如果没有可用代谢物，返回空结果
-    if availability.empty:
-        return pd.DataFrame(), pd.DataFrame(), avail_results
-    
+
     # sender_scores is the metabolite availability matrix kept as a separate result.
-    sender_scores = availability.copy()
+    sender_scores = availability
     
     # 计算新的 sensor scores
     receiver_scores = compute_sensor_scores(
@@ -149,11 +193,13 @@ def _compute_availability_scores(
         layer=layer,
         min_expr_frac=min_expr_frac,
         min_cells=min_cells,
-        eps_num=eps_num,
         pseudobulk=avail_results.get("pseudobulk"),
         expr_frac=avail_results.get("expr_frac"),
         cell_counts=avail_results.get("cell_counts"),
+        cell_fractions=avail_results.get("cell_fractions"),
+        receiver_reference=receiver_reference,
     )
+    avail_results["receiver_reference"] = receiver_reference
     
     return sender_scores, receiver_scores, avail_results
 
@@ -173,6 +219,16 @@ def _validate_sample_key(adata, sample_key: Optional[str], sample_mode: str) -> 
         raise ValueError(f"{sample_key!r} must not contain NA or empty strings")
 
 
+def _validate_n_perms(value: Any) -> int:
+    """Return a non-negative integer permutation count."""
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        raise TypeError("n_perms must be an integer")
+    count = int(value)
+    if count < 0:
+        raise ValueError("n_perms must be greater than or equal to 0")
+    return count
+
+
 def _sample_validation_table(adata, sample_key: str, cell_type_key: str, min_cells: int) -> pd.DataFrame:
     obs = pd.DataFrame(
         {
@@ -186,16 +242,37 @@ def _sample_validation_table(adata, sample_key: str, cell_type_key: str, min_cel
         .rename("n_cells")
         .reset_index()
     )
-    validation["eligible_in_sample"] = validation["n_cells"] >= min_cells
-    eligible_counts = validation[validation["eligible_in_sample"]].groupby("sample", observed=True).size()
-    valid_samples = validation[validation["eligible_in_sample"]].groupby("cell_type", observed=True).size()
-    validation["n_eligible_celltypes_in_sample"] = (
-        validation["sample"].map(eligible_counts).fillna(0).astype(int)
+    sample_totals = validation.groupby("sample", observed=True)["n_cells"].transform("sum")
+    validation["cell_fraction"] = validation["n_cells"] / sample_totals
+    validation["passes_min_cells"] = validation["n_cells"] >= min_cells
+    passing_celltypes = validation[validation["passes_min_cells"]].groupby("sample", observed=True).size()
+    passing_samples = validation[validation["passes_min_cells"]].groupby("cell_type", observed=True).size()
+    observed_counts = validation.groupby("sample", observed=True).size()
+    observed_samples = validation.groupby("cell_type", observed=True).size()
+    validation["n_celltypes_passing_min_cells_in_sample"] = (
+        validation["sample"].map(passing_celltypes).fillna(0).astype(int)
     )
-    validation["n_valid_samples_for_celltype"] = (
-        validation["cell_type"].map(valid_samples).fillna(0).astype(int)
+    validation["n_samples_passing_min_cells_for_celltype"] = (
+        validation["cell_type"].map(passing_samples).fillna(0).astype(int)
+    )
+    validation["n_observed_celltypes_in_sample"] = (
+        validation["sample"].map(observed_counts).fillna(0).astype(int)
+    )
+    validation["n_samples_observed_for_celltype"] = (
+        validation["cell_type"].map(observed_samples).fillna(0).astype(int)
     )
     return validation
+
+
+def _sample_cell_fractions(validation: pd.DataFrame) -> Dict[str, pd.Series]:
+    """Calculate per-sample cell-type fractions from all observed units."""
+    fractions: Dict[str, pd.Series] = {}
+    for sample, group in validation.groupby("sample", observed=True):
+        values = group.set_index("cell_type")["cell_fraction"].astype(float)
+        values.index = values.index.astype(str)
+        values.name = "cell_fraction"
+        fractions[str(sample)] = values
+    return fractions
 
 
 def _sample_stat_iqr(values: pd.Series) -> float:
@@ -212,6 +289,16 @@ def _sample_positive_prevalence(values: pd.Series) -> float:
     return float((x > 0).sum() / len(x))
 
 
+def _qc_bool_sum(values: pd.Series) -> int:
+    """Count true QC flags while treating missing structural units as false."""
+    return int(pd.Series(values, dtype="boolean").fillna(False).sum())
+
+
+def _qc_bool_any(values: pd.Series) -> bool:
+    """Return whether any observed unit passes QC."""
+    return bool(pd.Series(values, dtype="boolean").fillna(False).any())
+
+
 def _assign_fdr_columns(
     events: pd.DataFrame,
     pvalue_col: str = "perm_pvalue",
@@ -226,7 +313,6 @@ def _assign_fdr_columns(
     for sensor_type in out.loc[valid, "sensor_type"].unique():
         mask = valid & (out["sensor_type"] == sensor_type)
         out.loc[mask, "fdr_sensor_type"] = _bh_fdr(out.loc[mask, pvalue_col].to_numpy(dtype=float))
-    out["fdr"] = out["fdr_sensor_type"]
     return out
 
 
@@ -261,15 +347,10 @@ def _sample_aware_empirical_pvalues(
 
     min_cells = availability_kwargs.get("min_cells", METABOLITE_AVAILABILITY_DEFAULTS["min_cells"])
     validation = _sample_validation_table(adata, sample_key, cell_type_key, min_cells)
-    eligible_units = validation.loc[
-        validation["eligible_in_sample"], ["sample", "cell_type"]
-    ]
-    eligible_pairs = set(map(tuple, eligible_units.astype(str).to_numpy()))
-    eligible_mask = [
-        (str(sample), str(cell_type)) in eligible_pairs
-        for sample, cell_type in zip(adata.obs[sample_key], adata.obs[cell_type_key])
-    ]
-    adata_perm_base = adata[eligible_mask, :].copy()
+    original_cell_fractions = _sample_cell_fractions(validation)
+    # ``min_cells`` is QC-only. The null uses every observed analysis cell and
+    # therefore the same score/reference universe as the observed data.
+    adata_perm_base = adata.copy()
 
     rng = np.random.default_rng(random_state)
     original = adata_perm_base.obs[cell_type_key].copy()
@@ -290,6 +371,7 @@ def _sample_aware_empirical_pvalues(
                 min_expr_frac=min_expr_frac,
                 allow_self=allow_self,
                 availability_kwargs=availability_kwargs,
+                cell_fractions_by_sample=original_cell_fractions,
             )
 
             if events_perm.empty:
@@ -342,9 +424,12 @@ def _compute_sample_aware_scores(
     min_expr_frac: Optional[float],
     allow_self: bool,
     availability_kwargs: dict,
+    cell_fractions_by_sample: Optional[Dict[str, pd.Series]] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     min_cells = availability_kwargs.get("min_cells", METABOLITE_AVAILABILITY_DEFAULTS["min_cells"])
     validation = _sample_validation_table(adata, sample_key, cell_type_key, min_cells)
+    if cell_fractions_by_sample is None:
+        cell_fractions_by_sample = _sample_cell_fractions(validation)
     all_celltypes = pd.Index(sorted(validation["cell_type"].unique()))
 
     sample_sender = []
@@ -354,19 +439,12 @@ def _compute_sample_aware_scores(
     valid_sample_names = []
 
     for sample in sorted(validation["sample"].unique()):
-        sample_validation = validation[validation["sample"] == sample]
-        eligible_celltypes = sample_validation.loc[
-            sample_validation["eligible_in_sample"], "cell_type"
-        ].tolist()
-        if not eligible_celltypes:
-            continue
+        # Every observed (sample, cell type) unit participates in scoring.
+        # ``min_cells`` is carried only as a QC annotation.
         valid_sample_names.append(sample)
 
         obs = adata.obs
-        mask = (
-            (obs[sample_key].astype(str).values == sample)
-            & obs[cell_type_key].astype(str).isin(eligible_celltypes).values
-        )
+        mask = obs[sample_key].astype(str).values == sample
         adata_sample = adata[mask, :].copy()
         sender_scores, receiver_scores, availability_results = _compute_availability_scores(
             adata_sample,
@@ -375,6 +453,7 @@ def _compute_sample_aware_scores(
             celltype_col=cell_type_key,
             layer=layer,
             min_expr_frac=min_expr_frac,
+            cell_fractions=cell_fractions_by_sample[str(sample)],
             **availability_kwargs,
         )
         availability_by_sample[sample] = availability_results
@@ -397,6 +476,7 @@ def _compute_sample_aware_scores(
             receiver_scores,
             allow_self=allow_self,
             cell_counts=availability_results.get("cell_counts"),
+            min_cells=min_cells,
         )
         if not events.empty:
             events.insert(0, "sample", sample)
@@ -408,7 +488,7 @@ def _compute_sample_aware_scores(
         else pd.DataFrame(columns=all_celltypes)
     )
     sender_scores = (
-        sample_sender_scores.groupby(level=["metabolite", "hmdb_id"]).mean()
+        sample_sender_scores.groupby(level=["metabolite", "hmdb_id"]).median()
         if not sample_sender_scores.empty
         else pd.DataFrame()
     )
@@ -423,11 +503,24 @@ def _compute_sample_aware_scores(
         receiver_scores = (
             sample_receiver_scores.groupby(receiver_key, as_index=False)
             .agg(
-                sensor_score=("sensor_score", "mean"),
-                sensor_expr_frac=("sensor_expr_frac", "mean"),
+                sensor_score=("sensor_score", "median"),
+                sensor_expr_frac=("sensor_expr_frac", "median"),
                 receiver_n_cells=("receiver_n_cells", "sum"),
-                n_valid_samples=("sample", "nunique"),
+                receiver_cell_fraction=("receiver_cell_fraction", "median"),
+                n_observed_samples=("sample", "nunique"),
+                n_samples_passing_min_cells=(
+                    "receiver_passes_min_cells",
+                    _qc_bool_sum,
+                ),
+                receiver_passes_min_cells=(
+                    "receiver_passes_min_cells",
+                    _qc_bool_any,
+                ),
             )
+        )
+        receiver_scores["min_cells_pass_prevalence"] = (
+            receiver_scores["n_samples_passing_min_cells"]
+            / receiver_scores["n_observed_samples"]
         )
     else:
         receiver_scores = pd.DataFrame()
@@ -450,6 +543,16 @@ def _compute_sample_aware_scores(
             .reindex(sample_event_index)
             .reset_index()
         )
+        # Preserve the distinction between an event that is not computable in
+        # this sample (NA) and a computed event that fails cell-count QC (False).
+        for qc_column in [
+            "sender_passes_min_cells",
+            "receiver_passes_min_cells",
+            "passes_min_cells",
+        ]:
+            sample_events_complete[qc_column] = sample_events_complete[
+                qc_column
+            ].astype("boolean")
         sample_events_df = sample_events_complete
 
         grouped_scores = sample_events_df.groupby(event_key)["cell_mesh_score"]
@@ -460,15 +563,38 @@ def _compute_sample_aware_scores(
         ).reset_index()
         score_summary["event_score_iqr"] = grouped_scores.apply(_sample_stat_iqr).values
         score_summary["event_prevalence"] = grouped_scores.apply(_sample_positive_prevalence).values
+        qc_summary = (
+            sample_events_df.groupby(event_key)["passes_min_cells"]
+            .apply(_qc_bool_sum)
+            .rename("n_samples_passing_min_cells")
+            .reset_index()
+        )
+        score_summary = score_summary.merge(qc_summary, on=event_key, how="left")
+        score_summary["min_cells_pass_prevalence"] = (
+            score_summary["n_samples_passing_min_cells"]
+            / score_summary["n_samples_coobserved"]
+        )
 
         meta_summary = (
             sample_events_df.groupby(event_key, as_index=False)
             .agg(
-                metabolite_availability=("metabolite_availability", "median"),
-                sensor_score=("sensor_score", "median"),
-                sensor_expr_frac=("sensor_expr_frac", "median"),
+                metabolite_availability_median=("metabolite_availability", "median"),
+                sensor_score_median=("sensor_score", "median"),
+                sensor_expr_frac_median=("sensor_expr_frac", "median"),
                 sender_n_cells=("sender_n_cells", "sum"),
                 receiver_n_cells=("receiver_n_cells", "sum"),
+                sender_passes_min_cells=(
+                    "sender_passes_min_cells",
+                    _qc_bool_any,
+                ),
+                receiver_passes_min_cells=(
+                    "receiver_passes_min_cells",
+                    _qc_bool_any,
+                ),
+                passes_min_cells=(
+                    "passes_min_cells",
+                    _qc_bool_any,
+                ),
             )
         )
         events = (
@@ -476,30 +602,27 @@ def _compute_sample_aware_scores(
             .query("n_samples_coobserved > 0")
             .assign(
                 cell_mesh_score=lambda df: df["event_score_median"],
-                n_valid_samples=lambda df: df["n_samples_coobserved"],
                 inference_mode="sample_aware",
             )
             .sort_values("cell_mesh_score", ascending=False, na_position="last")
             .reset_index(drop=True)
         )
-        sample_event_scores = sample_events_df.pivot_table(
-            index=event_key,
-            columns="sample",
-            values="cell_mesh_score",
-            aggfunc="mean",
-            dropna=False,
-        )
     else:
-        events = pd.DataFrame(columns=EVENT_COLUMNS + ["n_valid_samples"])
-        sample_event_scores = pd.DataFrame()
+        events = pd.DataFrame(columns=SAMPLE_AWARE_EVENT_COLUMNS)
 
     availability_results = {
         "sample_validation": validation,
+        "celltype_qc": validation.set_index(["sample", "cell_type"])[
+            ["n_cells", "cell_fraction", "passes_min_cells"]
+        ].copy(),
         "sample_sender_scores": sample_sender_scores,
         "sample_receiver_scores": sample_receiver_scores,
         "sample_events": sample_events_df,
-        "sample_event_scores": sample_event_scores,
         "availability_by_sample": availability_by_sample,
+        "receiver_reference": availability_kwargs.get(
+            "receiver_reference",
+            METABOLITE_AVAILABILITY_DEFAULTS["receiver_reference"],
+        ),
     }
     return sender_scores, receiver_scores, events, availability_results
 
@@ -509,6 +632,7 @@ def _make_cell_mesh_events(
     receiver_scores: pd.DataFrame,
     allow_self: bool,
     cell_counts: Optional[pd.Series] = None,
+    min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
 ) -> pd.DataFrame:
     """
     构建 CELL MESH 通信事件
@@ -531,8 +655,7 @@ def _make_cell_mesh_events(
         hmdb_id = rr.get("hmdb_id", np.nan)
         if isinstance(sender_scores.index, pd.MultiIndex):
             sender_matches = [
-                idx for idx in sender_scores.index
-                if idx[0] == metabolite and _same_hmdb(idx[1], hmdb_id)
+                idx for idx in sender_scores.index if _same_hmdb(idx[1], hmdb_id)
             ]
         else:
             sender_matches = [metabolite] if metabolite in sender_scores.index else []
@@ -548,24 +671,40 @@ def _make_cell_mesh_events(
                 availability = float(availability_value)
                 sensor_score = float(rr["sensor_score"])
                 cell_mesh_score = float(np.sqrt(availability * sensor_score))
+                sender_n_cells = (
+                    int(cell_counts.loc[sender])
+                    if cell_counts is not None and sender in cell_counts.index
+                    else np.nan
+                )
+                receiver_n_cells = int(rr["receiver_n_cells"])
+                sender_passes_min_cells = bool(
+                    pd.notna(sender_n_cells) and sender_n_cells >= min_cells
+                )
+                receiver_passes_min_cells = bool(
+                    rr.get(
+                        "receiver_passes_min_cells",
+                        receiver_n_cells >= min_cells,
+                    )
+                )
 
                 rows.append(
                     {
                         "sender": sender,
                         "receiver": receiver,
-                        "metabolite": metabolite,
-                        "hmdb_id": hmdb_id,
+                        "metabolite": sender_idx[0] if isinstance(sender_idx, tuple) else metabolite,
+                        "hmdb_id": sender_idx[1] if isinstance(sender_idx, tuple) else hmdb_id,
                         "sensor_gene": rr["sensor_gene"],
                         "sensor_type": rr["sensor_type"],
                         "metabolite_availability": availability,
                         "sensor_score": sensor_score,
                         "sensor_expr_frac": float(rr["sensor_expr_frac"]),
-                        "sender_n_cells": (
-                            int(cell_counts.loc[sender])
-                            if cell_counts is not None and sender in cell_counts.index
-                            else np.nan
+                        "sender_n_cells": sender_n_cells,
+                        "receiver_n_cells": receiver_n_cells,
+                        "sender_passes_min_cells": sender_passes_min_cells,
+                        "receiver_passes_min_cells": receiver_passes_min_cells,
+                        "passes_min_cells": bool(
+                            sender_passes_min_cells and receiver_passes_min_cells
                         ),
-                        "receiver_n_cells": int(rr["receiver_n_cells"]),
                         "cell_mesh_score": cell_mesh_score,
                     }
                 )
@@ -634,7 +773,7 @@ def _empirical_pvalues_by_sensor_type(
         **kwargs: 其他参数
 
     返回:
-        带有 p 值和 FDR 的事件 DataFrame（FDR 按 sensor type 分别校正）
+        带有经验 p 值、global FDR 和 sensor-type FDR 的事件 DataFrame
     """
     if sample_mode == "sample_aware":
         return _sample_aware_empirical_pvalues(
@@ -653,31 +792,23 @@ def _empirical_pvalues_by_sensor_type(
         )
 
     if n_perms <= 0 or obs_events.empty:
-        obs_events["perm_pvalue"] = np.nan
-        obs_events["fdr"] = np.nan
-        return obs_events
+        out = obs_events.copy()
+        out["perm_pvalue"] = np.nan
+        return _assign_fdr_columns(out)
 
     key_cols = ["sender", "receiver", "metabolite", "hmdb_id", "sensor_gene", "sensor_type"]
     obs_keys = obs_events[key_cols].astype(str).agg("|".join, axis=1)
-    ge_counts = pd.Series(0, index=obs_keys.values, dtype=int)
-    obs_score = pd.Series(obs_events["cell_mesh_score"].values, index=obs_keys.values)
-    obs_sensor_types = pd.Series(obs_events["sensor_type"].values, index=obs_keys.values)
+    ge_counts = np.zeros(len(obs_events), dtype=int)
+    obs_score = obs_events["cell_mesh_score"].to_numpy(dtype=float)
 
     min_cells = availability_kwargs.get("min_cells", METABOLITE_AVAILABILITY_DEFAULTS["min_cells"])
-    if sample_mode == "sample_aware":
-        validation = _sample_validation_table(adata, sample_key, cell_type_key, min_cells)
-        eligible_units = validation.loc[
-            validation["eligible_in_sample"], ["sample", "cell_type"]
-        ]
-        eligible_pairs = set(map(tuple, eligible_units.to_numpy()))
-        eligible_mask = [
-            (str(sample), str(cell_type)) in eligible_pairs
-            for sample, cell_type in zip(adata.obs[sample_key], adata.obs[cell_type_key])
-        ]
-    else:
-        eligible_celltypes = _eligible_celltype_counts(adata, cell_type_key, min_cells).index
-        eligible_mask = adata.obs[cell_type_key].astype(str).isin(eligible_celltypes).values
-    adata_perm_base = adata[eligible_mask, :].copy()
+    original_cell_fractions = _compute_celltype_fractions(
+        adata,
+        cell_type_key,
+    )
+    # ``min_cells`` is QC-only. Permute all observed analysis cells so the null
+    # uses the same cell-type universe as the observed scores.
+    adata_perm_base = adata.copy()
 
     rng = np.random.default_rng(random_state)
     original = adata_perm_base.obs[cell_type_key].copy()
@@ -686,94 +817,59 @@ def _empirical_pvalues_by_sensor_type(
 
     try:
         for perm_idx in range(n_perms):
-            # 1. 打乱 eligible 细胞的细胞类型标签；低于 min_cells 的 cell type 不进入 null。
+            # 1. 打乱全部分析细胞的细胞类型标签；min_cells 只更新 QC 标记。
             adata_perm_base.obs[perm_key] = _permute_labels(original, sample_labels, rng).values
 
             # 2. 重新计算 availability 和得分
-            if sample_mode == "sample_aware":
-                _, _, events_perm, _ = _compute_sample_aware_scores(
-                    adata_perm_base,
-                    enzyme_prior,
-                    sensor_prior,
-                    cell_type_key=perm_key,
-                    sample_key=sample_key,
-                    layer=layer,
-                    min_expr_frac=min_expr_frac,
-                    allow_self=allow_self,
-                    availability_kwargs=availability_kwargs,
-                )
-            else:
-                sender_perm, receiver_perm, availability_perm = _compute_availability_scores(
-                    adata_perm_base,
-                    enzyme_prior,
-                    sensor_prior,
-                    celltype_col=perm_key,
-                    layer=layer,
-                    min_expr_frac=min_expr_frac,
-                    **availability_kwargs
-                )
+            sender_perm, receiver_perm, availability_perm = _compute_availability_scores(
+                adata_perm_base,
+                enzyme_prior,
+                sensor_prior,
+                celltype_col=perm_key,
+                layer=layer,
+                min_expr_frac=min_expr_frac,
+                cell_fractions=original_cell_fractions,
+                **availability_kwargs
+            )
 
-                # 3. 构建置换事件
-                events_perm = _make_cell_mesh_events(
-                    sender_perm,
-                    receiver_perm,
-                    allow_self=allow_self,
-                    cell_counts=availability_perm.get("cell_counts"),
-                )
+            # 3. 构建置换事件
+            events_perm = _make_cell_mesh_events(
+                sender_perm,
+                receiver_perm,
+                allow_self=allow_self,
+                cell_counts=availability_perm.get("cell_counts"),
+                min_cells=min_cells,
+            )
+
+            # 4. Compare the exact event key. A key absent from a permutation
+            # has null score zero, matching the sample-aware implementation.
             if events_perm.empty:
-                continue
-
-            # 4. 比较得分计数（按 sensor type 分别进行比较）
-            perm_scores = events_perm.assign(_key=events_perm[key_cols].astype(str).agg("|".join, axis=1)).set_index("_key")["cell_mesh_score"]
-            perm_sensor_types = events_perm.assign(_key=events_perm[key_cols].astype(str).agg("|".join, axis=1)).set_index("_key")["sensor_type"]
-            
-            common = obs_score.index.intersection(perm_scores.index)
-            for key in common:
-                # 只在同一 sensor type 内比较
-                if obs_sensor_types.loc[key] == perm_sensor_types.loc[key]:
-                    if perm_scores.loc[key] >= obs_score.loc[key]:
-                        ge_counts.loc[key] += 1
+                perm_values = np.zeros(len(obs_events), dtype=float)
+            else:
+                perm_scores = (
+                    events_perm.assign(
+                        _key=events_perm[key_cols].astype(str).agg("|".join, axis=1)
+                    )
+                    .groupby("_key")["cell_mesh_score"]
+                    .max()
+                )
+                perm_values = (
+                    perm_scores.reindex(obs_keys.to_numpy())
+                    .fillna(0.0)
+                    .to_numpy(dtype=float)
+                )
+            ge_counts += perm_values >= obs_score
 
     finally:
         if perm_key in adata_perm_base.obs:
             del adata_perm_base.obs[perm_key]
 
     # 计算 p 值
-    p = (ge_counts.loc[obs_keys.values].values + 1) / (n_perms + 1)
+    p = (ge_counts + 1) / (n_perms + 1)
     out = obs_events.copy()
     out["perm_pvalue"] = p
 
-    # 按 sensor type 分别计算 FDR
-    out["fdr"] = np.nan
-    for sensor_type in out["sensor_type"].unique():
-        mask = out["sensor_type"] == sensor_type
-        type_pvalues = out.loc[mask, "perm_pvalue"].values
-        out.loc[mask, "fdr"] = _bh_fdr(type_pvalues)
-
-    return out
-
-
-def _confidence_tier(row: pd.Series) -> str:
-    """
-    确定事件的置信等级
-
-    参数:
-        row: 事件行
-
-    返回:
-        置信等级字符串
-    """
-    if pd.isna(row.get("fdr", np.nan)):
-        if row["cell_mesh_score"] >= 0.5 and row.get("sensor_expr_frac", 0) >= 0.1:
-            return "Tier2_no_permutation"
-        return "Tier3_exploratory"
-
-    if row["fdr"] <= 0.05 and row["cell_mesh_score"] >= 0.5 and row.get("sensor_expr_frac", 0) >= 0.1:
-        return "Tier1_high"
-    if row["fdr"] <= 0.1 and row["cell_mesh_score"] >= 0.25:
-        return "Tier2_medium"
-
-    return "Tier3_exploratory"
+    return _assign_fdr_columns(out)
 
 
 def run_cell_mesh(
@@ -787,9 +883,17 @@ def run_cell_mesh(
     allow_self: bool = True,
     n_perms: int = 0,
     random_state: int = 0,
-    eps_num: float = METABOLITE_AVAILABILITY_DEFAULTS["eps_num"],
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
     sample_mode: Literal["pooled_stratified", "sample_aware"] = "pooled_stratified",
+    sender_abundance_exponent: float = METABOLITE_AVAILABILITY_DEFAULTS[
+        "sender_abundance_exponent"
+    ],
+    pce_reference: Literal["mean", "median"] = METABOLITE_AVAILABILITY_DEFAULTS[
+        "pce_reference"
+    ],
+    receiver_reference: Literal["mean", "median"] = METABOLITE_AVAILABILITY_DEFAULTS[
+        "receiver_reference"
+    ],
 ) -> CellMeshResult:
     """
     运行 CELL MESH: Metabolite-mediated Event Scoring with Sensor Hierarchies.
@@ -798,25 +902,24 @@ def run_cell_mesh(
     参数:
         adata: AnnData 对象,包含单细胞表达数据
         enzyme_metabolite: 酶-代谢物关系先验表,默认使用内置数据库
-            必需列:metabolite, gene, role
-            可选列:hmdb_id, reaction, weight, evidence_level, source
+            必需列:metabolite, hmdb_id, gene, role, reaction
+            可选列:evidence_level, source
             role 取值:production (产生)、degradation (降解)、export (外排)
         metabolite_sensor: 代谢物-传感器关系先验表,默认使用内置数据库
         cell_type_key: 细胞类型列名,默认为 "cell_type"
         sample_key: 样本列名,用于置换检验时的样本内置换
         layer: 使用的表达层,None 表示使用 adata.X
-        min_expr_frac: 可选 receiver 表达比例 gate；None 表示不启用
+        min_expr_frac: 可选 receiver 表达比例 gate；必须在 [0, 1]，None 表示不启用
         allow_self: 是否允许自分泌通信
-        n_perms: 置换检验次数,0 表示不进行置换检验
+        n_perms: 非负整数置换检验次数，0 表示不进行置换检验
         random_state: 随机种子
-        eps_num: bounded median contrast 的数值保护常数,默认 1e-12
         min_cells : int
-            Minimum number of cells required to construct a pseudobulk expression unit.
-            In ``pooled_stratified`` mode, this filters cell types using their total
-            cell count across the full AnnData object. In ``sample_aware`` mode, this
-            filters each ``(sample, cell type)`` unit independently. Units below this
-            threshold are excluded from pseudobulk calculation and are represented as
-            missing values (NA), not zero, in sample-level outputs.
+            Positive-integer cell-count QC threshold. Every observed cell type contributes to
+            pseudobulk construction, fractions, references, scores, events,
+            and permutations regardless of this value. In
+            ``pooled_stratified`` mode the QC flag uses the full-data cell-type
+            count; in ``sample_aware`` mode it uses each ``(sample, cell type)``
+            count. Changing ``min_cells`` changes QC annotations only.
         sample_mode : {"pooled_stratified", "sample_aware"}, default="pooled_stratified"
             ``pooled_stratified`` computes pooled cell-type pseudobulks across all
             cells. When ``sample_key`` is provided, it is used only to stratify label
@@ -825,6 +928,16 @@ def run_cell_mesh(
             ``sample_aware`` computes pseudobulks, P/C/E scores, sender scores,
             receiver scores, and event scores separately for each ``(sample, cell
             type)`` unit, then aggregates event scores across samples.
+        sender_abundance_exponent : float, default=1.0
+            Exponent applied to sender cell fraction before P/C/E construction:
+            ``reaction_activity * cell_fraction ** sender_abundance_exponent``.
+            ``1`` preserves linear abundance adjustment and ``0`` disables it.
+        pce_reference : {"mean", "median"}, default="mean"
+            Statistic calculated over strictly positive abundance-adjusted
+            capacities to define each metabolite/direction reference.
+        receiver_reference : {"mean", "median"}, default="median"
+            Unweighted statistic calculated over strictly positive observed
+            cell-type mean sensor expression to define the receiver reference.
 
     返回:
         CellMeshResult 对象,包含所有计算结果
@@ -835,20 +948,58 @@ def run_cell_mesh(
            - production → product → 进入 P (产生) 矩阵
            - degradation → substrate → 进入 C (消耗) 矩阵
            - export → exporter → 进入 E (外排) 矩阵
-        2. sender score 以 production 的正向 median contrast 为必要锚点；
-           exporter 高于背景时加分，消耗型复合酶水平高于背景时惩罚。
-           缺少 exporter 或 consumption prior 时对应 factor 为 1。
-        3. sensor_score 是 sensor 表达相对 eligible cell-type median 的正向 contrast
-        4. cell_mesh_score = sqrt(metabolite_availability * sensor_score)
+        2. 每个代谢物的 P/C/E 默认使用所有 observed cell types 中严格正值的
+           算术均值作为 reference；pce_reference="median" 时改用中位数。
+           随后统一转换为 x / (x + positive_reference)。
+           每条 reaction activity 在 P/C/E normalization 前乘对应细胞类型中的
+           cell_fraction ** sender_abundance_exponent；sample-aware 模式按样本
+           分别计算 fraction。
+           sender_score = P_score ** 2 / (P_score + C_score)；P 为必要锚点，
+           C 作为平滑竞争项。E 继续计算和输出，但不进入正式 sender score。
+           缺少 consumption prior 时 C_score = 0，因此 sender_score = P_score。
+           prior 存在但基因未测到、或基因已测到但表达全零时，C_score 同样为
+           0，并由 consumption_status 区分其证据状态。
+        3. sensor_score 默认使用正表达 observed cell types 的等权中位数
+           R_ref（receiver_reference="mean" 时使用等权算术均值），并计算
+           R_score = R / (R + R_ref)。receiver cell fraction 不进入得分或
+           reference；min_expr_frac 仍可作为表达比例 gate。
+        4. 单样本/pooled 事件满足
+           cell_mesh_score = sqrt(metabolite_availability * sensor_score)。
+           sample-aware 聚合事件的 cell_mesh_score 是样本级事件分数的中位数；
+           组件列分别命名为 metabolite_availability_median 和
+           sensor_score_median，二者仅是描述性跨样本汇总。
+        5. min_cells 只生成 cell-count QC 标记，不过滤上述计算；所有事件保留，
+           可视化默认仅展示 passes_min_cells=True 的事件。
     """
     # 验证输入
     _validate_sample_key(adata, sample_key, sample_mode)
+    min_cells = _validate_min_cells(min_cells)
+    min_expr_frac = _validate_min_expr_frac(min_expr_frac)
+    n_perms = _validate_n_perms(n_perms)
+    if cell_type_key not in adata.obs:
+        raise KeyError(f"{cell_type_key!r} not found in adata.obs")
+    if len(adata.obs) == 0:
+        raise ValueError("No observed cell types are available for analysis")
+    _validated_celltype_labels(adata, cell_type_key)
+    _validated_gene_names(adata)
+    sender_abundance_exponent = _validate_sender_abundance_exponent(
+        sender_abundance_exponent
+    )
+    pce_reference = _validate_pce_reference(pce_reference)
+    receiver_reference = _validate_receiver_reference(receiver_reference)
 
     # 加载默认数据库
     if enzyme_metabolite is None or metabolite_sensor is None:
         default_enzyme, default_sensor = load_cell_mesh_database()
         enzyme_metabolite = default_enzyme if enzyme_metabolite is None else enzyme_metabolite
         metabolite_sensor = default_sensor if metabolite_sensor is None else metabolite_sensor
+
+    # Keep the unfiltered enzyme prior only for coverage-status reporting.
+    # Numerical scoring still uses the validated, expression-compatible prior.
+    prior_role_coverage = _build_prior_role_coverage(
+        enzyme_metabolite,
+        adata.var_names,
+    )
 
     # 验证先验
     enzyme_prior, sensor_prior = validate_priors(enzyme_metabolite, metabolite_sensor, adata.var_names)
@@ -860,8 +1011,11 @@ def run_cell_mesh(
 
     # 计算 availability 和得分
     availability_kwargs = {
-        'eps_num': eps_num,
         'min_cells': min_cells,
+        'sender_abundance_exponent': sender_abundance_exponent,
+        'pce_reference': pce_reference,
+        'receiver_reference': receiver_reference,
+        '_prior_role_coverage': prior_role_coverage,
     }
 
     if sample_mode == "sample_aware":
@@ -893,6 +1047,7 @@ def run_cell_mesh(
             receiver_scores,
             allow_self=allow_self,
             cell_counts=availability_results.get("cell_counts"),
+            min_cells=min_cells,
         )
 
     # 计算显著性（按 sensor type 分别计算）
@@ -916,20 +1071,37 @@ def run_cell_mesh(
     )
     event_attrs = events.attrs.copy()
 
-    # 计算置信等级
     if not events.empty:
-        events["confidence_tier"] = events.apply(_confidence_tier, axis=1)
-        events = events.sort_values(["fdr", "cell_mesh_score"], ascending=[True, False], na_position="last").reset_index(drop=True)
-        events.attrs.update(event_attrs)
-    elif "confidence_tier" not in events.columns:
-        events["confidence_tier"] = pd.Series(dtype=object)
-        events.attrs.update(event_attrs)
+        events = events.sort_values(
+            ["fdr_sensor_type", "cell_mesh_score"],
+            ascending=[True, False],
+            na_position="last",
+        ).reset_index(drop=True)
+    events.attrs.update(event_attrs)
 
     # 整理参数
     parameters = {
         "method": "CELL MESH",
         "acronym": "Metabolite-mediated Event Scoring with Sensor Hierarchies",
-        "algorithm": "bounded cell-type median contrast scoring",
+        "algorithm": "sender-abundance-adjusted positive-reference saturation scoring",
+        "population_adjustment": "sender_cell_fraction_power_before_pce_normalization",
+        "pce_normalization": "positive_reference_saturation",
+        "pce_reference": pce_reference,
+        "sender_formula": "P_score^2/(P_score+C_score)",
+        "export_in_sender_score": False,
+        "receiver_normalization": "positive_reference_saturation",
+        "receiver_reference": receiver_reference,
+        "receiver_formula": "R/(R+R_ref)",
+        "receiver_abundance_adjustment": "none",
+        "min_cells_role": "qc_annotation_only",
+        "calculation_celltypes": "all_observed",
+        "cell_fraction_denominator": (
+            "within_sample_all_cells"
+            if sample_mode == "sample_aware"
+            else "all_adata_cells"
+        ),
+        "sample_aware_component_aggregation": "median",
+        "sample_aware_event_score": "median_of_sample_level_cell_mesh_scores",
         "cell_type_key": cell_type_key,
         "sample_key": sample_key,
         "sample_mode": sample_mode,
@@ -938,7 +1110,8 @@ def run_cell_mesh(
         "allow_self": allow_self,
         "n_perms": n_perms,
         "random_state": random_state,
-        **availability_kwargs
+        "min_cells": min_cells,
+        "sender_abundance_exponent": sender_abundance_exponent,
     }
 
     return CellMeshResult(
@@ -951,4 +1124,5 @@ def run_cell_mesh(
         sample_sender_scores=availability_results.get("sample_sender_scores"),
         sample_receiver_scores=availability_results.get("sample_receiver_scores"),
         sample_events=availability_results.get("sample_events"),
+        celltype_qc=availability_results.get("celltype_qc"),
     )

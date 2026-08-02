@@ -1,39 +1,53 @@
 # Sender Score Implementation
 
-Only cell types with `n_cells >= min_cells` are eligible. P/C/E reaction scores
-retain the existing reaction-gene aggregation and reaction summation logic.
+Every observed cell type participates in pseudobulk construction, cell-fraction
+adjustment, P/C/E references, scores, events, and permutations. `min_cells` is
+used only to annotate cell-count QC.
 
-For each metabolite and each P/C/E vector across eligible cell types:
+Reaction activity is adjusted before P/C/E construction:
 
-\[
-b=\operatorname{median}(x),\qquad
-D(x_c;b)=
-\begin{cases}
-(x_c-b)/(x_c+b), & x_c+b>\varepsilon_{num}\\
-0, & \text{otherwise}
-\end{cases}
-\]
+```text
+reaction_activity(r,t)
+    = geometric_mean({expression(g,t) + 1 | g belongs to reaction r}) - 1
 
-`eps_num` defaults to `1e-12` and is numerical protection only. NaN values map
-to zero contrast; all-NaN and all-zero vectors return all zeros. Contrasts are
-clipped to `[-1, 1]`.
+adjusted_reaction_activity(t)
+    = reaction_activity(t) * cell_fraction(t) ** sender_abundance_exponent
+```
 
-The sender score is:
+Genes within a reaction contribute equally. The enzyme prior has no numerical
+`weight`; legacy/custom enzyme `weight` columns are ignored and removed during
+prior validation.
+The `reaction` field is required and must be non-empty; rows without a known
+reaction identity are rejected instead of being merged into an artificial
+multi-gene complex.
+Reaction grouping uses `canonical_hmdb_id + reaction + direction`; metabolite
+name is display metadata. Exact gene symbols are deduplicated within each group,
+and multiple reactions in the same direction are summed into one HMDB-level
+capacity.
 
-\[
-S^{sender}_{m,c}=p^+_{m,c}F^E_{m,c}F^C_{m,c}
-\]
+For each metabolite and each direction `X` in `P`, `C`, and `E`, the reference
+is calculated from strictly positive adjusted capacities:
 
-- \(p^+=\max(0,d^P)\), so production above the cell-type median is required.
-- \(F^E=1+e^+\) when an exporter prior exists, otherwise 1.
-- \(F^C=1-c^+\) when a consumption/substrate prior exists, otherwise 1.
-- Missing exporter or consumption priors are neutral.
+```text
+X_ref(m) = mean({X(m,t) | X(m,t) > 0})              default
+X_ref(m) = median({X(m,t) | X(m,t) > 0})            optional
+X_score(m,t) = 0                                    if X(m,t) = 0
+X_score(m,t) = X(m,t) / (X(m,t) + X_ref(m))         otherwise
+```
 
-Raw C is the expression-derived proxy for metabolite consumption-enzyme
-ability. The C-derived output is named `relative_consumption_support` because
-it retains only the positive deviation of that proxy above the eligible
-cell-type median. It is not measured extracellular clearance flux.
+Because both `X(m,t)` and `X_ref(m)` are strictly positive in the division
+branch, their sum is positive and no epsilon parameter is required.
 
-Intermediates include `P`, `C`, `E`, `P_contrast`, `C_contrast`, `E_contrast`,
-`P_plus`, `E_plus`, `relative_consumption_support`, `pseudobulk`, `expr_frac`,
-and `cell_counts`.
+The formal sender score is:
+
+```text
+sender_score(m,t) = P_score(m,t)^2 / (P_score(m,t) + C_score(m,t))
+```
+
+The result is set to zero when the denominator is zero. `E_score` remains an
+export-support intermediate and does not enter the formal sender score.
+
+Intermediates include raw `P`, `C`, and `E`, their positive-reference scores
+and references, pseudobulk expression, expression fractions, cell counts, cell
+fractions, abundance weights, and QC annotations. Obsolete signed contrasts and
+duplicate score aliases are not returned.

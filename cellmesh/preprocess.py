@@ -9,7 +9,33 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from .config import MIN_CELL_COUNT
+
+def _validated_celltype_labels(adata, celltype_col: str) -> pd.Series:
+    """Return non-empty cell-type labels without converting missing values to text."""
+    if celltype_col not in adata.obs:
+        raise KeyError(f"{celltype_col!r} not found in adata.obs")
+    values = adata.obs[celltype_col]
+    text = values.astype("string").str.strip()
+    if values.isna().any() or text.isna().any() or text.eq("").any():
+        raise ValueError(f"adata.obs[{celltype_col!r}] must not contain NA or empty labels")
+    return text.astype(str)
+
+
+def _validated_gene_names(adata) -> pd.Index:
+    """Return unique, non-empty expression-matrix gene names."""
+    raw = pd.Index(adata.var_names)
+    values = pd.Series(raw, dtype="object")
+    text = values.astype("string").str.strip()
+    if values.isna().any() or text.isna().any() or text.eq("").any():
+        raise ValueError("adata.var_names must not contain NA or empty gene names")
+    genes = pd.Index(text.astype(str))
+    if genes.has_duplicates:
+        duplicates = genes[genes.duplicated()].unique().tolist()
+        raise ValueError(
+            "adata.var_names must be unique; duplicated genes: "
+            + ", ".join(duplicates[:10])
+        )
+    return genes
 
 
 def _as_1d_array(x) -> np.ndarray:
@@ -19,37 +45,46 @@ def _as_1d_array(x) -> np.ndarray:
     return np.asarray(x).ravel()
 
 
-def _eligible_celltype_counts(
+def _all_celltype_counts(
     adata,
     celltype_col: str = "cell_type",
-    min_cells: int = MIN_CELL_COUNT,
 ) -> pd.Series:
-    """Return cell counts for cell types eligible for formal analysis."""
-    if celltype_col not in adata.obs:
-        raise KeyError(f"{celltype_col!r} not found in adata.obs")
-
-    labels = adata.obs[celltype_col].astype(str)
+    """Return counts for every observed cell type used in score calculation."""
+    labels = _validated_celltype_labels(adata, celltype_col)
     group_counts = labels.value_counts()
-    eligible = group_counts[group_counts >= min_cells]
-    if eligible.empty:
-        raise ValueError(f"No cell types with at least {min_cells} cells")
-    return eligible.astype(int)
+    if group_counts.empty:
+        raise ValueError("No observed cell types are available for analysis")
+    return group_counts.astype(int)
+
+
+def _compute_celltype_fractions(
+    adata,
+    celltype_col: str = "cell_type",
+) -> pd.Series:
+    """Return every observed cell-type count divided by all annotated cells."""
+    total_cells = int(len(adata.obs))
+    if total_cells <= 0:
+        raise ValueError("Cannot compute cell-type fractions from an empty AnnData object")
+    counts = _all_celltype_counts(adata, celltype_col)
+    fractions = counts.astype(float) / float(total_cells)
+    fractions.name = "cell_fraction"
+    return fractions
 
 
 def _build_celltype_pseudobulk(
     adata,
     celltype_col: str = "cell_type",
     layer: Optional[str] = None,
-    min_cells: int = MIN_CELL_COUNT,
 ) -> pd.DataFrame:
     """
     构建细胞类型的 pseudobulk 表达矩阵
     """
     X = adata.layers[layer] if layer is not None else adata.X
-    genes = pd.Index(adata.var_names).astype(str)
-    labels = adata.obs[celltype_col].astype(str)
+    genes = _validated_gene_names(adata)
+    labels = _validated_celltype_labels(adata, celltype_col)
 
-    valid_groups = _eligible_celltype_counts(adata, celltype_col, min_cells).index.tolist()
+    # Every observed type contributes to pseudobulk construction.
+    valid_groups = _all_celltype_counts(adata, celltype_col).index.tolist()
 
     pseudobulk = []
     group_names = []
@@ -65,16 +100,16 @@ def _compute_celltype_expr_frac(
     adata,
     celltype_col: str = "cell_type",
     layer: Optional[str] = None,
-    min_cells: int = MIN_CELL_COUNT,
 ) -> pd.DataFrame:
     """
     计算每个基因在每个细胞类型中的表达比例（表达>0的细胞比例）
     """
     X = adata.layers[layer] if layer is not None else adata.X
-    genes = pd.Index(adata.var_names).astype(str)
-    labels = adata.obs[celltype_col].astype(str)
+    genes = _validated_gene_names(adata)
+    labels = _validated_celltype_labels(adata, celltype_col)
 
-    valid_groups = _eligible_celltype_counts(adata, celltype_col, min_cells).index.tolist()
+    # Expression prevalence is calculated for every observed cell type.
+    valid_groups = _all_celltype_counts(adata, celltype_col).index.tolist()
 
     expr_frac = []
     group_names = []

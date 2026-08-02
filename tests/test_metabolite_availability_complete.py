@@ -97,7 +97,10 @@ class TestMetaboliteAvailability:
             - 1.0
             + pseudobulk["G_prodA3"]
         )
-        expected_metA_P = pd.Series(expected_metA_P, index=pseudobulk.index)
+        expected_metA_P = (
+            pd.Series(expected_metA_P, index=pseudobulk.index)
+            * result["sender_abundance_weights"]
+        )
         pd.testing.assert_series_equal(
             result['P'].loc[metA_idx], expected_metA_P, check_names=False, atol=1e-10
         )
@@ -125,7 +128,7 @@ class TestMetaboliteAvailability:
         assert 'MetC' not in included_mets, "MetC should be skipped"
     
     def test_5_missing_substrate_is_neutral(self, toy_adata, toy_enzyme_prior):
-        """Missing substrate prior has neutral consumption factor."""
+        """Missing substrate prior yields zero normalized consumption."""
         result = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, return_intermediates=True
@@ -133,16 +136,17 @@ class TestMetaboliteAvailability:
         
         # Find MetB index
         metB_idx = None
-        for idx in result['relative_consumption_support'].index:
+        for idx in result['C_score'].index:
             if idx[0] == 'MetB':
                 metB_idx = idx
                 break
         
         assert metB_idx is not None, "MetB should be included"
-        assert np.allclose(result['relative_consumption_support'].loc[metB_idx].values, 0.0)
+        assert np.allclose(result['C_score'].loc[metB_idx].values, 0.0)
+        assert result['metadata'].loc[metB_idx, 'consumption_status'] == 'prior_missing'
     
     def test_6_missing_transporter_is_neutral(self, toy_adata, toy_enzyme_prior):
-        """Missing exporter prior has neutral exporter factor."""
+        """Missing exporter prior yields zero support-only E score."""
         result = compute_metabolite_availability(
             toy_adata, toy_enzyme_prior, celltype_col="cell_type",
             min_cells=1, return_intermediates=True
@@ -150,23 +154,23 @@ class TestMetaboliteAvailability:
         
         # Check MetB
         metB_idx = None
-        for idx in result['E_plus'].index:
+        for idx in result['E_score'].index:
             if idx[0] == 'MetB':
                 metB_idx = idx
                 break
         
         assert metB_idx is not None, "MetB should be included"
-        assert np.allclose(result['E_plus'].loc[metB_idx].values, 0.0)
+        assert np.allclose(result['E_score'].loc[metB_idx].values, 0.0)
         
         # Check MetF
         metF_idx = None
-        for idx in result['E_plus'].index:
+        for idx in result['E_score'].index:
             if idx[0] == 'MetF':
                 metF_idx = idx
                 break
         
         assert metF_idx is not None, "MetF should be included"
-        assert np.allclose(result['E_plus'].loc[metF_idx].values, 0.0)
+        assert np.allclose(result['E_score'].loc[metF_idx].values, 0.0)
     
     def test_8_dense_sparse_equivalent(self, toy_adata, toy_enzyme_prior):
         """Documentation test 8: Dense and sparse inputs produce identical outputs"""

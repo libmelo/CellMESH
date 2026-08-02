@@ -1,150 +1,132 @@
 # CELL MESH methods
 
-**CELL MESH** stands for **Metabolite-mediated Event Scoring with Sensor Hierarchies**.
+CELL MESH (Metabolite-mediated Event Scoring with Sensor Hierarchies) infers
+candidate metabolite-mediated communication events from single-cell expression.
+Each event is defined by a sender cell type, receiver cell type, metabolite,
+HMDB identifier, and sensor gene.
 
-CELL MESH infers candidate metabolite-mediated cell-cell communication events from single-cell expression data. Each event is defined as:
+## Prior databases
 
-\[
-(c_s, c_r, m, s)
-\]
+`load_cell_mesh_database()` independently selects the highest packaged
+`Enzyme<version>.csv` and `Interaction<version>.csv`. The current defaults are
+`Enzyme2.0.csv` and `Interaction4.0.csv`.
 
-where \(c_s\) is the sender cell group, \(c_r\) is the receiver cell group, \(m\) is a metabolite, and \(s\) is a sensor gene.
+The enzyme prior requires non-empty `metabolite`, `hmdb_id`, `gene`, `role`, and
+`reaction` fields. It uses `production`, `degradation`, and `export` roles,
+mapped internally to P, C, and E. Genes within one reaction contribute equally; neither
+the enzyme nor interaction database defines a numerical weight. Records without
+a valid HMDB identifier are excluded, and sender and receiver evidence is joined
+by a stripped, case-normalized HMDB identifier. Metabolite names may differ
+between the two priors and do not participate in the join.
 
-## Packaged database
+The reaction key is `canonical_hmdb_id + reaction + direction`. Exact gene
+symbols are deduplicated within that key before reaction activity is calculated.
+Multiple reactions in one direction are summed into one HMDB-level P, C, or E
+capacity. The first enzyme-prior metabolite name for each HMDB ID is retained
+only for display.
 
-This version packages versioned prior CSV files plus fixed walkthrough/test files:
+Sensors are normalized to `Cell surface receptor`, `Transporter`, or
+`Other receptor`. Evidence level, source, protein name, and references remain
+provenance metadata and do not multiply the numerical score.
+After HMDB canonicalization and expression-gene filtering, runtime validation
+enforces one sensor record per `canonical_hmdb_id + sensor_gene`. Same-type
+duplicates keep the first metadata record; conflicting sensor types for one
+pair are rejected before communication events are constructed.
 
-1. `Enzyme1.0.csv`: versioned metabolite-enzyme-reaction table
-2. `Interaction1.0.csv`: versioned metabolite-sensor interaction table
-3. `enzyme_test.csv`: legacy small enzyme prior used for compatibility tests
-4. `interaction_test.csv`: legacy small sensor prior used for compatibility tests
-5. `Enzyme_new.csv`: walkthrough/test enzyme prior
-6. `test_single_cell.h5ad`: walkthrough/test single-cell data
+## Expression aggregation and cell abundance
 
-At runtime, `load_cell_mesh_database()` independently selects the highest
-packaged enzyme file named `Enzyme<version>.csv` and the highest packaged
-interaction file named `Interaction<version>.csv`, then normalizes the selected
-prior files into:
+For each observed cell type `t` and gene `g`, CELL MESH calculates the per-cell
+mean expression `mean_expression(g,t)` and expression fraction
+`expression_fraction(g,t)`.
 
-- `enzyme_metabolite`
-- `metabolite_sensor`
+For reaction `r`, equal-weight multi-gene activity is:
 
-Both priors must provide `hmdb_id`. Records without `hmdb_id` are excluded before scoring, and sender availability is matched to receiver sensors by exact `(metabolite, hmdb_id)`.
+```text
+reaction_activity(r,t)
+    = geometric_mean({mean_expression(g,t) + 1 | g belongs to r}) - 1
+```
 
-The normalized `enzyme_metabolite` table is the canonical enzyme prior passed through `run_cell_mesh()`. It uses three roles:
+Sender abundance is applied before P/C/E construction:
 
-- `production`
-- `degradation`
-- `export`
+```text
+abundance_weight(t) = cell_fraction(t) ** sender_abundance_exponent
+adjusted_reaction_activity(r,t) = reaction_activity(r,t) * abundance_weight(t)
+```
 
-Packaged enzyme files that contain reaction directions are normalized into these roles during `load_cell_mesh_database()`:
+The default exponent is 1.0. Receiver abundance does not enter receiver scoring.
+`min_cells` is QC-only: every observed cell type remains in pseudobulks,
+fractions, references, scores, events, and permutations.
 
-- `product` -> `production`
-- `substrate` -> `degradation`
-- `exporter` -> `export`
+## Sender score
 
-Availability scoring then maps those roles back to internal P/C/E directions. This is an internal normalization step, not a separate public reaction-table API.
+Adjusted reaction activities are summed into production P, consumption C, and
+export E capacities. For each metabolite and direction X:
 
-The interaction table maps annotations to the three supported sensor classes:
+```text
+X_ref(m) = mean({X(m,t) | X(m,t) > 0})              default
+X_ref(m) = median({X(m,t) | X(m,t) > 0})            optional
+X_score(m,t) = 0                                    if X(m,t) = 0
+X_score(m,t) = X(m,t) / (X(m,t) + X_ref(m))         otherwise
+```
 
-- `Cell surface receptor`
-- `Transporter`
-- `Other receptor`
+The formal sender score is:
 
-## Expression aggregation
+```text
+sender_score(m,t) = P_score(m,t)^2 / (P_score(m,t) + C_score(m,t))
+```
 
-For each cell group \(c\) and gene \(g\), CELL MESH computes mean expression:
+It is zero when the denominator is zero. E, E_score, and E_ref are retained as
+export-support evidence but do not enter the formal sender score. Metadata keeps
+`consumption_status` and `export_status` to distinguish missing priors,
+unmeasured genes, zero expression, and supported evidence.
 
-\[
-\bar{x}_{g,c} = \frac{1}{|C_c|}\sum_{i \in C_c} x_{i,g}
-\]
+## Receiver and event scores
 
-and expression fraction:
+For sensor gene `g`, receiver expression R is normalized across strictly
+positive observed cell-type means:
 
-\[
-\phi_{g,c} = \frac{1}{|C_c|}\sum_{i \in C_c} I(x_{i,g} > 0)
-\]
+```text
+R_ref(g) = median({R(g,t) | R(g,t) > 0})            default
+R_ref(g) = mean({R(g,t) | R(g,t) > 0})              optional
+receiver_score(g,t) = 0                             if R(g,t) = 0
+receiver_score(g,t) = R(g,t) / (R(g,t) + R_ref(g)) otherwise
+```
 
-For each reaction, CELL MESH scales each valid gene expression value by its gene weight and then applies an ordinary geometric mean:
+`min_expr_frac` optionally gates receiver scores. The event score is:
 
-\[
-\operatorname{rxn}_{r,c} =
-\operatorname{gmean}_{g \in G_r}(w_g \bar{x}_{g,c} + 1) - 1
-\]
+```text
+cell_mesh_score = sqrt(sender_score * receiver_score)
+```
 
-This weight semantics is a per-gene expression scaling step, not the normalized weighted geometric mean \(\exp(\sum w \log x / \sum w)\).
+No heuristic confidence tier is assigned by the core algorithm.
 
-## Metabolite availability
+## Sample-aware mode
 
-Only cell types with at least `min_cells` cells are eligible in the default
-`pooled_stratified` mode. In `sample_aware` mode, eligibility is evaluated for
-each `(sample, cell type)` unit independently; units below `min_cells` are
-excluded from pseudobulk calculation and represented as missing values (NA),
-not zero, in sample-level outputs. Reaction scores are aggregated into unchanged
-production \(P\), consumption \(C\), and efflux \(E\) matrices. Here, \(C\) is
-an expression-derived proxy for the level of
-metabolite-consuming enzyme complexes. For each non-negative vector across
-eligible cell types:
+`sample_aware` mode computes fractions, pseudobulks, references, and scores
+independently within each sample. The aggregate `cell_mesh_score` and
+`event_score_median` are the median of sample-level event scores. Descriptive
+component summaries are reported separately as
+`metabolite_availability_median`, `sensor_score_median`, and
+`sensor_expr_frac_median`; their geometric mean is not the aggregate event
+score. Top-level sender and receiver component summaries also use the
+across-sample median. IQR, positive prevalence, and the number of co-observed
+samples describe cross-sample support. A missing
+sample-event value means the event was structurally uncomputable in that sample;
+failing `min_cells` changes only its QC flag.
 
-\[
-D(x_c;b)=\frac{x_c-b}{x_c+b}, \qquad b=\operatorname{median}_c(x_c)
-\]
+## Permutation inference
 
-with a numerical zero-denominator guard. Let \(p^+,c^+,e^+\) be the positive
-parts of the P/C/E contrasts. The sender score is:
+Both modes use label permutation; when a sample key is supplied, labels are
+shuffled within samples. Every observed analysis cell participates in the null.
+For B permutations, the one-sided empirical p-value is:
 
-\[
-A_{m,c}=p^+_{m,c}F^E_{m,c}F^C_{m,c}
-\]
+```text
+p = (1 + number_of_null_scores_at_least_observed) / (B + 1)
+```
 
-where \(F^E=1+e^+\) when an exporter prior exists and 1 otherwise, while
-\(F^C=1-c^+\) when a consumption/substrate prior exists and 1 otherwise.
-Production above the median is therefore required. The derived \(c^+\) term is
-the positive deviation of the consumption ability proxy above the eligible
-cell-type median. It is not a direct measurement of extracellular clearance
-flux.
+Both modes return:
 
-## Receiver score
+- `fdr_global`: Benjamini-Hochberg correction across all events.
+- `fdr_sensor_type`: correction separately within each sensor type.
 
-Receiver-side sensor score is the positive bounded median contrast of
-pseudobulk sensor expression across eligible cell types. If `min_expr_frac` is
-not `None`, it acts as an optional expression-fraction gate.
-
-\[
-R_{m,s,c_r} \in [0, 1]
-\]
-
-## CELL MESH event score
-
-\[
-\text{CELL\_MESH}_{c_s \to c_r}^{m,s} =
-\sqrt{A_{m,c_s} R_{m,s,c_r}}
-\]
-
-In the output table this is stored as `cell_mesh_score`.
-
-## Permutation testing
-
-In `pooled_stratified` mode, empirical p-values use the existing pooled label
-permutation procedure. If `sample_key` is supplied, labels are permuted within
-samples.
-
-In `sample_aware` mode, permutations are also within-sample label shuffles, but
-the analysis structure is fixed before the first permutation. Only cells from
-eligible `(sample, cell type)` units enter the null calculation, and each
-permutation preserves the observed cell count for every eligible unit within
-each sample. Each permutation recomputes sample-level pseudobulks, P/C/E scores,
-sender scores, receiver scores, sample-level event scores, and the cross-sample
-median event score. The event universe is fixed from the observed analysis; if
-an event has no computable sample-level score in a permutation, that null score
-is set to 0 rather than dropping the event from the null distribution.
-
-For `sample_aware` events, `perm_pvalue` is a one-sided empirical p-value
-against `event_score_median`. `fdr_global` applies Benjamini-Hochberg correction
-across all events with non-missing p-values. `fdr_sensor_type` applies the same
-correction separately within each sensor type, and the legacy `fdr` column is a
-compatibility alias for `fdr_sensor_type`.
-
-\[
-p = \frac{1 + \sum_b I(C_b \ge C_{obs})}{B + 1}
-\]
+The ambiguous historical `fdr` alias is not returned.

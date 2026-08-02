@@ -4,13 +4,13 @@
 
 CELL MESH 现在支持多种格式的单细胞数据读取，使用统一的 `read_anndata()` 接口。
 
-## 新功能
+## 接口
 
 ### 主要函数
 
 #### `read_anndata(path, mode, **kwargs)`
 
-主函数，支持多种读取模式。
+主函数，支持多种读取模式。`mode` 默认是 `"h5ad"`。
 
 **参数:**
 - `path`: 文件路径或目录路径
@@ -21,7 +21,8 @@ CELL MESH 现在支持多种格式的单细胞数据读取，使用统一的 `re
   - `"tsv"`: 从 TSV 文件读取
   - `"loom"`: 从 Loom 文件读取
   - `"mtx"`: 从 Matrix Market 文件读取
-- `**kwargs`: 传递给底层读取函数的额外参数
+- `**kwargs`: 传递给对应读取函数的参数。`mtx` 模式只接受
+  `genes_path` 和 `barcodes_path`，未知参数会直接报错，不会被静默忽略。
 
 **返回:** AnnData 对象
 
@@ -30,10 +31,10 @@ CELL MESH 现在支持多种格式的单细胞数据读取，使用统一的 `re
 快速生成内置示例数据，用于测试。
 
 **参数:**
-- `dataset`: 数据集大小，可选:
-  - `"tiny`: 50细胞 × 50基因
-  - `"small`: 200细胞 × 100基因 (默认)
-  - `"medium`: 500细胞 × 200基因
+- `dataset`: 数据集大小，可选：
+  - `"tiny"`: 50 细胞 × 50 基因（默认）
+  - `"small"`: 200 细胞 × 100 基因
+  - `"medium"`: 500 细胞 × 200 基因
 
 ## 使用示例
 
@@ -82,25 +83,42 @@ adata = cellmesh.read_example_data(dataset="medium")
 ```python
 import cellmesh
 
-# 步骤 1: 读取数据
-adata = cellmesh.read_example_data(dataset="small")
+# 步骤 1: 读取 walkthrough 的固定表达矩阵
+adata = cellmesh.read_anndata(
+    cellmesh.DATA_DIR / "test_single_cell.h5ad",
+    mode="h5ad",
+)
+# 该固定旧测试文件把原始基因名保存在 var["_index"] 中。
+if "_index" in adata.var.columns:
+    adata.var_names = adata.var["_index"].astype(str)
 
-# 步骤 2: 运行 CELL MESH
-result = cellmesh.run_cell_mesh(
-    adata,
-    cell_type_key="cell_type",
-    n_perms=100
+# 步骤 2: 加载与该表达矩阵配套的固定先验
+enzyme_prior, sensor_prior = cellmesh.load_cell_mesh_database(
+    enzyme_file=cellmesh.DATA_DIR / "Enzyme_new.csv",
+    interaction_file=cellmesh.DATA_DIR / "Interaction1.0.csv",
 )
 
-# 步骤 3: 查看结果
+# 步骤 3: 运行 CELL MESH
+result = cellmesh.run_cell_mesh(
+    adata,
+    enzyme_metabolite=enzyme_prior,
+    metabolite_sensor=sensor_prior,
+    cell_type_key="cell_type",
+    n_perms=0,
+)
+
+# 步骤 4: 查看结果
 print(result.events.head())
 ```
+
+`read_example_data()` 使用通用的 `Gene1`、`Gene2` 等名称，适合验证 AnnData
+读取和对象结构，但不保证与默认生物学先验存在基因交集。
 
 ## 模式详细说明
 
 ### h5ad 模式
 
-使用 Scanpy 的 AnnData 标准格式，最推荐的格式。
+读取 AnnData 的 `.h5ad` 标准格式。
 
 **需要:** `anndata` 包，已包含在 CELL MESH 核心依赖中。
 **安装:** `pip install -e .`
@@ -139,6 +157,9 @@ print(result.events.head())
 - `genes_path`: 基因列表文件路径
 - `barcodes_path`: 细胞 barcode 文件路径
 
+MTX 矩阵按基因 × 细胞读取，并在构建 AnnData 时转为细胞 × 基因。提供的
+基因名或 barcode 数量必须与矩阵维度一致。
+
 **需要:** `anndata` 和 `scipy` 包，均已包含在 CELL MESH 核心依赖中。
 **安装:** `pip install -e .`
 
@@ -152,10 +173,14 @@ print(result.events.head())
 pip install -e ".[notebook]"
 ```
 
-该 notebook 使用包内固定测试文件：
+该 notebook 为保证示例计算可复现，使用包内固定测试文件：
 - `cellmesh/data/test_single_cell.h5ad`
 - `cellmesh/data/Enzyme_new.csv`
 - `cellmesh/data/Interaction1.0.csv`
+
+这些是 walkthrough 固定输入，不代表默认数据库版本。当前默认数据库由
+`load_cell_mesh_database()` 自动选择，为 `Enzyme2.0.csv` 和
+`Interaction4.0.csv`。
 
 ## API 参考
 
@@ -169,8 +194,8 @@ from cellmesh import (
     run_cell_mesh,
     load_cell_mesh_database,
     load_default_priors,
-    read_anndata,          # 新增
-    read_example_data,     # 新增
+    read_anndata,
+    read_example_data,
 )
 ```
 
@@ -180,10 +205,7 @@ from cellmesh import (
 2. **细胞类型**: 确保 `adata.obs` 中有 `cell_type` 列，或在运行 `run_cell_mesh()` 时指定 `cell_type_key`
 3. **矩阵方向**: CSV/TSV 模式默认假设是细胞 × 基因，如果是基因 × 细胞，设置 `transpose=True`
 
-## 更新日志
+## 版本说明
 
-### v0.2.0 (新增)
-- 添加 `read_anndata()` 函数，支持 6 种读取模式
-- 添加 `read_example_data()` 函数，生成测试数据
-- 更新 `__init__.py` 导出新函数
-- 添加完整文档和示例
+本文档对应 CELL MESH `0.4.0` 的公开读取接口。包的完整当前 API 和算法
+说明以根目录 `README.md` 及 `docs/METHODS.md` 为准。

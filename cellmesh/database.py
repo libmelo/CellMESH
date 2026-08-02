@@ -73,8 +73,22 @@ def _split_gene_field(value: object) -> list[tuple[str, str | None]]:
 
 
 def _valid_hmdb_mask(values: pd.Series) -> pd.Series:
-    text = values.astype(str).str.strip().str.lower()
-    return pd.notna(values) & ~text.isin({"", "nan", "none", "null"})
+    return _normalize_hmdb_series(values).notna()
+
+
+def _normalize_hmdb_id(value: object):
+    """Return one canonical HMDB identifier or ``np.nan`` when it is missing."""
+    if pd.isna(value):
+        return np.nan
+    text = str(value).strip()
+    if text.lower() in {"", "nan", "none", "null"}:
+        return np.nan
+    return text.upper()
+
+
+def _normalize_hmdb_series(values: pd.Series) -> pd.Series:
+    """Strip and case-normalize HMDB identifiers without stringifying missing data."""
+    return values.map(_normalize_hmdb_id).astype(object)
 
 
 def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
@@ -86,7 +100,7 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
     metabolite, HMDB_ID/hmdb_id, reaction, gene, direction.
 
     Output columns:
-    metabolite, hmdb_id, gene, role, weight, evidence_level, source, reaction.
+    metabolite, hmdb_id, gene, role, evidence_level, source, reaction.
     """
     role_map = {
         "product": "production",
@@ -108,7 +122,6 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
                     "hmdb_id": row.get("HMDB_ID", row.get("hmdb_id")),
                     "gene": gene,
                     "role": role,
-                    "weight": 1.0,
                     "evidence_level": evidence or "database",
                     "source": "packaged_enzyme_test",
                     "reaction": row.get("Reactions", row.get("reaction")),
@@ -116,7 +129,15 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
             )
     out = pd.DataFrame(rows)
     if out.empty:
-        return pd.DataFrame(columns=["metabolite", "hmdb_id", "gene", "role", "weight", "evidence_level", "source", "reaction"])
+        return pd.DataFrame(columns=["metabolite", "hmdb_id", "gene", "role", "evidence_level", "source", "reaction"])
+    out["hmdb_id"] = _normalize_hmdb_series(out["hmdb_id"])
+    reaction = out["reaction"]
+    invalid_reaction = reaction.isna() | reaction.astype(str).str.strip().eq("")
+    if invalid_reaction.any():
+        raise ValueError(
+            "The enzyme database contains missing or empty reaction identifiers"
+        )
+    out["reaction"] = reaction.astype(str).str.strip()
     return out.drop_duplicates().reset_index(drop=True)
 
 
@@ -151,12 +172,16 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
     ID, HMDB_ID, standard_metName, Gene_name, Protein_name, Annotation,
     Database source, Reference.
     Also accepts normalized/internal or lower-case schema:
-    metabolite, hmdb_id, sensor_gene, sensor_type, weight, evidence_level,
+    metabolite, hmdb_id, sensor_gene, sensor_type, evidence_level,
     source, protein_name, reference.
 
     Output columns:
-    metabolite, hmdb_id, sensor_gene, sensor_type, weight, evidence_level,
+    metabolite, hmdb_id, sensor_gene, sensor_type, evidence_level,
     source, protein_name, reference.
+
+    Duplicate HMDB/sensor pairs keep their first occurrence.  Legacy/custom
+    ``weight`` columns are intentionally ignored because the interaction
+    database does not define a quantitative weight for sensor scoring.
     """
     rows = []
     for _, row in interaction_df.iterrows():
@@ -170,7 +195,6 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
                 "hmdb_id": _first_present(row, "HMDB_ID", "hmdb_id"),
                 "sensor_gene": gene,
                 "sensor_type": _normalize_sensor_type(sensor_type),
-                "weight": pd.to_numeric(_first_present(row, "weight"), errors="coerce") if "weight" in row.index else 1.0,
                 "evidence_level": _first_present(row, "evidence_level", "Annotation", "annotation"),
                 "source": _first_present(row, "source", "Database source", "database_source"),
                 "protein_name": _first_present(row, "protein_name", "Protein_name"),
@@ -179,13 +203,22 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
         )
     out = pd.DataFrame(rows)
     if out.empty:
-        return pd.DataFrame(columns=["metabolite", "hmdb_id", "sensor_gene", "sensor_type", "weight", "evidence_level", "source", "protein_name", "reference"])
-    out["weight"] = pd.to_numeric(out["weight"], errors="coerce").fillna(1.0)
-    return (
-        out.sort_values("weight", ascending=False)
-        .drop_duplicates(subset=["hmdb_id", "sensor_gene"])
-        .reset_index(drop=True)
-    )
+        return pd.DataFrame(
+            columns=[
+                "metabolite",
+                "hmdb_id",
+                "sensor_gene",
+                "sensor_type",
+                "evidence_level",
+                "source",
+                "protein_name",
+                "reference",
+            ]
+        )
+    out["hmdb_id"] = _normalize_hmdb_series(out["hmdb_id"])
+    return out.drop_duplicates(
+        subset=["hmdb_id", "sensor_gene"], keep="first"
+    ).reset_index(drop=True)
 
 
 def load_cell_mesh_database(
@@ -223,26 +256,31 @@ def validate_priors(
 
     This validates the normalized prior schemas, filters invalid HMDB IDs,
     restricts roles/sensor types to supported values, keeps only genes present
-    in the expression matrix, and normalizes weights.
+    in the expression matrix, removes unsupported legacy weight columns, and
+    guarantees one sensor record per canonical HMDB ID and sensor gene.
     """
     genes = set(pd.Index(var_names).astype(str))
 
     enz = enzyme_metabolite.copy()
-    required_enz = {"metabolite", "hmdb_id", "gene", "role"}
+    required_enz = {"metabolite", "hmdb_id", "gene", "role", "reaction"}
     missing = required_enz - set(enz.columns)
     if missing:
         raise ValueError(f"enzyme_metabolite is missing columns: {sorted(missing)}")
 
     enz["gene"] = enz["gene"].astype(str)
-    enz["hmdb_id"] = enz["hmdb_id"].astype(object).where(pd.notna(enz["hmdb_id"]), np.nan)
+    enz["hmdb_id"] = _normalize_hmdb_series(enz["hmdb_id"])
+    invalid_reaction = enz["reaction"].isna() | enz["reaction"].astype(str).str.strip().eq("")
+    if invalid_reaction.any():
+        raise ValueError("enzyme_metabolite reaction values must be non-empty")
+    enz["reaction"] = enz["reaction"].astype(str).str.strip()
     enz["role"] = enz["role"].astype(str).str.lower()
     enz = enz[_valid_hmdb_mask(enz["hmdb_id"])]
     enz = enz[enz["role"].isin(VALID_ROLES)]
     enz = enz[enz["gene"].isin(genes)]
 
-    if "weight" not in enz:
-        enz["weight"] = 1.0
-    enz["weight"] = pd.to_numeric(enz["weight"], errors="coerce").fillna(1.0)
+    # Enzyme priors are unweighted. Drop legacy/custom weight columns so they
+    # cannot imply a scoring effect that the packaged database does not define.
+    enz = enz.drop(columns=["weight"], errors="ignore")
 
     sen = metabolite_sensor.copy()
     required_sen = {"metabolite", "hmdb_id", "sensor_gene", "sensor_type"}
@@ -251,14 +289,35 @@ def validate_priors(
         raise ValueError(f"metabolite_sensor is missing columns: {sorted(missing)}")
 
     sen["sensor_gene"] = sen["sensor_gene"].astype(str)
-    sen["hmdb_id"] = sen["hmdb_id"].astype(object).where(pd.notna(sen["hmdb_id"]), np.nan)
+    sen["hmdb_id"] = _normalize_hmdb_series(sen["hmdb_id"])
     sen["sensor_type"] = sen["sensor_type"].astype(str)
     sen = sen[_valid_hmdb_mask(sen["hmdb_id"])]
     sen = sen[sen["sensor_type"].isin(VALID_SENSOR_TYPES)]
     sen = sen[sen["sensor_gene"].isin(genes)]
 
-    if "weight" not in sen:
-        sen["weight"] = 1.0
-    sen["weight"] = pd.to_numeric(sen["weight"], errors="coerce").fillna(1.0)
+    # Sensor priors are unweighted.  In particular, do not silently turn a
+    # user-supplied evidence field into a numeric receiver-score multiplier.
+    sen = sen.drop(columns=["weight"], errors="ignore")
+
+    # One canonical HMDB/sensor pair must define exactly one communication
+    # mechanism. Identical duplicate rows are harmless input redundancy and
+    # keep their first metadata record. A sensor-type conflict is ambiguous for
+    # type-stratified FDR and must not be resolved by row order.
+    sensor_key = ["hmdb_id", "sensor_gene"]
+    sensor_type_counts = sen.groupby(sensor_key, dropna=False)["sensor_type"].nunique()
+    conflicting_keys = sensor_type_counts[sensor_type_counts > 1]
+    if not conflicting_keys.empty:
+        conflict_details = []
+        for hmdb_id, sensor_gene in conflicting_keys.index:
+            mask = sen["hmdb_id"].eq(hmdb_id) & sen["sensor_gene"].eq(sensor_gene)
+            sensor_types = sorted(sen.loc[mask, "sensor_type"].unique())
+            conflict_details.append(
+                f"({hmdb_id}, {sensor_gene}): {sensor_types}"
+            )
+        raise ValueError(
+            "metabolite_sensor has conflicting sensor_type values for the same "
+            "canonical hmdb_id and sensor_gene: " + "; ".join(conflict_details)
+        )
+    sen = sen.drop_duplicates(subset=sensor_key, keep="first")
 
     return enz.reset_index(drop=True), sen.reset_index(drop=True)

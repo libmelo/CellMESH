@@ -10,17 +10,22 @@ from typing import Dict, Any
 DATA_DIR = Path(__file__).parent / "data"
 
 # ==================== 通用阈值配置 ====================
-# 最小细胞数阈值，低于该数量的细胞类型会被自动排除
+# Cell-count QC threshold; it annotates results but does not exclude scoring units.
 MIN_CELL_COUNT: int = 100
 
-# 新 contrast 模式默认不按表达比例过滤 receiver。
+# Receiver saturation scoring defaults to no expression-fraction gate.
 MIN_EXPR_FRAC = None
 
 # ==================== 代谢物可用性计算默认参数 ====================
 METABOLITE_AVAILABILITY_DEFAULTS: Dict[str, Any] = {
-    "eps_num": 1e-12,
     "min_cells": MIN_CELL_COUNT,
+    "sender_abundance_exponent": 1.0,
+    "pce_reference": "mean",
+    "receiver_reference": "median",
 }
+
+PCE_REFERENCE_METHODS = {"mean", "median"}
+RECEIVER_REFERENCE_METHODS = {"mean", "median"}
 
 # ==================== 角色和传感器类型常量 ====================
 # 合法的酶角色类型

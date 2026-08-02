@@ -23,19 +23,19 @@ print("\n2. 构建测试 prior 表...")
 # 酶-代谢物 prior，只包含 3 个 roles
 enzyme_metabolite = pd.DataFrame([
     # ATP 相关
-    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene1", "role": "production", "weight": 1.0},
-    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene2", "role": "degradation", "weight": 0.8},
-    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene4", "role": "export", "weight": 1.2},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene1", "role": "production", "reaction": "ATP_prod"},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene2", "role": "degradation", "reaction": "ATP_deg"},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "gene": "Gene4", "role": "export", "reaction": "ATP_export"},
     # 谷氨酸相关
-    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene6", "role": "production", "weight": 1.0},
-    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene7", "role": "export", "weight": 1.0},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene6", "role": "production", "reaction": "Glu_prod"},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "gene": "Gene7", "role": "export", "reaction": "Glu_export"},
 ])
 
 # 代谢物-传感器 prior，使用 3 种 sensor types
 metabolite_sensor = pd.DataFrame([
-    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "sensor_gene": "Gene8", "sensor_type": "Cell surface receptor", "weight": 1.0},
-    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "sensor_gene": "Gene9", "sensor_type": "Transporter", "weight": 1.0},
-    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "sensor_gene": "Gene10", "sensor_type": "Other receptor", "weight": 1.0},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "sensor_gene": "Gene8", "sensor_type": "Cell surface receptor"},
+    {"metabolite": "ATP", "hmdb_id": "HMDB00001", "sensor_gene": "Gene9", "sensor_type": "Transporter"},
+    {"metabolite": "Glutamate", "hmdb_id": "HMDB00002", "sensor_gene": "Gene10", "sensor_type": "Other receptor"},
 ])
 
 print(f"  酶 prior 行数: {len(enzyme_metabolite)}")
@@ -62,19 +62,20 @@ print(f"  availability_results 包含的键: {list(res.availability_results.keys
 # 4. 检查结果
 print("\n4. 结果检查:")
 
-# Sender score is non-negative and may exceed 1 when exporter support is high.
+# Sender score is bounded in [0, 1]; exporter evidence does not enter it.
 avail = res.availability_results['availability']
 if not avail.empty:
     min_val = avail.min().min()
     max_val = avail.max().max()
     print(f"  availability 范围: [{min_val:.4f}, {max_val:.4f}]")
-    assert min_val >= 0, "availability 包含负值"
+    assert 0 <= min_val <= max_val <= 1, "availability 超出 [0, 1]"
 
 # 检查事件结果
 if not res.events.empty:
     print(f"  事件前 5 行:")
     display_cols = ['sender', 'receiver', 'metabolite', 'sensor_gene', 'sensor_type', 
-                   'cell_mesh_score', 'sensor_expr_frac', 'perm_pvalue', 'fdr']
+                   'cell_mesh_score', 'sensor_expr_frac', 'perm_pvalue',
+                   'fdr_global', 'fdr_sensor_type']
     available_cols = [c for c in display_cols if c in res.events.columns]
     print(res.events[available_cols].head())
     

@@ -3,7 +3,13 @@ import pandas as pd
 import pytest
 
 from cellmesh import load_cell_mesh_database, read_anndata, run_cell_mesh
-from cellmesh.database import _default_database_paths, _find_versioned_database_files, _select_default_database_paths
+from cellmesh.database import (
+    _default_database_paths,
+    _find_versioned_database_files,
+    _select_default_database_paths,
+    normalize_interaction_database,
+    validate_priors,
+)
 
 
 class FakeAnnData:
@@ -23,6 +29,7 @@ def test_load_packaged_database():
     assert enzyme["hmdb_id"].notna().all()
     assert sensor["hmdb_id"].notna().all()
     assert set(sensor["sensor_type"]).issubset({"Cell surface receptor", "Transporter", "Other receptor"})
+    assert "weight" not in sensor.columns
 
 
 def test_default_database_uses_highest_packaged_version():
@@ -98,9 +105,152 @@ def test_load_database_accepts_lowercase_internal_schema(tmp_path):
     enzyme, sensor = load_cell_mesh_database(str(enzyme_path), str(interaction_path))
 
     assert set(enzyme["role"]) == {"production", "degradation", "export"}
+    assert "weight" not in enzyme.columns
+    assert "weight" not in sensor.columns
     assert set(sensor["sensor_type"]) == {"Transporter", "Other receptor"}
     assert {"metabolite", "hmdb_id", "gene", "role", "reaction"}.issubset(enzyme.columns)
     assert {"metabolite", "hmdb_id", "sensor_gene", "sensor_type"}.issubset(sensor.columns)
+
+
+def test_normalize_interaction_database_ignores_weight_and_keeps_first_duplicate():
+    raw = pd.DataFrame(
+        {
+            "metabolite": ["first", "second", "other"],
+            "hmdb_id": ["HMDB00001", "HMDB00001", "HMDB00002"],
+            "sensor_gene": ["S1", "S1", "S2"],
+            "sensor_type": ["Transporter", "Cell surface receptor", "Transporter"],
+            # The old implementation sorted this column and retained "second".
+            "weight": [1.0, 100.0, 50.0],
+        }
+    )
+
+    sensor = normalize_interaction_database(raw)
+
+    assert "weight" not in sensor.columns
+    assert list(sensor["metabolite"]) == ["first", "other"]
+    assert list(sensor["sensor_type"]) == ["Transporter", "Transporter"]
+
+
+def test_validate_priors_drops_legacy_sensor_weight():
+    enzyme = pd.DataFrame(
+        {
+            "metabolite": ["M1"],
+            "hmdb_id": ["HMDB00001"],
+            "gene": ["E1"],
+            "role": ["production"],
+            "reaction": ["prod"],
+        }
+    )
+    sensor = pd.DataFrame(
+        {
+            "metabolite": ["M1"],
+            "hmdb_id": ["HMDB00001"],
+            "sensor_gene": ["S1"],
+            "sensor_type": ["Transporter"],
+            "weight": [99.0],
+        }
+    )
+
+    _, validated_sensor = validate_priors(enzyme, sensor, ["E1", "S1"])
+
+    assert "weight" not in validated_sensor.columns
+
+
+def test_validate_priors_deduplicates_canonical_hmdb_sensor_pairs():
+    enzyme = pd.DataFrame(
+        {
+            "metabolite": ["M1"],
+            "hmdb_id": ["HMDB00001"],
+            "gene": ["E1"],
+            "role": ["production"],
+            "reaction": ["prod"],
+        }
+    )
+    sensor = pd.DataFrame(
+        {
+            "metabolite": ["first name", "alias name"],
+            "hmdb_id": [" hmdb00001 ", "HMDB00001"],
+            "sensor_gene": ["S1", "S1"],
+            "sensor_type": ["Transporter", "Transporter"],
+            "source": ["first", "second"],
+        }
+    )
+
+    _, validated_sensor = validate_priors(enzyme, sensor, ["E1", "S1"])
+
+    assert validated_sensor[["hmdb_id", "sensor_gene"]].to_dict("records") == [
+        {"hmdb_id": "HMDB00001", "sensor_gene": "S1"}
+    ]
+    assert validated_sensor.loc[0, "metabolite"] == "first name"
+    assert validated_sensor.loc[0, "source"] == "first"
+
+
+def test_validate_priors_rejects_sensor_type_conflicts_for_same_pair():
+    enzyme = pd.DataFrame(
+        {
+            "metabolite": ["M1"],
+            "hmdb_id": ["HMDB00001"],
+            "gene": ["E1"],
+            "role": ["production"],
+            "reaction": ["prod"],
+        }
+    )
+    sensor = pd.DataFrame(
+        {
+            "metabolite": ["M1", "M1"],
+            "hmdb_id": ["hmdb00001", "HMDB00001"],
+            "sensor_gene": ["S1", "S1"],
+            "sensor_type": ["Transporter", "Cell surface receptor"],
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="conflicting sensor_type.*HMDB00001.*S1",
+    ):
+        validate_priors(enzyme, sensor, ["E1", "S1"])
+
+
+@pytest.mark.parametrize(
+    "enzyme, message",
+    [
+        (
+            pd.DataFrame(
+                {
+                    "metabolite": ["M"],
+                    "hmdb_id": ["H"],
+                    "gene": ["E"],
+                    "role": ["production"],
+                }
+            ),
+            "reaction",
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "metabolite": ["M"],
+                    "hmdb_id": ["H"],
+                    "gene": ["E"],
+                    "role": ["production"],
+                    "reaction": ["   "],
+                }
+            ),
+            "reaction values must be non-empty",
+        ),
+    ],
+)
+def test_validate_priors_requires_nonempty_reaction(enzyme, message):
+    sensor = pd.DataFrame(
+        {
+            "metabolite": ["M"],
+            "hmdb_id": ["H"],
+            "sensor_gene": ["S"],
+            "sensor_type": ["Transporter"],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        validate_priors(enzyme, sensor, ["E", "S"])
 
 
 def test_run_cell_mesh_with_packaged_database():
@@ -178,3 +328,12 @@ def test_read_mtx_with_names(tmp_path):
     assert list(adata.obs_names) == ["C1", "C2"]
     assert list(adata.var_names) == ["G1", "G2"]
     assert adata.X.shape == (2, 2)
+
+    with pytest.raises(TypeError, match="unexpected_keyword"):
+        read_anndata(
+            mtx_path,
+            mode="mtx",
+            genes_path=genes_path,
+            barcodes_path=barcodes_path,
+            unexpected_keyword=True,
+        )

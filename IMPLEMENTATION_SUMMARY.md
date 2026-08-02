@@ -1,24 +1,28 @@
 # Implementation Summary
 
-CELL MESH filters to cell types with at least `min_cells` cells before
-pseudobulk, P/C/E, sender, and receiver calculations.
-
-- Reaction gene aggregation and P/C/E reaction summation are unchanged.
-- P/C/E sender components use bounded deviation from the equal-weight
-  eligible-cell-type median.
-- Positive production contrast is the required sender anchor.
-- Exporter positive contrast adds support only when an exporter prior exists.
-- The C matrix represents the expression-derived level of
-  metabolite-consuming enzyme complexes.
-- Its positive median deviation penalizes only when a consumption/substrate
-  prior exists.
-- Missing exporter or consumption priors use neutral factor 1.
-- Receiver scores use positive bounded median contrast of sensor pseudobulk.
-- `min_expr_frac=None` is the default; a numeric value enables an optional
-  receiver-only gate.
-- Event score is `sqrt(sender_score * receiver_score)`.
-- Events record `sender_n_cells` and `receiver_n_cells`.
-
-The derived C component is exposed as `relative_consumption_support`: it is the
-positive deviation of the consumption ability proxy above the eligible
-cell-type median, not a direct extracellular clearance-flux measurement.
+- Every observed cell type participates in pseudobulk, reference, score, event,
+  and permutation calculations; `min_cells` produces QC annotations only.
+- Equal-weight multi-gene reaction activity uses
+  `geometric_mean(expression + 1) - 1`.
+- `reaction` is required and non-empty; unknown reactions are never collapsed
+  into an inferred multi-gene complex.
+- Reaction grouping uses canonical HMDB ID, reaction, and direction. Exact gene
+  symbols are deduplicated within a reaction; metabolite name is display-only.
+- Sender reaction activity is multiplied by
+  `cell_fraction ** sender_abundance_exponent` before P/C/E construction.
+- P/C/E use positive-reference saturation `X / (X + X_ref)`, with the positive
+  mean as default and positive median as an option.
+- The formal sender score is `P_score^2 / (P_score + C_score)`.
+- E remains normalized export-support evidence but does not enter sender score.
+- Receiver score is `R / (R + R_ref)` and does not use receiver abundance.
+- Pooled and sample-level event score is `sqrt(sender_score * receiver_score)`.
+- Sample-aware mode scores each sample independently and aggregates event scores
+  using median, IQR, and prevalence summaries. Aggregate component fields have
+  explicit `_median` names and top-level component tables use sample medians.
+- Sender and receiver priors join on canonicalized HMDB ID, not metabolite name.
+- Cell-type labels must be non-missing/non-empty and expression gene names must
+  be unique.
+- Both modes report `fdr_global` and `fdr_sensor_type`; no ambiguous `fdr` alias
+  or heuristic confidence tier is produced.
+- Availability metadata retains only reaction counts plus
+  `consumption_status` and `export_status`.
