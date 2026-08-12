@@ -128,6 +128,11 @@ failing `min_cells` changes only its QC flag.
 
 Both modes use label permutation; when a sample key is supplied, labels are
 shuffled within samples. Every observed analysis cell participates in the null.
+Before permutation, CELL MESH compiles the validated reaction/sensor mappings,
+restricts the numerical kernel to prior-relevant genes, and encodes the retained
+observed event keys. Each permutation recomputes the same P/C/E and receiver
+formulas from permuted cell labels, but does not rebuild public metadata or a
+full sender-receiver event table. Missing event keys retain null score zero.
 For B permutations, the one-sided empirical p-value is:
 
 ```text
@@ -140,3 +145,10 @@ Both modes return:
 - `fdr_sensor_type`: correction separately within each sensor type.
 
 The ambiguous historical `fdr` alias is not returned.
+
+Exceedance counts are accumulated online. In sample-aware mode the full
+event-by-permutation null matrix is omitted by default and can be requested with
+`store_null_scores=True`; this does not change p-values or FDR. Permutation
+batches may be evaluated with `n_jobs > 1` (or `-1` for all CPUs). Label
+assignments are generated in deterministic permutation-index order, so results
+do not depend on worker completion order.

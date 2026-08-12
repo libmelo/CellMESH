@@ -22,3 +22,10 @@ sample-aware component medians from the median sample-level event score. Within
 each canonical HMDB ID and P/C/E direction, identical reaction gene sets
 contribute once and strict subsets are omitted, leaving all inclusion-maximal
 gene sets for P/C/E aggregation.
+
+Permutation inference now uses a compiled null-only kernel: validated priors,
+maximal reaction sets, relevant expression columns, group structure, and event
+indices are prepared once. Permutations recompute the same numerical scores but
+skip public intermediates and full event-table construction. Exceedance counts
+are accumulated online, deterministic worker batches are supported, and the
+sample-aware full null matrix is opt-in.

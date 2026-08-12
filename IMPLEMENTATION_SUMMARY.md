@@ -28,5 +28,9 @@
   be unique.
 - Both modes report `fdr_global` and `fdr_sensor_type`; no ambiguous `fdr` alias
   or heuristic confidence tier is produced.
+- Permutation inference compiles static priors and relevant expression columns
+  once, scores only observed event keys, and accumulates exceedance counts
+  online. Deterministic worker batches are supported; sample-aware null matrices
+  are opt-in via `store_null_scores=True`.
 - Availability metadata retains only reaction counts plus
   `consumption_status` and `export_status`.

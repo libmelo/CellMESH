@@ -4,7 +4,9 @@ CELL MESH 核心算法模块
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import os
 from typing import Optional, Dict, Any, Literal
 
 import numpy as np
@@ -34,6 +36,7 @@ from .preprocess import (
     _validated_celltype_labels,
     _validated_gene_names,
 )
+from .permutation import CompiledPermutationScorer
 
 
 EVENT_COLUMNS = [
@@ -233,6 +236,47 @@ def _validate_n_perms(value: Any) -> int:
     return count
 
 
+def _validate_n_jobs(value: Any) -> int:
+    """Return -1 or a strictly positive permutation worker count."""
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        raise TypeError("n_jobs must be an integer")
+    workers = int(value)
+    if workers == -1:
+        return workers
+    if workers < 1:
+        raise ValueError("n_jobs must be -1 or greater than or equal to 1")
+    return workers
+
+
+def _resolved_n_jobs(n_jobs: int) -> int:
+    return max(1, int(os.cpu_count() or 1)) if n_jobs == -1 else n_jobs
+
+
+def _compiled_permutation_scores(
+    scorer: CompiledPermutationScorer,
+    *,
+    n_perms: int,
+    random_state: int,
+    n_jobs: int,
+):
+    """Yield permutation scores in deterministic permutation-index order."""
+    rng = np.random.default_rng(random_state)
+    workers = _resolved_n_jobs(n_jobs)
+    if workers == 1:
+        for _ in range(n_perms):
+            yield scorer.score(scorer.permute_codes(rng))
+        return
+
+    batch_size = max(workers, workers * 2)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        completed = 0
+        while completed < n_perms:
+            current = min(batch_size, n_perms - completed)
+            labels = [scorer.permute_codes(rng) for _ in range(current)]
+            yield from executor.map(scorer.score, labels)
+            completed += current
+
+
 def _sample_validation_table(adata, sample_key: str, cell_type_key: str, min_cells: int) -> pd.DataFrame:
     obs = pd.DataFrame(
         {
@@ -333,6 +377,8 @@ def _sample_aware_empirical_pvalues(
     min_expr_frac: Optional[float],
     allow_self: bool,
     availability_kwargs: dict,
+    n_jobs: int = 1,
+    store_null_scores: bool = False,
 ) -> pd.DataFrame:
     out = obs_events.copy()
     out["permutation_mode"] = "within_sample_label_shuffle"
@@ -344,57 +390,58 @@ def _sample_aware_empirical_pvalues(
         out["perm_pvalue"] = np.nan
         out = _assign_fdr_columns(out)
         out.attrs["sample_aware_null_scores"] = null_df
+        out.attrs["n_perms_completed"] = 0
+        out.attrs["null_scores_stored"] = bool(store_null_scores)
         return out
 
     score_col = "event_score_median" if "event_score_median" in out.columns else "cell_mesh_score"
     obs_scores = pd.Series(out[score_col].to_numpy(dtype=float), index=null_index)
 
-    min_cells = availability_kwargs.get("min_cells", METABOLITE_AVAILABILITY_DEFAULTS["min_cells"])
-    validation = _sample_validation_table(adata, sample_key, cell_type_key, min_cells)
-    original_cell_fractions = _sample_cell_fractions(validation)
-    # ``min_cells`` is QC-only. The null uses every observed analysis cell and
-    # therefore the same score/reference universe as the observed data.
-    adata_perm_base = adata.copy()
-
-    rng = np.random.default_rng(random_state)
-    original = adata_perm_base.obs[cell_type_key].copy()
-    sample_labels = adata_perm_base.obs[sample_key].copy()
-    perm_key = "_cell_mesh_perm_label"
-    null_columns = []
-
-    try:
-        for perm_idx in range(n_perms):
-            adata_perm_base.obs[perm_key] = _permute_labels(original, sample_labels, rng).values
-            _, _, events_perm, _ = _compute_sample_aware_scores(
-                adata_perm_base,
-                enzyme_prior,
-                sensor_prior,
-                cell_type_key=perm_key,
-                sample_key=sample_key,
-                layer=layer,
-                min_expr_frac=min_expr_frac,
-                allow_self=allow_self,
-                availability_kwargs=availability_kwargs,
-                cell_fractions_by_sample=original_cell_fractions,
-            )
-
-            if events_perm.empty:
-                perm_scores = pd.Series(0.0, index=null_index)
-            else:
-                perm_score_col = (
-                    "event_score_median"
-                    if "event_score_median" in events_perm.columns
-                    else "cell_mesh_score"
-                )
-                perm_index = pd.MultiIndex.from_frame(events_perm[EVENT_KEY_COLUMNS].astype(str))
-                perm_scores = pd.Series(
-                    events_perm[perm_score_col].to_numpy(dtype=float),
-                    index=perm_index,
-                ).reindex(null_index).fillna(0.0)
-            null_columns.append(perm_scores.to_numpy(dtype=float))
-    finally:
-        if perm_key in adata_perm_base.obs:
-            del adata_perm_base.obs[perm_key]
+    obs_values = obs_scores.to_numpy(dtype=float)
+    valid_values = np.isfinite(obs_values)
+    score_mask = (
+        np.ones(len(out), dtype=bool)
+        if store_null_scores
+        else (valid_values & (obs_values > 0.0))
+    )
+    scorer = CompiledPermutationScorer(
+        adata,
+        enzyme_prior,
+        sensor_prior,
+        out.loc[score_mask].reset_index(drop=True),
+        cell_type_key=cell_type_key,
+        sample_key=sample_key,
+        sample_mode="sample_aware",
+        layer=layer,
+        min_expr_frac=min_expr_frac,
+        sender_abundance_exponent=availability_kwargs.get(
+            "sender_abundance_exponent",
+            METABOLITE_AVAILABILITY_DEFAULTS["sender_abundance_exponent"],
+        ),
+        pce_reference=availability_kwargs.get(
+            "pce_reference", METABOLITE_AVAILABILITY_DEFAULTS["pce_reference"]
+        ),
+        export_weight=availability_kwargs.get(
+            "export_weight", METABOLITE_AVAILABILITY_DEFAULTS["export_weight"]
+        ),
+        receiver_reference=availability_kwargs.get(
+            "receiver_reference",
+            METABOLITE_AVAILABILITY_DEFAULTS["receiver_reference"],
+        ),
+        prior_role_coverage=availability_kwargs.get("_prior_role_coverage"),
+    )
+    ge_counts = np.zeros(len(out), dtype=int)
+    ge_counts[valid_values & ~score_mask] = n_perms
+    null_columns = [] if store_null_scores else None
+    for perm_scores in _compiled_permutation_scores(
+        scorer,
+        n_perms=n_perms,
+        random_state=random_state,
+        n_jobs=n_jobs,
+    ):
+        ge_counts[score_mask] += perm_scores >= obs_values[score_mask]
+        if null_columns is not None:
+            null_columns.append(perm_scores)
 
     if null_columns:
         null_df = pd.DataFrame(
@@ -408,13 +455,16 @@ def _sample_aware_empirical_pvalues(
     pvalues = pd.Series(np.nan, index=null_index, dtype=float)
     valid_obs = obs_scores.notna()
     if valid_obs.any():
-        ge_counts = null_df.ge(obs_scores, axis=0).sum(axis=1)
-        pvalues.loc[valid_obs] = (ge_counts.loc[valid_obs].to_numpy(dtype=float) + 1.0) / (n_perms + 1.0)
+        pvalues.loc[valid_obs] = (
+            ge_counts[valid_obs.to_numpy()] + 1.0
+        ) / (n_perms + 1.0)
 
     out["perm_pvalue"] = pvalues.to_numpy()
     out = _assign_fdr_columns(out)
     out["permutation_mode"] = "within_sample_label_shuffle"
     out.attrs["sample_aware_null_scores"] = null_df
+    out.attrs["n_perms_completed"] = n_perms
+    out.attrs["null_scores_stored"] = bool(store_null_scores)
     return out
 
 
@@ -764,6 +814,8 @@ def _empirical_pvalues_by_sensor_type(
     allow_self: bool,
     availability_kwargs: dict,
     sample_mode: str = "pooled_stratified",
+    n_jobs: int = 1,
+    store_null_scores: bool = False,
 ) -> pd.DataFrame:
     """
     计算经验 p 值(置换检验)，按 sensor type 分别计算 null 分布
@@ -797,6 +849,8 @@ def _empirical_pvalues_by_sensor_type(
             min_expr_frac=min_expr_frac,
             allow_self=allow_self,
             availability_kwargs=availability_kwargs,
+            n_jobs=n_jobs,
+            store_null_scores=store_null_scores,
         )
 
     if n_perms <= 0 or obs_events.empty:
@@ -804,80 +858,53 @@ def _empirical_pvalues_by_sensor_type(
         out["perm_pvalue"] = np.nan
         return _assign_fdr_columns(out)
 
-    key_cols = ["sender", "receiver", "metabolite", "hmdb_id", "sensor_gene", "sensor_type"]
-    obs_keys = obs_events[key_cols].astype(str).agg("|".join, axis=1)
     ge_counts = np.zeros(len(obs_events), dtype=int)
     obs_score = obs_events["cell_mesh_score"].to_numpy(dtype=float)
 
-    min_cells = availability_kwargs.get("min_cells", METABOLITE_AVAILABILITY_DEFAULTS["min_cells"])
-    original_cell_fractions = _compute_celltype_fractions(
+    active = np.isfinite(obs_score) & (obs_score > 0.0)
+    scorer = CompiledPermutationScorer(
         adata,
-        cell_type_key,
+        enzyme_prior,
+        sensor_prior,
+        obs_events.loc[active].reset_index(drop=True),
+        cell_type_key=cell_type_key,
+        sample_key=sample_key,
+        sample_mode="pooled_stratified",
+        layer=layer,
+        min_expr_frac=min_expr_frac,
+        sender_abundance_exponent=availability_kwargs.get(
+            "sender_abundance_exponent",
+            METABOLITE_AVAILABILITY_DEFAULTS["sender_abundance_exponent"],
+        ),
+        pce_reference=availability_kwargs.get(
+            "pce_reference", METABOLITE_AVAILABILITY_DEFAULTS["pce_reference"]
+        ),
+        export_weight=availability_kwargs.get(
+            "export_weight", METABOLITE_AVAILABILITY_DEFAULTS["export_weight"]
+        ),
+        receiver_reference=availability_kwargs.get(
+            "receiver_reference",
+            METABOLITE_AVAILABILITY_DEFAULTS["receiver_reference"],
+        ),
+        prior_role_coverage=availability_kwargs.get("_prior_role_coverage"),
     )
-    # ``min_cells`` is QC-only. Permute all observed analysis cells so the null
-    # uses the same cell-type universe as the observed scores.
-    adata_perm_base = adata.copy()
-
-    rng = np.random.default_rng(random_state)
-    original = adata_perm_base.obs[cell_type_key].copy()
-    sample_labels = adata_perm_base.obs[sample_key].copy() if sample_key is not None else None
-    perm_key = "_cell_mesh_perm_label"
-
-    try:
-        for perm_idx in range(n_perms):
-            # 1. 打乱全部分析细胞的细胞类型标签；min_cells 只更新 QC 标记。
-            adata_perm_base.obs[perm_key] = _permute_labels(original, sample_labels, rng).values
-
-            # 2. 重新计算 availability 和得分
-            sender_perm, receiver_perm, availability_perm = _compute_availability_scores(
-                adata_perm_base,
-                enzyme_prior,
-                sensor_prior,
-                celltype_col=perm_key,
-                layer=layer,
-                min_expr_frac=min_expr_frac,
-                cell_fractions=original_cell_fractions,
-                **availability_kwargs
-            )
-
-            # 3. 构建置换事件
-            events_perm = _make_cell_mesh_events(
-                sender_perm,
-                receiver_perm,
-                allow_self=allow_self,
-                cell_counts=availability_perm.get("cell_counts"),
-                min_cells=min_cells,
-            )
-
-            # 4. Compare the exact event key. A key absent from a permutation
-            # has null score zero, matching the sample-aware implementation.
-            if events_perm.empty:
-                perm_values = np.zeros(len(obs_events), dtype=float)
-            else:
-                perm_scores = (
-                    events_perm.assign(
-                        _key=events_perm[key_cols].astype(str).agg("|".join, axis=1)
-                    )
-                    .groupby("_key")["cell_mesh_score"]
-                    .max()
-                )
-                perm_values = (
-                    perm_scores.reindex(obs_keys.to_numpy())
-                    .fillna(0.0)
-                    .to_numpy(dtype=float)
-                )
-            ge_counts += perm_values >= obs_score
-
-    finally:
-        if perm_key in adata_perm_base.obs:
-            del adata_perm_base.obs[perm_key]
+    ge_counts[~active] = n_perms
+    for perm_values in _compiled_permutation_scores(
+        scorer,
+        n_perms=n_perms,
+        random_state=random_state,
+        n_jobs=n_jobs,
+    ):
+        ge_counts[active] += perm_values >= obs_score[active]
 
     # 计算 p 值
     p = (ge_counts + 1) / (n_perms + 1)
     out = obs_events.copy()
     out["perm_pvalue"] = p
-
-    return _assign_fdr_columns(out)
+    out = _assign_fdr_columns(out)
+    out.attrs["n_perms_completed"] = n_perms
+    out.attrs["null_scores_stored"] = False
+    return out
 
 
 def run_cell_mesh(
@@ -891,6 +918,8 @@ def run_cell_mesh(
     allow_self: bool = True,
     n_perms: int = 0,
     random_state: int = 0,
+    n_jobs: int = 1,
+    store_null_scores: bool = False,
     min_cells: int = METABOLITE_AVAILABILITY_DEFAULTS["min_cells"],
     sample_mode: Literal["pooled_stratified", "sample_aware"] = "pooled_stratified",
     sender_abundance_exponent: float = METABOLITE_AVAILABILITY_DEFAULTS[
@@ -922,6 +951,9 @@ def run_cell_mesh(
         allow_self: 是否允许自分泌通信
         n_perms: 非负整数置换检验次数，0 表示不进行置换检验
         random_state: 随机种子
+        n_jobs: 置换评分线程数；-1 使用所有可用 CPU，默认 1
+        store_null_scores: 是否保存 sample-aware 的完整 event × permutation
+            null score 矩阵；默认 False，仅在线累计 exceedance counts
         min_cells : int
             Positive-integer cell-count QC threshold. Every observed cell type contributes to
             pseudobulk construction, fractions, references, scores, events,
@@ -992,6 +1024,10 @@ def run_cell_mesh(
     min_cells = _validate_min_cells(min_cells)
     min_expr_frac = _validate_min_expr_frac(min_expr_frac)
     n_perms = _validate_n_perms(n_perms)
+    n_jobs = _validate_n_jobs(n_jobs)
+    if not isinstance(store_null_scores, (bool, np.bool_)):
+        raise TypeError("store_null_scores must be a boolean")
+    store_null_scores = bool(store_null_scores)
     if cell_type_key not in adata.obs:
         raise KeyError(f"{cell_type_key!r} not found in adata.obs")
     if len(adata.obs) == 0:
@@ -1086,6 +1122,8 @@ def run_cell_mesh(
         allow_self=allow_self,
         availability_kwargs=availability_kwargs,
         sample_mode=sample_mode,
+        n_jobs=n_jobs,
+        store_null_scores=store_null_scores,
     )
     event_attrs = events.attrs.copy()
 
@@ -1131,6 +1169,8 @@ def run_cell_mesh(
         "allow_self": allow_self,
         "n_perms": n_perms,
         "random_state": random_state,
+        "n_jobs": n_jobs,
+        "store_null_scores": store_null_scores,
         "min_cells": min_cells,
         "sender_abundance_exponent": sender_abundance_exponent,
     }

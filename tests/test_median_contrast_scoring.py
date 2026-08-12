@@ -217,128 +217,44 @@ def test_events_record_sender_and_receiver_cell_counts():
     assert np.isclose(events.loc[0, "cell_mesh_score"], np.sqrt(0.25 * 0.5))
 
 
-def test_pooled_permutation_uses_all_cell_types_regardless_of_min_cells(monkeypatch):
-    adata = AnnData(
-        X=np.ones((5, 1)),
-        obs=pd.DataFrame({"cell_type": ["A", "A", "B", "B", "Small"]}),
-        var=pd.DataFrame(index=["G"]),
-    )
-    obs_events = pd.DataFrame(
-        [
-            {
-                "sender": "A",
-                "receiver": "B",
-                "metabolite": "Met",
-                "hmdb_id": "HMDB0000001",
-                "sensor_gene": "SENSOR",
-                "sensor_type": "Transporter",
-                "cell_mesh_score": 0.5,
-            }
-        ]
-    )
-    seen = []
-
-    def fake_compute(adata_perm, enzyme_prior, sensor_prior, celltype_col, **kwargs):
-        seen.append(
-            {
-                "n_obs": adata_perm.n_obs,
-                "original_labels": set(adata_perm.obs["cell_type"].astype(str)),
-                "perm_labels": set(adata_perm.obs[celltype_col].astype(str)),
-                "cell_fractions": kwargs["cell_fractions"].to_dict(),
-                "pce_reference": kwargs["pce_reference"],
-                "receiver_reference": kwargs["receiver_reference"],
-            }
-        )
-        return pd.DataFrame(), pd.DataFrame(), {
-            "cell_counts": pd.Series({"A": 2, "B": 2, "Small": 1})
-        }
-
-    def fake_make(sender_scores, receiver_scores, allow_self, cell_counts, min_cells):
-        return obs_events.copy()
-
-    monkeypatch.setattr(core, "_compute_availability_scores", fake_compute)
-    monkeypatch.setattr(core, "_make_cell_mesh_events", fake_make)
-
-    result = core._empirical_pvalues_by_sensor_type(
-        obs_events,
+def test_pooled_permutation_is_min_cells_invariant():
+    adata, enzyme, sensor = _sample_mode_case()
+    common = dict(
         adata=adata,
+        enzyme_metabolite=enzyme,
+        metabolite_sensor=sensor,
         cell_type_key="cell_type",
-        sample_key=None,
-        layer=None,
-        enzyme_prior=pd.DataFrame(),
-        sensor_prior=pd.DataFrame(),
+        sample_key="sample",
+        sample_mode="pooled_stratified",
         n_perms=3,
         random_state=0,
-        min_expr_frac=None,
-        allow_self=True,
-        availability_kwargs={
-            "min_cells": 2,
-            "pce_reference": "median",
-            "receiver_reference": "mean",
-        },
+    )
+    low = run_cell_mesh(**common, min_cells=1)
+    high = run_cell_mesh(**common, min_cells=100)
+    keys = core.EVENT_KEY_COLUMNS
+    left = low.events.sort_values(keys).reset_index(drop=True)
+    right = high.events.sort_values(keys).reset_index(drop=True)
+    np.testing.assert_allclose(
+        left[["perm_pvalue", "fdr_global", "fdr_sensor_type"]],
+        right[["perm_pvalue", "fdr_global", "fdr_sensor_type"]],
     )
 
-    assert len(seen) == 3
-    assert all(item["n_obs"] == 5 for item in seen)
-    assert all(item["original_labels"] == {"A", "B", "Small"} for item in seen)
-    assert all(item["perm_labels"] == {"A", "B", "Small"} for item in seen)
-    assert all(
-        item["cell_fractions"] == {"A": 0.4, "B": 0.4, "Small": 0.2}
-        for item in seen
-    )
-    assert all(item["pce_reference"] == "median" for item in seen)
-    assert all(item["receiver_reference"] == "mean" for item in seen)
-    assert result["perm_pvalue"].between(0, 1).all()
 
-
-def test_pooled_permutation_treats_missing_event_as_zero_null_score(monkeypatch):
-    adata = AnnData(
-        X=np.ones((4, 1)),
-        obs=pd.DataFrame({"cell_type": ["A", "A", "B", "B"]}),
-        var=pd.DataFrame(index=["G"]),
+def test_pooled_zero_observed_score_has_unit_permutation_pvalue():
+    adata, enzyme, sensor = _sample_mode_case()
+    baseline = run_cell_mesh(
+        adata, enzyme, sensor, cell_type_key="cell_type", n_perms=0, min_cells=1
     )
-    obs_events = pd.DataFrame(
-        [
-            {
-                "sender": "A",
-                "receiver": "B",
-                "metabolite": "Met",
-                "hmdb_id": "HMDB0000001",
-                "sensor_gene": "SENSOR",
-                "sensor_type": "Transporter",
-                "cell_mesh_score": 0.0,
-            }
-        ]
+    obs_events = baseline.events.iloc[[0]].copy()
+    obs_events["cell_mesh_score"] = 0.0
+    enzyme_prior, sensor_prior = core.validate_priors(
+        enzyme, sensor, adata.var_names
     )
-
-    monkeypatch.setattr(
-        core,
-        "_compute_availability_scores",
-        lambda *args, **kwargs: (
-            pd.DataFrame(),
-            pd.DataFrame(),
-            {"cell_counts": pd.Series(dtype=int)},
-        ),
-    )
-    monkeypatch.setattr(
-        core,
-        "_make_cell_mesh_events",
-        lambda *args, **kwargs: pd.DataFrame(columns=obs_events.columns),
-    )
-
     result = core._empirical_pvalues_by_sensor_type(
-        obs_events,
-        adata=adata,
-        cell_type_key="cell_type",
-        sample_key=None,
-        layer=None,
-        enzyme_prior=pd.DataFrame(),
-        sensor_prior=pd.DataFrame(),
-        n_perms=3,
-        random_state=0,
-        min_expr_frac=None,
-        allow_self=True,
-        availability_kwargs={"min_cells": 2},
+        obs_events, adata=adata, cell_type_key="cell_type", sample_key=None,
+        layer=None, enzyme_prior=enzyme_prior, sensor_prior=sensor_prior,
+        n_perms=3, random_state=0, min_expr_frac=None, allow_self=True,
+        availability_kwargs={"min_cells": 1},
     )
 
     assert result.loc[0, "perm_pvalue"] == 1.0
@@ -965,136 +881,6 @@ def test_sample_aware_missing_sender_or_receiver_event_scores_are_na():
     assert pd.isna(row["event_score_iqr"])
 
 
-def test_sample_aware_permutation_uses_fixed_within_sample_analysis_structure(monkeypatch):
-    adata = AnnData(
-        X=np.ones((10, 1)),
-        obs=pd.DataFrame(
-            {
-                "sample": ["S1", "S1", "S1", "S1", "S1", "S2", "S2", "S2", "S2", "S2"],
-                "cell_type": ["A", "A", "B", "B", "Small", "A", "A", "C", "C", "Drop"],
-            }
-        ),
-        var=pd.DataFrame(index=["G"]),
-    )
-    obs_events = pd.DataFrame(
-        [
-            {
-                "sender": "A",
-                "receiver": "B",
-                "metabolite": "Met",
-                "hmdb_id": "HMDB0000001",
-                "sensor_gene": "SENSOR",
-                "sensor_type": "Transporter",
-                "cell_mesh_score": 0.5,
-                "event_score_median": 0.5,
-            },
-            {
-                "sender": "A",
-                "receiver": "C",
-                "metabolite": "Met",
-                "hmdb_id": "HMDB0000001",
-                "sensor_gene": "SENSOR",
-                "sensor_type": "Transporter",
-                "cell_mesh_score": 0.25,
-                "event_score_median": 0.25,
-            },
-        ]
-    )
-    seen = []
-
-    def fake_compute(adata_perm, enzyme_prior, sensor_prior, cell_type_key, sample_key, **kwargs):
-        counts = (
-            adata_perm.obs.groupby([sample_key, cell_type_key], observed=True)
-            .size()
-            .astype(int)
-            .to_dict()
-        )
-        seen.append(
-            {
-                "n_obs": adata_perm.n_obs,
-                "original_labels": set(adata_perm.obs["cell_type"].astype(str)),
-                "sample_labels": {
-                    sample: set(frame[cell_type_key].astype(str))
-                    for sample, frame in adata_perm.obs.groupby(sample_key, observed=True)
-                },
-                "counts": counts,
-                "cell_fractions_by_sample": {
-                    sample: fractions.to_dict()
-                    for sample, fractions in kwargs[
-                        "cell_fractions_by_sample"
-                    ].items()
-                },
-                "sender_abundance_exponent": kwargs["availability_kwargs"][
-                    "sender_abundance_exponent"
-                ],
-                "pce_reference": kwargs["availability_kwargs"]["pce_reference"],
-                "receiver_reference": kwargs["availability_kwargs"][
-                    "receiver_reference"
-                ],
-            }
-        )
-        if len(seen) == 1:
-            return pd.DataFrame(), pd.DataFrame(), obs_events.iloc[[0]].assign(event_score_median=0.8), {}
-        if len(seen) == 2:
-            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(columns=obs_events.columns), {}
-        return pd.DataFrame(), pd.DataFrame(), obs_events.iloc[[1]].assign(event_score_median=0.9), {}
-
-    monkeypatch.setattr(core, "_compute_sample_aware_scores", fake_compute)
-
-    result = core._empirical_pvalues_by_sensor_type(
-        obs_events,
-        adata=adata,
-        cell_type_key="cell_type",
-        sample_key="sample",
-        layer=None,
-        enzyme_prior=pd.DataFrame(),
-        sensor_prior=pd.DataFrame(),
-        n_perms=3,
-        random_state=0,
-        min_expr_frac=None,
-        allow_self=True,
-        availability_kwargs={
-            "min_cells": 2,
-            "sender_abundance_exponent": 0.5,
-            "pce_reference": "median",
-            "receiver_reference": "mean",
-        },
-        sample_mode="sample_aware",
-    )
-
-    assert len(seen) == 3
-    assert all(item["n_obs"] == 10 for item in seen)
-    assert all(
-        item["original_labels"] == {"A", "B", "Small", "C", "Drop"}
-        for item in seen
-    )
-    assert all(item["sample_labels"]["S1"] == {"A", "B", "Small"} for item in seen)
-    assert all(item["sample_labels"]["S2"] == {"A", "C", "Drop"} for item in seen)
-    for item in seen:
-        assert item["counts"] == {
-            ("S1", "A"): 2,
-            ("S1", "B"): 2,
-            ("S1", "Small"): 1,
-            ("S2", "A"): 2,
-            ("S2", "C"): 2,
-            ("S2", "Drop"): 1,
-        }
-        assert item["cell_fractions_by_sample"] == {
-            "S1": {"A": 0.4, "B": 0.4, "Small": 0.2},
-            "S2": {"A": 0.4, "C": 0.4, "Drop": 0.2},
-        }
-        assert item["sender_abundance_exponent"] == 0.5
-        assert item["pce_reference"] == "median"
-        assert item["receiver_reference"] == "mean"
-
-    null_scores = result.attrs["sample_aware_null_scores"]
-    assert null_scores.shape == (2, 3)
-    assert not null_scores.isna().any().any()
-    assert result["perm_pvalue"].between(0, 1).all()
-    assert set(result["permutation_mode"]) == {"within_sample_label_shuffle"}
-    assert "fdr" not in result.columns
-
-
 def test_sample_aware_permutation_reports_pvalues_for_all_retained_events():
     adata, enzyme, sensor = _sample_mode_case()
     result = run_cell_mesh(
@@ -1108,6 +894,7 @@ def test_sample_aware_permutation_reports_pvalues_for_all_retained_events():
         min_expr_frac=None,
         n_perms=2,
         random_state=0,
+        store_null_scores=True,
     )
 
     assert not result.events.empty

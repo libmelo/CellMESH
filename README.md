@@ -207,6 +207,8 @@ res = run_cell_mesh(
     sample_mode="pooled_stratified",
     layer="lognorm",          # optional, use specific expression layer
     n_perms=1000,             # optional, number of permutations for p-value calculation
+    n_jobs=1,                 # use -1 for all available CPUs
+    store_null_scores=False,  # online counts avoid event × permutation storage
     min_cells=100,            # QC-only threshold; does not filter calculations
     min_expr_frac=0.10,       # optional, minimum expression fraction for sensor genes
     pce_reference="mean",     # "mean" (default) or "median"
@@ -344,6 +346,8 @@ it does not change the stored numerical scores or inference results. Set
 | `allow_self` | `True` | Whether to allow self-communication events (sender == receiver) |
 | `n_perms` | `0` | Non-negative integer permutation count. 0 = no permutation |
 | `random_state` | `0` | Random seed for reproducibility |
+| `n_jobs` | `1` | Permutation worker threads; `-1` uses all available CPUs |
+| `store_null_scores` | `False` | Store the full sample-aware event × permutation null matrix; p-values do not require it |
 | `min_cells` | `100` | Positive-integer, QC-only cell-count threshold; observed units remain in every numerical calculation regardless of this flag |
 | `sender_abundance_exponent` | `1.0` | Finite non-negative exponent applied to sender cell fraction before P/C/E construction; `0` disables sender abundance adjustment |
 | `pce_reference` | `"mean"` | Strictly-positive P/C/E reference statistic; accepts `"mean"` or `"median"` |
@@ -528,4 +532,4 @@ Contains one row per communication event. Important columns:
 - **Multiple-testing correction**: Both inference modes report `fdr_global`
   across all events and `fdr_sensor_type` corrected separately within each
   sensor type.
-- **Permutation null**: Empirical p-values compare each observed full event key (`sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, `sensor_type`) against the same key after cell-type label permutation, with FDR stratified by sensor type.
+- **Permutation null**: Empirical p-values compare each observed full event key (`sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, `sensor_type`) against the same key after cell-type label permutation. Static priors and relevant expression columns are compiled once; permutation scoring evaluates only retained observed keys and accumulates exceedance counts online. `n_jobs` controls deterministic batch parallelism. In sample-aware mode, the full null matrix is stored only with `store_null_scores=True`.
