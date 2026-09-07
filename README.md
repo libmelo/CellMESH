@@ -142,15 +142,15 @@ event construction.
 ### 6. Sensor Types
 Sensor types are read from the `Annotation` column of the selected metabolite-sensor
 database. CELL MESH preserves the database labels instead of imposing a fixed type
-catalogue; the current default database is `Interaction4.0.csv`.
+catalogue; the current default database is `Interaction1.41.csv`.
 
 Both inference modes report global FDR and sensor-type-specific FDR.
 
 ## Included Data
 The package includes built-in prior databases and a small AnnData example file:
 
-- `cellmesh/data/Enzyme2.0.csv`: current default enzyme/reaction/metabolite table
-- `cellmesh/data/Interaction4.0.csv`: current default metabolite-sensor table
+- `cellmesh/data/Enzyme1.39.csv`: current default enzyme/reaction/metabolite table
+- `cellmesh/data/Interaction1.41.csv`: current default metabolite-sensor table
 - `cellmesh/data/enzyme_test.csv`: legacy small enzyme prior used for compatibility tests
 - `cellmesh/data/interaction_test.csv`: legacy small sensor prior used for compatibility tests
 - `cellmesh/data/Enzyme_new.csv`: walkthrough/test enzyme prior
@@ -162,7 +162,10 @@ named `Enzyme<version>.csv` and the highest packaged interaction file named
 version numbers do not need to match: if the highest enzyme prior is
 `Enzyme1.2.csv` and the highest interaction prior is `Interaction2.2.csv`, those
 two files are selected together. With the current packaged files, the default is
-`Enzyme2.0.csv` and `Interaction4.0.csv`. If no versioned files are available,
+`Enzyme1.39.csv` and `Interaction1.41.csv`. Historical erroneous databases
+`Enzyme2.0.csv` and `Interaction4.0.csv` are retained in `cellmesh/data/archive/`;
+the loader scans only the data directory itself and does not select archived files.
+If no versioned files are available,
 the loader falls back to the legacy `enzyme_test.csv` / `interaction_test.csv`
 pair. The comprehensive walkthrough notebook uses `Enzyme_new.csv`,
 `Interaction1.0.csv`, and `test_single_cell.h5ad` so its calculations are fully
@@ -196,6 +199,26 @@ pip install -e ".[scanpy]"
 ```
 
 ## Basic Usage
+
+Both `enzyme_metabolite` and `metabolite_sensor` default to `None`.
+`run_cell_mesh(adata)` calls `load_cell_mesh_database()` to load and normalize
+the highest version of each database in `cellmesh/data` automatically. Versions
+are compared numerically, not by file modification time. If you supply only one
+prior table, the other is filled from the packaged database; your supplied table
+is retained.
+
+Each prior also accepts a CSV path (`str` or `pathlib.Path`). CSV files are read
+and normalized automatically; DataFrames must already use the normalized prior
+schema. Paths, DataFrames, and `None` can be mixed independently:
+
+```python
+res = run_cell_mesh(
+    adata,
+    enzyme_metabolite="/path/to/Enzyme.csv",
+    metabolite_sensor="/path/to/Interaction.csv",
+    cell_type_key="cell_type",
+)
+```
 
 ```python
 from cellmesh import run_cell_mesh
@@ -336,8 +359,8 @@ it does not change the stored numerical scores or inference results. Set
 | Parameter | Default | Description |
 |---|---|---|
 | `adata` | *required* | AnnData object containing single-cell expression data |
-| `enzyme_metabolite` | `None` | Enzyme-metabolite prior table. If None, uses built-in database |
-| `metabolite_sensor` | `None` | Metabolite-sensor prior table. If None, uses built-in database |
+| `enzyme_metabolite` | `None` | Normalized enzyme-metabolite DataFrame or CSV path (str/Path). None loads the latest built-in database |
+| `metabolite_sensor` | `None` | Normalized metabolite-sensor DataFrame or CSV path (str/Path). None loads the latest built-in database |
 | `cell_type_key` | `"cell_type"` | Column name in adata.obs containing cell type annotations |
 | `sample_key` | `None` | Column name in adata.obs containing sample annotations |
 | `sample_mode` | `"pooled_stratified"` | `"pooled_stratified"` computes pooled cell-type pseudobulks; `"sample_aware"` computes and scores `(sample, cell type)` units separately before aggregating event scores across samples |

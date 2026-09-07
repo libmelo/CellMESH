@@ -9,7 +9,7 @@ HMDB identifier, and sensor gene.
 
 `load_cell_mesh_database()` independently selects the highest packaged
 `Enzyme<version>.csv` and `Interaction<version>.csv`. The current defaults are
-`Enzyme2.0.csv` and `Interaction4.0.csv`.
+`Enzyme1.39.csv` and `Interaction1.41.csv`.
 
 The enzyme prior requires non-empty `metabolite`, `hmdb_id`, `gene`, `role`, and
 `reaction` fields. It uses `production`, `degradation`, and `export` roles,

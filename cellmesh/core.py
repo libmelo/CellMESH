@@ -909,8 +909,8 @@ def _empirical_pvalues_by_sensor_type(
 
 def run_cell_mesh(
     adata,
-    enzyme_metabolite: Optional[pd.DataFrame] = None,
-    metabolite_sensor: Optional[pd.DataFrame] = None,
+    enzyme_metabolite: pd.DataFrame | str | os.PathLike[str] | None = None,
+    metabolite_sensor: pd.DataFrame | str | os.PathLike[str] | None = None,
     cell_type_key: str = "cell_type",
     sample_key: Optional[str] = None,
     layer: Optional[str] = None,
@@ -939,11 +939,18 @@ def run_cell_mesh(
 
     参数:
         adata: AnnData 对象,包含单细胞表达数据
-        enzyme_metabolite: 酶-代谢物关系先验表,默认使用内置数据库
+        enzyme_metabolite: 标准化的酶-代谢物 DataFrame 或 CSV 路径(str/Path),默认为 None
+            CSV 路径通过 load_cell_mesh_database() 读取并标准化
+            未传入或为 None 时,通过 load_cell_mesh_database() 加载并标准化
+            cellmesh/data 下版本号最高的 Enzyme<version>.csv
             必需列:metabolite, hmdb_id, gene, role, reaction
             可选列:evidence_level, source
             role 取值:production (产生)、degradation (降解)、export (外排)
-        metabolite_sensor: 代谢物-传感器关系先验表,默认使用内置数据库
+        metabolite_sensor: 标准化的代谢物-传感器 DataFrame 或 CSV 路径(str/Path),默认为 None
+            CSV 路径通过 load_cell_mesh_database() 读取并标准化
+            未传入或为 None 时,通过 load_cell_mesh_database() 加载并标准化
+            cellmesh/data 下版本号最高的 Interaction<version>.csv
+            两个数据库独立选择最高版本;显式传入的先验表保持使用用户输入
         cell_type_key: 细胞类型列名,默认为 "cell_type"
         sample_key: 样本列名,用于置换检验时的样本内置换
         layer: 使用的表达层,None 表示使用 adata.X
@@ -1041,11 +1048,14 @@ def run_cell_mesh(
     export_weight = _validate_export_weight(export_weight)
     receiver_reference = _validate_receiver_reference(receiver_reference)
 
-    # 加载默认数据库
-    if enzyme_metabolite is None or metabolite_sensor is None:
-        default_enzyme, default_sensor = load_cell_mesh_database()
-        enzyme_metabolite = default_enzyme if enzyme_metabolite is None else enzyme_metabolite
-        metabolite_sensor = default_sensor if metabolite_sensor is None else metabolite_sensor
+    # 独立解析默认数据库、CSV 路径和已标准化的先验表
+    for name, value in (("enzyme_metabolite", enzyme_metabolite), ("metabolite_sensor", metabolite_sensor)):
+        if value is not None and not isinstance(value, (str, os.PathLike, pd.DataFrame)):
+            raise TypeError(f"{name} must be None, a CSV path, or a normalized pandas DataFrame")
+    enzyme_metabolite, metabolite_sensor = load_cell_mesh_database(
+        enzyme_file=enzyme_metabolite,
+        interaction_file=metabolite_sensor,
+    )
 
     # Keep the unfiltered enzyme prior only for coverage-status reporting.
     # Numerical scoring still uses the validated, expression-compatible prior.

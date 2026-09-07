@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from os import PathLike
 from importlib.resources import files
 from typing import Iterable, Tuple
 
@@ -222,23 +223,39 @@ def normalize_interaction_database(interaction_df: pd.DataFrame) -> pd.DataFrame
 
 
 def load_cell_mesh_database(
-    enzyme_file: str | None = None,
-    interaction_file: str | None = None,
+    enzyme_file: str | PathLike[str] | pd.DataFrame | None = None,
+    interaction_file: str | PathLike[str] | pd.DataFrame | None = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Load packaged or user-provided CELL MESH prior databases.
+
+    Omitted paths use the independently highest numeric versions of
+    ``Enzyme<version>.csv`` and ``Interaction<version>.csv`` in ``cellmesh/data``.
+    Selection is by version number, not file modification time. Each database
+    falls back to its legacy test CSV when no versioned file is available.
+    Paths may be strings or path-like objects. Already normalized DataFrames
+    are returned unchanged, allowing each prior to be supplied independently.
 
     Returns
     -------
     enzyme_metabolite, metabolite_sensor
         Two normalized prior tables ready for :func:`cellmesh.run_cell_mesh`.
     """
-    default_enzyme_path, default_interaction_path = _default_database_paths()
-    enzyme_path = enzyme_file if enzyme_file is not None else default_enzyme_path
-    interaction_path = interaction_file if interaction_file is not None else default_interaction_path
+    for name, value in (("enzyme_file", enzyme_file), ("interaction_file", interaction_file)):
+        if value is not None and not isinstance(value, (str, PathLike, pd.DataFrame)):
+            raise TypeError(f"{name} must be None, a CSV path, or a normalized pandas DataFrame")
 
-    enzyme_raw = pd.read_csv(enzyme_path, encoding="utf-8-sig")
-    interaction_raw = pd.read_csv(interaction_path, encoding="utf-8-sig")
-    return normalize_enzyme_database(enzyme_raw), normalize_interaction_database(interaction_raw)
+    if enzyme_file is None or interaction_file is None:
+        default_enzyme_path, default_interaction_path = _default_database_paths()
+        enzyme_file = default_enzyme_path if enzyme_file is None else enzyme_file
+        interaction_file = default_interaction_path if interaction_file is None else interaction_file
+
+    enzyme = enzyme_file if isinstance(enzyme_file, pd.DataFrame) else normalize_enzyme_database(
+        pd.read_csv(enzyme_file, encoding="utf-8-sig")
+    )
+    sensor = interaction_file if isinstance(interaction_file, pd.DataFrame) else normalize_interaction_database(
+        pd.read_csv(interaction_file, encoding="utf-8-sig")
+    )
+    return enzyme, sensor
 
 
 def load_default_priors() -> Tuple[pd.DataFrame, pd.DataFrame]:

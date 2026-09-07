@@ -35,8 +35,8 @@ def test_load_packaged_database():
 def test_default_database_uses_highest_packaged_version():
     enzyme_path, interaction_path = _default_database_paths()
 
-    assert enzyme_path.name == "Enzyme2.0.csv"
-    assert interaction_path.name == "Interaction4.0.csv"
+    assert enzyme_path.name == "Enzyme1.39.csv"
+    assert interaction_path.name == "Interaction1.41.csv"
 
 
 def test_versioned_database_discovery_ignores_noncanonical_names():
@@ -253,8 +253,18 @@ def test_validate_priors_requires_nonempty_reaction(enzyme, message):
         validate_priors(enzyme, sensor, ["E", "S"])
 
 
-def test_run_cell_mesh_with_packaged_database():
+@pytest.mark.parametrize("enzyme_kind", ["default", "str", "path", "dataframe"])
+@pytest.mark.parametrize("sensor_kind", ["default", "str", "path", "dataframe"])
+def test_run_cell_mesh_with_packaged_database(enzyme_kind, sensor_kind, monkeypatch):
     enzyme, sensor = load_cell_mesh_database()
+    enzyme_path, sensor_path = _default_database_paths()
+    enzyme_input = {"default": None, "str": str(enzyme_path), "path": enzyme_path, "dataframe": enzyme}[enzyme_kind]
+    sensor_input = {"default": None, "str": str(sensor_path), "path": sensor_path, "dataframe": sensor}[sensor_kind]
+    if enzyme_kind != "default" and sensor_kind != "default":
+        def unexpected_defaults():
+            pytest.fail("Explicit inputs must not depend on packaged databases")
+
+        monkeypatch.setattr("cellmesh.database._default_database_paths", unexpected_defaults)
     # Use a matched metabolite with production evidence so the synthetic sender
     # expression creates a directional A -> B event.
     enzyme_production = enzyme[enzyme["role"] == "production"]
@@ -280,11 +290,37 @@ def test_run_cell_mesh_with_packaged_database():
         [0, 4, 0], [0, 5, 0], [0, 4, 0],
     ], dtype=float)
     adata = FakeAnnData(X, genes, {"cell_type": ["A", "A", "A", "B", "B", "B"]})
-    res = run_cell_mesh(adata, cell_type_key="cell_type", min_cells=2, allow_self=False)
+    expected = run_cell_mesh(
+        adata, enzyme, sensor, cell_type_key="cell_type", min_cells=2, allow_self=False
+    )
+    kwargs = {}
+    if enzyme_kind != "default":
+        kwargs["enzyme_metabolite"] = enzyme_input
+    if sensor_kind != "default":
+        kwargs["metabolite_sensor"] = sensor_input
+    res = run_cell_mesh(adata, cell_type_key="cell_type", min_cells=2, allow_self=False, **kwargs)
+    pd.testing.assert_frame_equal(res.events, expected.events)
     assert not res.events.empty
     assert "cell_mesh_score" in res.events.columns
     assert res.events.iloc[0]["sender"] == "A"
     assert res.events.iloc[0]["receiver"] == "B"
+
+
+@pytest.mark.parametrize("parameter", ["enzyme_metabolite", "metabolite_sensor"])
+def test_run_cell_mesh_rejects_invalid_prior_type(parameter):
+    adata = FakeAnnData(np.ones((2, 1)), ["G"], {"cell_type": ["A", "B"]})
+    with pytest.raises(TypeError, match=parameter + " must be"):
+        run_cell_mesh(adata, **{parameter: 42})
+
+
+def test_load_database_preserves_dataframes_and_reports_missing_csv(tmp_path):
+    enzyme = pd.DataFrame({"gene": ["G"]})
+    sensor = pd.DataFrame({"sensor_gene": ["S"]})
+    loaded_enzyme, loaded_sensor = load_cell_mesh_database(enzyme, sensor)
+    assert loaded_enzyme is enzyme
+    assert loaded_sensor is sensor
+    with pytest.raises(FileNotFoundError):
+        load_cell_mesh_database(tmp_path / "missing.csv", sensor)
 
 
 def test_read_csv_with_metadata(tmp_path):

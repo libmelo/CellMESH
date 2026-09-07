@@ -179,8 +179,8 @@ pip install -e ".[notebook]"
 - `cellmesh/data/Interaction1.0.csv`
 
 这些是 walkthrough 固定输入，不代表默认数据库版本。当前默认数据库由
-`load_cell_mesh_database()` 自动选择，为 `Enzyme2.0.csv` 和
-`Interaction4.0.csv`。
+`load_cell_mesh_database()` 自动选择，为 `Enzyme1.39.csv` 和
+`Interaction1.41.csv`。
 
 ## API 参考
 
