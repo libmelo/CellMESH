@@ -1,0 +1,1471 @@
+{
+  "audit_date": "2026-09-12",
+  "audit_completed_date": "2026-09-13",
+  "status": "review_only_no_production_changes",
+  "baseline_pytest": {
+    "passed": 1019,
+    "skipped": 1,
+    "warnings": 213,
+    "seconds": 127.59
+  },
+  "source_sha256": {
+    "cellmesh/__init__.py": "a38bf1697eddf2e33ede7c05b0811dccadd322c47ab04619b7184348b8830c45",
+    "cellmesh/_numerics.py": "08500ac125ba4a99a5d7dfc5a00c13ddf9e5981ff5eaddaabaa41e3afd163fd8",
+    "cellmesh/config.py": "26c734263a441aff39d215899a36214362df6e6a666bf24f07e6b67cae97bf42",
+    "cellmesh/core.py": "fcd9149e28c0e37b4362477d18ee83761d11533f0b7d03ca247dde41e6a3478b",
+    "cellmesh/database.py": "42f16e7c3d1eb424d68eb34178cc4100dd13397d3b44e09b31a2ebc110444ce2",
+    "cellmesh/io.py": "f1582a76bb2d93a134057b315917b04389a91f64b5fd081d6f7e83389af2ab81",
+    "cellmesh/permutation.py": "fb1767a2dd67414262957c4a3d28c8cdb47f7b97cfcb00a4cb8f3c7421544ba3",
+    "cellmesh/plotting.py": "ec9237b33fa859a6fb266d565ac6c03d58d97fc30a8074abc45307b4eb47c234",
+    "cellmesh/preprocess.py": "8f445182f6b136b44db39ee13030f45b7bf61dce99c46b7f77d873b115616890",
+    "cellmesh/score.py": "f88af324b3a4bc8bcf3ca80975f4f98a3350da0eedcf9a342e0e215d7c0b36f8"
+  },
+  "probes": {
+    "core_results": {
+      "name/pooled_stratified/normal": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": null,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/pooled_stratified/enzyme_missing": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": null,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/pooled_stratified/sensor_missing": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": null,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/pooled_stratified/both_missing": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": null,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/pooled_stratified/enzyme_empty": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": null,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/pooled_stratified/names_numeric": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": null,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/pooled_stratified/csv_missing": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": null,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/sample_aware/normal": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": 8,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/sample_aware/enzyme_missing": {
+        "events": 0,
+        "sender_rows": 0,
+        "receiver_rows": 2,
+        "sample_events": 8,
+        "scores": []
+      },
+      "name/sample_aware/sensor_missing": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 0,
+        "sample_events": 8,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/sample_aware/both_missing": {
+        "events": 0,
+        "sender_rows": 0,
+        "receiver_rows": 0,
+        "sample_events": 8,
+        "scores": []
+      },
+      "name/sample_aware/enzyme_empty": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": 8,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/sample_aware/names_numeric": {
+        "events": 4,
+        "sender_rows": 1,
+        "receiver_rows": 2,
+        "sample_events": 8,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      },
+      "name/sample_aware/csv_missing": {
+        "events": 0,
+        "sender_rows": 0,
+        "receiver_rows": 0,
+        "sample_events": 8,
+        "scores": []
+      },
+      "early_gene_filter": {
+        "complete": {
+          "reaction_count": 2,
+          "P": [
+            3.3117376914898995,
+            3.3117376914898995
+          ]
+        },
+        "prefiltered": {
+          "reaction_count": 1,
+          "P": [
+            2.0617376914898995,
+            2.0617376914898995
+          ]
+        }
+      },
+      "reaction/1e-08": {
+        "input": [
+          1e-08,
+          2e-08
+        ],
+        "scoring": [
+          9.99999993922529e-09,
+          2.0000000100495186e-08
+        ],
+        "violin": [
+          1e-08,
+          2e-08
+        ]
+      },
+      "reaction/1e-12": {
+        "input": [
+          1e-12,
+          2e-12
+        ],
+        "scoring": [
+          1.000088900582341e-12,
+          1.999955756559757e-12
+        ],
+        "violin": [
+          1e-12,
+          2e-12
+        ]
+      },
+      "reaction/1e-16": {
+        "input": [
+          1e-16,
+          2e-16
+        ],
+        "scoring": [
+          0.0,
+          2.220446049250313e-16
+        ],
+        "violin": [
+          1e-16,
+          2e-16
+        ]
+      },
+      "reaction/1e-20": {
+        "input": [
+          1e-20,
+          2e-20
+        ],
+        "scoring": [
+          0.0,
+          0.0
+        ],
+        "violin": [
+          1e-20,
+          2e-20
+        ]
+      },
+      "reaction/1e-100": {
+        "input": [
+          1e-100,
+          2e-100
+        ],
+        "scoring": [
+          0.0,
+          0.0
+        ],
+        "violin": [
+          1e-100,
+          2e-100
+        ]
+      },
+      "backed/pooled_stratified/False": {
+        "events": 4
+      },
+      "backed/pooled_stratified/True": {
+        "error": "TypeError",
+        "message": "Indexing elements must be in increasing order"
+      },
+      "backed/sample_aware/False": {
+        "error": "ValueError",
+        "message": "To copy an AnnData object in backed mode, pass a filename: `.copy(filename='myfilename.h5ad')`. To load the object into memory, use `.to_memory()`."
+      },
+      "backed/sample_aware/True": {
+        "error": "TypeError",
+        "message": "Indexing elements must be in increasing order"
+      },
+      "empty_export/pooled_stratified/production": {
+        "empty.celltype_qc.csv": [
+          "cell_type,n_cells,cell_fraction,passes_min_cells"
+        ],
+        "empty.parameters.json": [
+          "{"
+        ],
+        "empty.events.csv": [
+          "sender,receiver,metabolite,hmdb_id,sensor_gene,sensor_type,metabolite_availability,sensor_score,sensor_expr_frac,sender_n_cells,receiver_n_cells,sender_passes_min_cells,receiver_passes_min_cells,passes_min_cells,cell_mesh_score,perm_pvalue,fdr_global,fdr_sensor_type"
+        ],
+        "empty.receiver_scores.csv": [
+          "metabolite,hmdb_id,sensor_gene,sensor_type,receiver,sensor_score,sensor_expr_frac,receiver_n_cells,receiver_cell_fraction,receiver_passes_min_cells"
+        ],
+        "empty.sender_scores.csv": [
+          "metabolite,hmdb_id,A,B"
+        ]
+      },
+      "empty_export/pooled_stratified/hmdb": {
+        "empty.celltype_qc.csv": [
+          "cell_type,n_cells,cell_fraction,passes_min_cells"
+        ],
+        "empty.parameters.json": [
+          "{"
+        ],
+        "empty.events.csv": [
+          "sender,receiver,metabolite,hmdb_id,sensor_gene,sensor_type,metabolite_availability,sensor_score,sensor_expr_frac,sender_n_cells,receiver_n_cells,sender_passes_min_cells,receiver_passes_min_cells,passes_min_cells,cell_mesh_score,perm_pvalue,fdr_global,fdr_sensor_type"
+        ],
+        "empty.receiver_scores.csv": [
+          "metabolite,hmdb_id,sensor_gene,sensor_type,receiver,sensor_score,sensor_expr_frac,receiver_n_cells,receiver_cell_fraction,receiver_passes_min_cells"
+        ],
+        "empty.sender_scores.csv": [
+          "metabolite,hmdb_id,A,B"
+        ]
+      },
+      "empty_export/sample_aware/production": {
+        "empty.sample_validation.csv": [
+          "sample,cell_type,n_cells,cell_fraction,passes_min_cells,n_celltypes_passing_min_cells_in_sample,n_samples_passing_min_cells_for_celltype,n_observed_celltypes_in_sample,n_samples_observed_for_celltype"
+        ],
+        "empty.sample_events.csv": [
+          "sample,sender,receiver,metabolite,hmdb_id,sensor_gene,sensor_type,metabolite_availability,sensor_score,sensor_expr_frac,sender_n_cells,receiver_n_cells,sender_passes_min_cells,receiver_passes_min_cells,passes_min_cells,cell_mesh_score"
+        ],
+        "empty.celltype_qc.csv": [
+          "sample,cell_type,n_cells,cell_fraction,passes_min_cells"
+        ],
+        "empty.parameters.json": [
+          "{"
+        ],
+        "empty.sample_receiver_scores.csv": [
+          "sample,metabolite,hmdb_id,sensor_gene,sensor_type,receiver,sensor_score,sensor_expr_frac,receiver_n_cells,receiver_cell_fraction,receiver_passes_min_cells"
+        ],
+        "empty.events.csv": [
+          "sender,receiver,metabolite,hmdb_id,sensor_gene,sensor_type,metabolite_availability_median,sensor_score_median,sensor_expr_frac_median,sender_n_cells,receiver_n_cells,sender_passes_min_cells,receiver_passes_min_cells,passes_min_cells,cell_mesh_score,event_score_median,event_score_iqr,n_samples_coobserved,n_samples_positive,event_prevalence,n_samples_passing_min_cells,min_cells_pass_prevalence,inference_mode,permutation_mode,perm_pvalue,fdr_global,fdr_sensor_type"
+        ],
+        "empty.receiver_scores.csv": [
+          "metabolite,hmdb_id,sensor_gene,sensor_type,receiver,sensor_score,sensor_expr_frac,receiver_n_cells,receiver_cell_fraction,n_observed_samples,n_samples_passing_min_cells,receiver_passes_min_cells,min_cells_pass_prevalence"
+        ],
+        "empty.sample_sender_scores.csv": [
+          "sample,metabolite,hmdb_id,A,B"
+        ],
+        "empty.sender_scores.csv": [
+          "metabolite,hmdb_id"
+        ]
+      },
+      "empty_export/sample_aware/hmdb": {
+        "empty.sample_validation.csv": [
+          "sample,cell_type,n_cells,cell_fraction,passes_min_cells,n_celltypes_passing_min_cells_in_sample,n_samples_passing_min_cells_for_celltype,n_observed_celltypes_in_sample,n_samples_observed_for_celltype"
+        ],
+        "empty.sample_events.csv": [
+          "sample,sender,receiver,metabolite,hmdb_id,sensor_gene,sensor_type,metabolite_availability,sensor_score,sensor_expr_frac,sender_n_cells,receiver_n_cells,sender_passes_min_cells,receiver_passes_min_cells,passes_min_cells,cell_mesh_score"
+        ],
+        "empty.celltype_qc.csv": [
+          "sample,cell_type,n_cells,cell_fraction,passes_min_cells"
+        ],
+        "empty.parameters.json": [
+          "{"
+        ],
+        "empty.sample_receiver_scores.csv": [
+          "sample,metabolite,hmdb_id,sensor_gene,sensor_type,receiver,sensor_score,sensor_expr_frac,receiver_n_cells,receiver_cell_fraction,receiver_passes_min_cells"
+        ],
+        "empty.events.csv": [
+          "sender,receiver,metabolite,hmdb_id,sensor_gene,sensor_type,metabolite_availability_median,sensor_score_median,sensor_expr_frac_median,sender_n_cells,receiver_n_cells,sender_passes_min_cells,receiver_passes_min_cells,passes_min_cells,cell_mesh_score,event_score_median,event_score_iqr,n_samples_coobserved,n_samples_positive,event_prevalence,n_samples_passing_min_cells,min_cells_pass_prevalence,inference_mode,permutation_mode,perm_pvalue,fdr_global,fdr_sensor_type"
+        ],
+        "empty.receiver_scores.csv": [
+          "metabolite,hmdb_id,sensor_gene,sensor_type,receiver,sensor_score,sensor_expr_frac,receiver_n_cells,receiver_cell_fraction,n_observed_samples,n_samples_passing_min_cells,receiver_passes_min_cells,min_cells_pass_prevalence"
+        ],
+        "empty.sample_sender_scores.csv": [
+          "sample,metabolite,hmdb_id,A,B"
+        ],
+        "empty.sender_scores.csv": [
+          "metabolite,hmdb_id,A,B"
+        ]
+      },
+      "duplicate_obs_index": {
+        "events": 4,
+        "scores": [
+          0.583805106492624,
+          0.3977961264790775,
+          0.3977961264790775,
+          0.2710523708715754
+        ]
+      }
+    },
+    "plot_results": {
+      "zero/fdr_sensor_type/[0, 0.01, 0.1]": {
+        "stat": "fdr_sensor_type",
+        "values": [
+          0,
+          0.01,
+          0.1
+        ],
+        "sizes": [
+          260.0,
+          260.0,
+          20.0
+        ],
+        "legend": [
+          [
+            "0.1",
+            "0.032",
+            "0.01"
+          ]
+        ]
+      },
+      "zero/fdr_sensor_type/[0, 1, 1]": {
+        "stat": "fdr_sensor_type",
+        "values": [
+          0,
+          1,
+          1
+        ],
+        "sizes": [
+          140.0,
+          140.0,
+          140.0
+        ],
+        "legend": [
+          [
+            "1"
+          ]
+        ]
+      },
+      "zero/fdr_sensor_type/[0, 0, 0]": {
+        "stat": "fdr_sensor_type",
+        "values": [
+          0,
+          0,
+          0
+        ],
+        "sizes": [
+          140.0,
+          140.0,
+          140.0
+        ],
+        "legend": [
+          [
+            "1e-12"
+          ]
+        ]
+      },
+      "zero/fdr_sensor_type/[1e-300, 1e-10, 1.0]": {
+        "stat": "fdr_sensor_type",
+        "values": [
+          1e-300,
+          1e-10,
+          1.0
+        ],
+        "sizes": [
+          260.0,
+          28.0,
+          20.0
+        ],
+        "legend": [
+          [
+            "1",
+            "1e-150",
+            "1e-300"
+          ]
+        ]
+      },
+      "zero/perm_pvalue/[0, 0.01, 0.1]": {
+        "stat": "perm_pvalue",
+        "values": [
+          0,
+          0.01,
+          0.1
+        ],
+        "sizes": [
+          260.0,
+          260.0,
+          20.0
+        ],
+        "legend": [
+          [
+            "1",
+            "1.5",
+            "2"
+          ]
+        ]
+      },
+      "zero/perm_pvalue/[0, 1, 1]": {
+        "stat": "perm_pvalue",
+        "values": [
+          0,
+          1,
+          1
+        ],
+        "sizes": [
+          140.0,
+          140.0,
+          140.0
+        ],
+        "legend": [
+          [
+            "-0"
+          ]
+        ]
+      },
+      "zero/perm_pvalue/[0, 0, 0]": {
+        "stat": "perm_pvalue",
+        "values": [
+          0,
+          0,
+          0
+        ],
+        "sizes": [
+          140.0,
+          140.0,
+          140.0
+        ],
+        "legend": [
+          [
+            "12"
+          ]
+        ]
+      },
+      "zero/perm_pvalue/[1e-300, 1e-10, 1.0]": {
+        "stat": "perm_pvalue",
+        "values": [
+          1e-300,
+          1e-10,
+          1.0
+        ],
+        "sizes": [
+          260.0,
+          28.0,
+          20.0
+        ],
+        "legend": [
+          [
+            "0",
+            "1.5e+02",
+            "3e+02"
+          ]
+        ]
+      },
+      "layout/fdr_sensor_type/False": {
+        "overlap_colorbar": "False",
+        "legend_outside_figure": false
+      },
+      "layout/fdr_sensor_type/True": {
+        "overlap_colorbar": "True",
+        "legend_outside_figure": false
+      },
+      "layout/perm_pvalue/False": {
+        "overlap_colorbar": "False",
+        "legend_outside_figure": false
+      },
+      "layout/perm_pvalue/True": {
+        "overlap_colorbar": "True",
+        "legend_outside_figure": true
+      },
+      "invalid_stat/counts/-0.1": {
+        "count": 3
+      },
+      "invalid_stat/counts/-inf": {
+        "count": 3
+      },
+      "invalid_stat/counts/inf": {
+        "count": 2
+      },
+      "invalid_stat/counts/2": {
+        "count": 2
+      },
+      "invalid_stat/network/-0.1": {
+        "count": 3
+      },
+      "invalid_stat/network/-inf": {
+        "count": 3
+      },
+      "invalid_stat/network/inf": {
+        "count": 2
+      },
+      "invalid_stat/network/2": {
+        "count": 2
+      },
+      "invalid_stat/dot/-0.1": {
+        "error": "ValueError",
+        "message": "fdr_sensor_type must contain finite probabilities in [0, 1] or missing values"
+      },
+      "invalid_stat/dot/-inf": {
+        "error": "ValueError",
+        "message": "fdr_sensor_type must contain finite probabilities in [0, 1] or missing values"
+      },
+      "invalid_stat/dot/inf": {
+        "count": 2
+      },
+      "invalid_stat/dot/2": {
+        "count": 2
+      },
+      "dot_score/nan": {
+        "returned_rows": 3,
+        "offset_mask": [
+          [
+            true,
+            true
+          ],
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ]
+        ]
+      },
+      "dot_score/inf": {
+        "returned_rows": 3,
+        "offset_mask": [
+          [
+            true,
+            true
+          ],
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ]
+        ]
+      },
+      "dot_score/-inf": {
+        "returned_rows": 3,
+        "offset_mask": [
+          [
+            true,
+            true
+          ],
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ]
+        ]
+      },
+      "dot_score/-0.2": {
+        "returned_rows": 3,
+        "offset_mask": [
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ],
+          [
+            false,
+            false
+          ]
+        ]
+      },
+      "sample_score/bad": {
+        "median": 0.4,
+        "missing": [
+          "D2"
+        ],
+        "scores": [
+          0.3,
+          "NaN",
+          0.5
+        ]
+      },
+      "sample_score/inf": {
+        "median": 0.5,
+        "missing": [],
+        "scores": [
+          0.3,
+          "+Inf",
+          0.5
+        ]
+      },
+      "sample_score/-0.5": {
+        "median": 0.3,
+        "missing": [],
+        "scores": [
+          0.3,
+          -0.5,
+          0.5
+        ]
+      },
+      "string_probability_ranking": {
+        "selected": [
+          [
+            "HMDB2",
+            "S2"
+          ]
+        ],
+        "selected_fdr": [
+          "0.5"
+        ]
+      },
+      "dot_range/260/20": {
+        "sizes": [
+          20.0,
+          160.39100017307737,
+          260.0
+        ]
+      },
+      "dot_range/-1/260": {
+        "sizes": [
+          260.0,
+          107.32478731177837,
+          -1.0
+        ],
+        "warnings": [
+          "invalid value encountered in sqrt",
+          "invalid value encountered in sqrt",
+          "invalid value encountered in sqrt"
+        ]
+      },
+      "dot_range/nan/260": {
+        "sizes": [
+          "NaN",
+          "NaN",
+          "NaN"
+        ]
+      },
+      "dot_range/20/inf": {
+        "sizes": [
+          "+Inf",
+          "+Inf",
+          "NaN"
+        ],
+        "warnings": [
+          "invalid value encountered in multiply",
+          "invalid value encountered in scalar multiply",
+          "invalid value encountered in scalar multiply",
+          "invalid value encountered in scalar multiply",
+          "invalid value encountered in scalar multiply"
+        ]
+      },
+      "selector_whitespace/dot": {
+        "error": "ValueError",
+        "message": "No events remain after filtering"
+      },
+      "selector_whitespace/network": {
+        "error": "ValueError",
+        "message": "No events remain after filtering"
+      },
+      "selector_whitespace/sample": {
+        "error": "ValueError",
+        "message": "The requested sample-aware event was not found"
+      },
+      "violin_variance/[0, 1e-09, 2e-09]": {
+        "values": [
+          0,
+          1e-09,
+          2e-09
+        ],
+        "violin_count": 0,
+        "constant_count": 1,
+        "constant_line": [
+          [
+            -0.3,
+            0.0
+          ],
+          [
+            0.3,
+            0.0
+          ]
+        ]
+      },
+      "violin_variance/[1.0, 1.000005, 1.000009]": {
+        "values": [
+          1.0,
+          1.000005,
+          1.000009
+        ],
+        "violin_count": 0,
+        "constant_count": 1,
+        "constant_line": [
+          [
+            -0.3,
+            1.0
+          ],
+          [
+            0.3,
+            1.0
+          ]
+        ]
+      },
+      "violin_variance/[1, 2, 3]": {
+        "values": [
+          1,
+          2,
+          3
+        ],
+        "violin_count": 1,
+        "constant_count": 0,
+        "constant_line": null
+      }
+    },
+    "input_output_results": {
+      "prior_extra_field/enzyme": {
+        "normalized_rows": 0,
+        "normalized": []
+      },
+      "prior_extra_field/sensor": {
+        "normalized_rows": 1,
+        "normalized": [
+          {
+            "metabolite": "HMDB1",
+            "hmdb_id": "S",
+            "sensor_gene": "Transporter",
+            "sensor_type": "Other receptor"
+          }
+        ]
+      },
+      "export_same_prefix_changed_mode": {
+        "parameters_mode": "pooled_stratified",
+        "stale_sample_files": [
+          "reuse.sample_receiver_scores.csv",
+          "reuse.sample_sender_scores.csv",
+          "reuse.sample_validation.csv",
+          "reuse.sample_events.csv"
+        ],
+        "stale_sample_events_rows": 8
+      },
+      "loom_optional_dependency": {
+        "error": "ModuleNotFoundError",
+        "message": "No module named 'loompy'"
+      },
+      "allow_self/False": {
+        "allow_self": false,
+        "self_events": 0
+      },
+      "allow_self/'False'": {
+        "allow_self": "False",
+        "self_events": 2
+      },
+      "allow_self/0": {
+        "allow_self": 0,
+        "self_events": 0
+      },
+      "allow_self/1": {
+        "allow_self": 1,
+        "self_events": 2
+      },
+      "allow_self/None": {
+        "allow_self": null,
+        "self_events": 0
+      },
+      "positive_input_cancellation": {
+        "positive_expression": 1e-20,
+        "scores": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "production_status": [
+          "prior_no_expression"
+        ],
+        "P": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      "sender_square_underflow": {
+        "P_score": {
+          "A": 1.999999999999956e-200,
+          "B": 0.6666666666666666
+        },
+        "C_score": {
+          "A": 0.0,
+          "B": 0.0
+        },
+        "base": {
+          "A": 0.0,
+          "B": 0.6666666666666666
+        },
+        "sender": {
+          "A": 0.0,
+          "B": 0.6666666666666666
+        }
+      },
+      "event_product_underflow": {
+        "sender": 1.9999777343653787e-160,
+        "receiver": 2e-200,
+        "event": 0.0,
+        "stable_event": 1.9999888671517044e-180
+      },
+      "default_database_schema": {
+        "enzyme": {
+          "rows": 11687,
+          "hmdb_ids": 1095,
+          "missing_names": 0,
+          "missing_hmdb": 0,
+          "nonstandard_hmdb_strings": 0,
+          "gene_parser_residues": 0
+        },
+        "interaction": {
+          "rows": 6478,
+          "hmdb_ids": 469,
+          "missing_names": 0,
+          "missing_hmdb": 0,
+          "nonstandard_hmdb_strings": 0,
+          "gene_parser_residues": 0
+        },
+        "enzyme_roles": {
+          "degradation": 6045,
+          "production": 5476,
+          "export": 166
+        },
+        "sensor_types": {
+          "Cell surface receptor": 4735,
+          "Other receptor": 1410,
+          "Transporter": 333
+        }
+      }
+    },
+    "tenx_results": {
+      "legacy": {
+        "genes": [
+          "G",
+          "G-1"
+        ],
+        "X": [
+          [
+            1.0,
+            10.0
+          ],
+          [
+            2.0,
+            20.0
+          ]
+        ]
+      },
+      "modern_plain": {
+        "error": "FileNotFoundError",
+        "message": "Did not find file /tmp/cellmesh_audit_20260912/modern_plain/matrix.mtx.gz."
+      },
+      "modern_gzip": {
+        "genes": [
+          "G",
+          "G-1"
+        ],
+        "X": [
+          [
+            1.0,
+            10.0
+          ],
+          [
+            2.0,
+            20.0
+          ]
+        ]
+      }
+    },
+    "additional_results": {
+      "cache_negative": [
+        {
+          "receiver": "A",
+          "sensor_score": 0.0,
+          "sensor_expr_frac": -1.0
+        },
+        {
+          "receiver": "B",
+          "sensor_score": 0.6153846153846154,
+          "sensor_expr_frac": 1.0
+        }
+      ],
+      "cache_nan": [
+        {
+          "receiver": "A",
+          "sensor_score": 0.2857142857142857,
+          "sensor_expr_frac": "NaN"
+        },
+        {
+          "receiver": "B",
+          "sensor_score": 0.6153846153846154,
+          "sensor_expr_frac": 1.0
+        }
+      ],
+      "cache_infinite": [
+        {
+          "receiver": "A",
+          "sensor_score": 0.2857142857142857,
+          "sensor_expr_frac": "+Inf"
+        },
+        {
+          "receiver": "B",
+          "sensor_score": 0.6153846153846154,
+          "sensor_expr_frac": 1.0
+        }
+      ],
+      "cache_above_one": [
+        {
+          "receiver": "A",
+          "sensor_score": 0.2857142857142857,
+          "sensor_expr_frac": 2.0
+        },
+        {
+          "receiver": "B",
+          "sensor_score": 0.6153846153846154,
+          "sensor_expr_frac": 1.0
+        }
+      ],
+      "cache_partial_pseudobulk": [
+        {
+          "receiver": "A",
+          "sensor_score": 0.5
+        }
+      ],
+      "legacy_name_match": [
+        "DIFFERENT_ID",
+        "DIFFERENT_ID"
+      ],
+      "empty_pooled_schema": {
+        "inference_mode_present": false,
+        "attrs": {}
+      },
+      "pvalue_facet_layout_name10_senders2": {
+        "legend_right": 930.6039350395076,
+        "figure_right": 900.0
+      },
+      "pvalue_facet_layout_name10_senders3": {
+        "legend_right": 1095.5495646146783,
+        "figure_right": 1065.5
+      },
+      "pvalue_facet_layout_name30_senders1": {
+        "legend_right": 918.981307435255,
+        "figure_right": 900.0
+      },
+      "pvalue_facet_layout_name30_senders2": {
+        "legend_right": 969.716847772883,
+        "figure_right": 920.5
+      },
+      "pvalue_facet_layout_name30_senders3": {
+        "legend_right": 1175.7687635975135,
+        "figure_right": 1135.5
+      },
+      "pvalue_facet_layout_name60_senders1": {
+        "legend_right": 930.5696532999166,
+        "figure_right": 900.0
+      },
+      "pvalue_facet_layout_name60_senders2": {
+        "legend_right": 1069.6049290259423,
+        "figure_right": 1025.5
+      },
+      "pvalue_facet_layout_name60_senders3": {
+        "legend_right": 1276.178756445575,
+        "figure_right": 1240.5
+      },
+      "pvalue_facet_layout_name100_senders1": {
+        "legend_right": 973.6427360066835,
+        "figure_right": 950.5000000000001
+      },
+      "pvalue_facet_layout_name100_senders2": {
+        "legend_right": 1193.3830004894762,
+        "figure_right": 1165.5
+      },
+      "pvalue_facet_layout_name100_senders3": {
+        "legend_right": 1401.817408702409,
+        "figure_right": 1380.5
+      }
+    },
+    "early_filter_results": {
+      "complete_prior": {
+        "P": {
+          "A": 5.035533905932738,
+          "B": 1.5811388300841895
+        },
+        "reaction_count": 2,
+        "sender_scores": {
+          "A": 0.5431508840080272,
+          "B": 0.29103838130335175
+        },
+        "events": [
+          {
+            "sender": "A",
+            "receiver": "B",
+            "cell_mesh_score": 0.5628836608672784,
+            "perm_pvalue": 0.2
+          },
+          {
+            "sender": "A",
+            "receiver": "A",
+            "cell_mesh_score": 0.45131095876680216,
+            "perm_pvalue": 0.9
+          },
+          {
+            "sender": "B",
+            "receiver": "B",
+            "cell_mesh_score": 0.41203445134311506,
+            "perm_pvalue": 1.0
+          },
+          {
+            "sender": "B",
+            "receiver": "A",
+            "cell_mesh_score": 0.330362517529996,
+            "perm_pvalue": 1.0
+          }
+        ]
+      },
+      "early_filter": {
+        "P": {
+          "A": 3.035533905932738,
+          "B": 1.0811388300841895
+        },
+        "reaction_count": 1,
+        "sender_scores": {
+          "A": 0.5363270692847251,
+          "B": 0.30993235674131747
+        },
+        "events": [
+          {
+            "sender": "A",
+            "receiver": "B",
+            "cell_mesh_score": 0.5593366223328813,
+            "perm_pvalue": 0.2
+          },
+          {
+            "sender": "A",
+            "receiver": "A",
+            "cell_mesh_score": 0.44846700099535963,
+            "perm_pvalue": 0.9
+          },
+          {
+            "sender": "B",
+            "receiver": "B",
+            "cell_mesh_score": 0.4251986297787994,
+            "perm_pvalue": 1.0
+          },
+          {
+            "sender": "B",
+            "receiver": "A",
+            "cell_mesh_score": 0.34091734156242925,
+            "perm_pvalue": 1.0
+          }
+        ]
+      },
+      "max_difference": {
+        "cell_mesh_score": 0.013164178435684348,
+        "perm_pvalue": 0.0
+      }
+    },
+    "differential_results": {
+      "cases": 32,
+      "vectors_compared": 128,
+      "event_values_compared": 6120,
+      "max_absolute_difference": 0.0,
+      "pvalue_mismatches": 0,
+      "failures": [],
+      "seconds": 22.23
+    },
+    "notebook_results": {
+      "cellmesh_comprehensive_walkthrough.ipynb": {
+        "code_cells": 26,
+        "completed_cells": [
+          2,
+          4,
+          5,
+          7,
+          8,
+          9,
+          11,
+          12,
+          14,
+          15,
+          17,
+          18,
+          19,
+          20,
+          22,
+          23,
+          24,
+          26,
+          27,
+          29,
+          30,
+          31,
+          33,
+          34,
+          36,
+          38
+        ],
+        "seconds": 2.44
+      },
+      "demo_HNSC_cellmesh_workflow.ipynb": {
+        "code_cells": 14,
+        "failed_cell": 15,
+        "error": "ValueError",
+        "message": "No events remain after filtering",
+        "completed_cells": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          11,
+          13
+        ],
+        "seconds": 3.46
+      },
+      "demo_HNSC_sample_aware_workflow.ipynb": {
+        "code_cells": 11,
+        "completed_cells": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18,
+          20,
+          22
+        ],
+        "seconds": 4.18
+      },
+      "test_metabolite_availability_cellmesh.ipynb": {
+        "code_cells": 22,
+        "failed_cell": 30,
+        "error": "AssertionError",
+        "message": "",
+        "completed_cells": [
+          1,
+          3,
+          4,
+          6,
+          7,
+          8,
+          10,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          19,
+          20,
+          22,
+          24,
+          25,
+          26,
+          27,
+          28
+        ],
+        "seconds": 0.27
+      }
+    },
+    "notebook_followup_results": {
+      "demo_HNSC_cellmesh_workflow": {
+        "failed_cells": [
+          {
+            "cell": 15,
+            "error": "ValueError",
+            "message": "No events remain after filtering"
+          }
+        ],
+        "passed_cells": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          11,
+          13,
+          17,
+          19,
+          21,
+          23,
+          25,
+          27
+        ],
+        "current_event_count": 2133,
+        "complete_prior_event_count": 2133,
+        "min_qc_fdr": 0.3386138613861386,
+        "max_changes": {
+          "cell_mesh_score": 0.0,
+          "perm_pvalue": 0.0,
+          "fdr_sensor_type": 0.0
+        },
+        "changed_rows": {
+          "cell_mesh_score": 0,
+          "perm_pvalue": 0,
+          "fdr_sensor_type": 0
+        },
+        "reaction_counts": {
+          "current_notebook": {
+            "pooled": 155
+          },
+          "complete_prior": {
+            "pooled": 164
+          }
+        }
+      },
+      "demo_HNSC_sample_aware_workflow": {
+        "failed_cells": [],
+        "passed_cells": [
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18,
+          20,
+          22
+        ],
+        "current_event_count": 477,
+        "complete_prior_event_count": 477,
+        "min_qc_fdr": 1.0,
+        "max_changes": {
+          "cell_mesh_score": 0.0,
+          "perm_pvalue": 0.0,
+          "fdr_sensor_type": 0.0
+        },
+        "changed_rows": {
+          "cell_mesh_score": 0,
+          "perm_pvalue": 0,
+          "fdr_sensor_type": 0
+        },
+        "reaction_counts": {
+          "current_notebook": {
+            "HN23": 25,
+            "HN25": 25,
+            "HN26": 25,
+            "HN28": 25,
+            "HNSCC10": 25,
+            "HNSCC12": 25,
+            "HNSCC13": 25,
+            "HNSCC16": 25,
+            "HNSCC17": 25,
+            "HNSCC18": 25,
+            "HNSCC20": 25,
+            "HNSCC22": 25,
+            "HNSCC24": 25,
+            "HNSCC25": 25,
+            "HNSCC26": 25,
+            "HNSCC28": 25,
+            "HNSCC5": 25,
+            "HNSCC6": 25,
+            "HNSCC8": 25,
+            "HNSCC9": 25
+          },
+          "complete_prior": {
+            "HN23": 29,
+            "HN25": 29,
+            "HN26": 29,
+            "HN28": 29,
+            "HNSCC10": 29,
+            "HNSCC12": 29,
+            "HNSCC13": 29,
+            "HNSCC16": 29,
+            "HNSCC17": 29,
+            "HNSCC18": 29,
+            "HNSCC20": 29,
+            "HNSCC22": 29,
+            "HNSCC24": 29,
+            "HNSCC25": 29,
+            "HNSCC26": 29,
+            "HNSCC28": 29,
+            "HNSCC5": 29,
+            "HNSCC6": 29,
+            "HNSCC8": 29,
+            "HNSCC9": 29
+          }
+        }
+      },
+      "test_metabolite_availability_cellmesh": {
+        "skipped_obsolete_assertions": [
+          "assert set(result['metadata'].columns) == {'n_product_reactions', 'n_substrate_reactions', 'n_exporter_reactions', 'consumption_status', 'export_status'}"
+        ],
+        "other_errors": []
+      }
+    },
+    "provenance": {
+      "user_direction_input_without_source": "packaged_enzyme_test",
+      "default_enzyme_source_counts": {
+        "packaged_enzyme_test": 11687
+      }
+    },
+    "coverage_results": {
+      "enzyme_hmdb_ids": 1095,
+      "export_hmdb_ids": 76,
+      "export_fraction_all": 0.06940639269406393,
+      "production_hmdb_ids": 844,
+      "export_fraction_production": 0.06635071090047394,
+      "enzyme_interaction_shared_hmdb": 346,
+      "export_fraction_shared": 0.16184971098265896
+    },
+    "edge_followups": {
+      "exponent_0": {
+        "weights": [
+          1.0,
+          1.0
+        ],
+        "scores": [
+          0.5580463400553715,
+          0.4520122498486392,
+          0.42421777811538275,
+          0.3436123822489341
+        ],
+        "state": [
+          "supported"
+        ]
+      },
+      "exponent_1": {
+        "weights": [
+          0.5,
+          0.5
+        ],
+        "scores": [
+          0.5580463400553715,
+          0.4520122498486392,
+          0.42421777811538275,
+          0.3436123822489341
+        ],
+        "state": [
+          "supported"
+        ]
+      },
+      "exponent_2000": {
+        "weights": [
+          0.0,
+          0.0
+        ],
+        "scores": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "state": [
+          "prior_no_expression"
+        ]
+      },
+      "external_reaction_normal": [
+        6.071067811865476,
+        2.162277660168379
+      ],
+      "external_reaction_whitespace": [
+        9.000000000000002,
+        3.9999999999999996
+      ],
+      "external_reaction_duplicate": [
+        5.299605249474364,
+        1.7144176165949063
+      ]
+    },
+    "parameter_followups": {
+      "nonfinite_seed_export": {
+        "contains_literal_NaN": true,
+        "strict_json_valid": false
+      },
+      "invalid_cached_counts": [
+        {
+          "receiver": "A",
+          "receiver_n_cells": -1,
+          "receiver_passes_min_cells": false
+        },
+        {
+          "receiver": "B",
+          "receiver_n_cells": 1,
+          "receiver_passes_min_cells": true
+        }
+      ]
+    }
+  }
+}

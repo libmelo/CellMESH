@@ -118,7 +118,7 @@ def test_normalize_interaction_database_ignores_weight_and_keeps_first_duplicate
             "metabolite": ["first", "second", "other"],
             "hmdb_id": ["HMDB00001", "HMDB00001", "HMDB00002"],
             "sensor_gene": ["S1", "S1", "S2"],
-            "sensor_type": ["Transporter", "Cell surface receptor", "Transporter"],
+            "sensor_type": ["Transporter", "Transporter", "Transporter"],
             # The old implementation sorted this column and retained "second".
             "weight": [1.0, 100.0, 50.0],
         }
@@ -313,12 +313,20 @@ def test_run_cell_mesh_rejects_invalid_prior_type(parameter):
         run_cell_mesh(adata, **{parameter: 42})
 
 
-def test_load_database_preserves_dataframes_and_reports_missing_csv(tmp_path):
-    enzyme = pd.DataFrame({"gene": ["G"]})
-    sensor = pd.DataFrame({"sensor_gene": ["S"]})
+def test_load_database_copies_dataframes_and_reports_missing_csv(tmp_path):
+    enzyme = pd.DataFrame({
+        "metabolite": ["M"], "hmdb_id": ["HMDB00001"], "gene": ["G"],
+        "role": ["production"], "reaction": ["r1"],
+    })
+    sensor = pd.DataFrame({
+        "metabolite": ["M"], "hmdb_id": ["HMDB00001"], "sensor_gene": ["S"],
+        "sensor_type": ["Transporter"],
+    })
     loaded_enzyme, loaded_sensor = load_cell_mesh_database(enzyme, sensor)
-    assert loaded_enzyme is enzyme
-    assert loaded_sensor is sensor
+    pd.testing.assert_frame_equal(loaded_enzyme, enzyme)
+    pd.testing.assert_frame_equal(loaded_sensor, sensor)
+    assert loaded_enzyme is not enzyme
+    assert loaded_sensor is not sensor
     with pytest.raises(FileNotFoundError):
         load_cell_mesh_database(tmp_path / "missing.csv", sensor)
 

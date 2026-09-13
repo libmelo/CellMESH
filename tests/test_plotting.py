@@ -433,6 +433,7 @@ def test_metabolite_secretion_violin_uses_cellwise_reactions_and_availability_co
         adata,
         metabolite="M1",
         sender_labels=["B", "A"],
+        hmdb_id="HMDB1",
     )
 
     summary = result["summary"].set_index("sender")
@@ -462,6 +463,7 @@ def test_receptor_expression_violin_reports_expression_and_sensor_metadata(
         receptor_gene="G1",
         metabolite="M1",
         receiver_labels=["B", "A"],
+        hmdb_id="HMDB1",
     )
 
     summary = result["summary"].set_index("receiver")
@@ -561,11 +563,13 @@ def test_single_cell_violins_accept_sparse_real_cellmesh_result():
         result_object,
         adata,
         metabolite="M1",
+        hmdb_id="HMDB1",
     )
     receptor_result = plot_receptor_expression_violin(
         result_object,
         adata,
         receptor_gene="G1",
+        hmdb_id="HMDB1",
     )
 
     assert len(metabolite_result["plot_data"]) == adata.n_obs

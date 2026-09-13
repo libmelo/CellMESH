@@ -88,6 +88,12 @@ observed expression, `C_score = 0` and the sender score reduces to `P_score`.
 `supported`. The first three all give `C_score = 0`, but retain distinct
 evidence semantics.
 
+Production is evaluable when at least one gene from its retained reaction
+definitions exists in the expression matrix. A computed `P=0` remains a zero
+sender/event score, including when every cell type in a sample has zero
+production. Missing production genes do not supply measured zero evidence;
+those metabolites are excluded from scoring and identified in metadata.
+
 Exporter evidence supplies a bounded, non-increasing modulation:
 
 ```text
@@ -140,9 +146,10 @@ name is used in the event table. Prior rows without `hmdb_id` are excluded befor
 event construction.
 
 ### 6. Sensor Types
-Sensor types are read from the `Annotation` column of the selected metabolite-sensor
-database. CELL MESH preserves the database labels instead of imposing a fixed type
-catalogue; the current default database is `Interaction1.41.csv`.
+Sensor types are read from `sensor_type` or its `Annotation`/`annotation` aliases
+and normalized to `Cell surface receptor`, `Transporter`, or `Other receptor`.
+Raw annotations provide provenance through `evidence_level`; explicitly supplied
+evidence takes precedence. The current default database is `Interaction1.41.csv`.
 
 Both inference modes report global FDR and sensor-type-specific FDR.
 
@@ -170,6 +177,12 @@ the loader falls back to the legacy `enzyme_test.csv` / `interaction_test.csv`
 pair. The comprehensive walkthrough notebook uses `Enzyme_new.csv`,
 `Interaction1.0.csv`, and `test_single_cell.h5ad` so its calculations are fully
 reproducible from packaged files.
+
+Recognized database column names are listed in [the input tables below](#enzyme-table-columns).
+The database directory also contains a self-contained Chinese
+[数据库列名与输入规范](cellmesh/data/README.md), with both mappings, value rules,
+and CSV examples. During testing, database contents remain excluded from Git;
+the directory's README is versioned separately.
 
 ## Install
 
@@ -200,16 +213,39 @@ pip install -e ".[scanpy]"
 
 ## Basic Usage
 
+For expression-file import, see the [AnnData reading guide](docs/ANNDATA_README.md).
+For CSV/TSV inputs, `read_anndata()` checks original headers before pandas
+can rename duplicate genes, and preserves axis identifiers such as `01`, `1`,
+and literal `NA` as distinct text. Expression values remain numeric. Cell and
+gene metadata are read as text by default, including custom sample/cell-type
+columns; empty fields remain missing. Convert additional numeric metadata
+explicitly when needed. MTX gene/barcode lists preserve the same literal names.
+The MTX reader supports both sparse `coordinate` and dense `array` storage,
+including `.mtx.gz` files. Both preserve expression values and transpose from
+gene-by-cell to cell-by-gene; sparse inputs stay sparse and dense inputs stay
+NumPy arrays.
+10X imports also preserve original gene/barcode text and reject empty or
+duplicate selected identifiers before constructing the labeled matrix. Both
+legacy `genes.tsv` and modern `features.tsv` layouts support plain or gzip
+files and optional prefixes. `var_names="gene_symbols"` is the default;
+`"gene_ids"` requires priors using the same gene IDs. Automatic gene renaming
+is disabled, and explicit `make_unique=True` is rejected. See the reading guide
+for feature filtering, file ambiguity, and cache behavior.
+Duplicate or empty axis identifiers are rejected, including duplicates after
+stripping whitespace. Results affected by older automatic renaming or numeric
+label inference require rereading the original files and rerunning analysis.
+
 Both `enzyme_metabolite` and `metabolite_sensor` default to `None`.
 `run_cell_mesh(adata)` calls `load_cell_mesh_database()` to load and normalize
 the highest version of each database in `cellmesh/data` automatically. Versions
 are compared numerically, not by file modification time. If you supply only one
-prior table, the other is filled from the packaged database; your supplied table
-is retained.
+prior table, the other is filled from the packaged database.
 
 Each prior also accepts a CSV path (`str` or `pathlib.Path`). CSV files are read
-and normalized automatically; DataFrames must already use the normalized prior
-schema. Paths, DataFrames, and `None` can be mixed independently:
+into DataFrames, then both input forms use the same schema normalization and
+sensor conflict checks. Raw database fields and normalized prior fields are
+accepted. Input DataFrames are copied, and existing provenance metadata is
+preserved. Paths, DataFrames, and `None` can be mixed independently:
 
 ```python
 res = run_cell_mesh(
@@ -246,9 +282,41 @@ res.receiver_scores  # Receiver/sensor scores
 res.availability_results  # All intermediate calculation results
 ```
 
-`adata.obs[cell_type_key]` must contain a non-empty label for every cell, and
-`adata.var_names` must be non-empty and unique. Invalid labels are rejected
-before pseudobulk, abundance, or reference calculations begin.
+Expression values used by enzyme or sensor scoring must be real, finite, and
+non-negative. CELL MESH checks these cell-level values in the selected `layer`
+(or `adata.X`) before aggregation, including when `n_perms=0`. Standalone
+availability/sensor scoring, compiled permutations, and expression plots use
+the same rule. Genes outside the scoring priors and unselected layers do not
+enter this check. Values are not clipped or replaced. Sparse validation retains
+sparse storage and checks stored values in bounded blocks.
+
+Finite input can still overflow during aggregation. Both observed and permuted
+scoring check relevant pseudobulks, reaction activities/capacities, normalization
+references and denominators before invalid intermediates can become zero scores.
+Each permutation's event scores are checked again before p-value counting.
+Numerical failures stop the analysis with an error naming the stage; they are
+not replaced by zero or treated as structural sample missingness. Normal
+structural missing values and defined zero scores retain their existing meaning.
+
+Earlier observation-only runs could accept negative values when averaging or
+reaction aggregation hid them. For example, `[-1, 3]` has a positive mean even
+though it contains an invalid negative expression value. Analyses affected by
+this case should be rerun with a valid non-negative expression layer.
+
+Cell-type labels, sample labels (when `sample_key` is supplied), and
+`adata.var_names` are converted to text and stripped of leading/trailing
+whitespace for all internal matching, scoring, permutation, QC, and expression
+plotting. The input AnnData object is not modified. Missing or empty identifiers
+are rejected before scoring. Gene names must remain unique after normalization;
+distinct observed cell-type or sample labels that become identical (for example,
+`"A"` and `" A "`, or numeric `1` and text `"1"`) also raise an error instead of
+being silently merged. Repeated cells with the same label are valid; unused
+categorical levels do not create collisions. Explicit `cell_fractions` indices
+and expression-plot cell-type selections use the same whitespace rule.
+
+Earlier versions could compare stripped observed labels with unstripped
+permutation labels, producing false significance. Rerun analyses affected by
+leading/trailing label whitespace to regenerate p-values and FDR.
 
 ## Visualization
 
@@ -306,7 +374,7 @@ dotplot = plot_event_dotplot(
 # For sample-aware results, the default shows sample rows where both endpoints
 # pass min-cells QC. Set qc_only=False to inspect all calculated rows. In that
 # view, NA means the sample-level event was not computable (for example, an
-# endpoint was unobserved or no production availability was available); a low
+# endpoint was unobserved). Measured zero production remains score 0; a low
 # cell count alone never creates NA.
 event = res.events.sort_values("fdr_global").iloc[0]
 sample_plot = plot_sample_event_scores(
@@ -347,6 +415,71 @@ Each plotting function returns a dictionary containing the Matplotlib figure,
 axes, and the exact filtered data used to construct the plot. The two violin
 functions require the original `adata` because `CellMeshResult` stores
 cell-type summaries rather than duplicating the single-cell expression matrix.
+
+All six plotting functions treat metabolite names as **display metadata only**.
+Names never participate in matching, grouping, deduplication, or ranking keys.
+The identity rules are:
+
+| Plot | Identity and record context |
+|---|---|
+| Event counts, communication network, event dotplot | `(hmdb_id, sensor_gene)` identifies a relation; `sender` and `receiver` distinguish directed records. |
+| Sample event scores | The same relation and direction, with `sample` distinguishing records. |
+| Metabolite secretion violin | Explicit `hmdb_id` only; production capacity does not depend on a receptor. |
+| Receptor expression violin | Explicit `hmdb_id` plus `receptor_gene` (the result's `sensor_gene`). |
+
+HMDB IDs use the same trimming and uppercase normalization as scoring; sensor
+genes are trimmed with case preserved. A missing or unknown target ID raises
+an error. Both violins and the sample plot require the explicit ID even if a
+name is unique. Their optional `metabolite` argument only overrides the display
+name. Thus an event's Enzyme name can differ from the Interaction name without
+changing which receiver context is selected. Original result tables remain
+unchanged.
+
+Metabolite labels include `Name (HMDB ID)`, and relation labels add `-> GENE`.
+If no name is available, the ID is displayed alone. Event labels use the first
+non-empty name for each ID in the input table. Same-ID aliases represent one
+identity; different IDs or sensor genes stay separate. Identical alias rows
+count once. Conflicting values for one HMDB row, receiver context, or sample
+record raise an error instead of using a name to choose a value. Counts,
+network, and dotplot retain their existing threshold and duplicate-priority
+rules. For counts and network, `unique_keys` must include `sender`, `receiver`,
+`hmdb_id`, and `sensor_gene`; only `sample` may be added to count each sample
+separately.
+
+For the dotplot, `event_keys` accepts `(hmdb_id, sensor_gene)` tuples or
+dictionaries containing those two fields, for example:
+
+```python
+dotplot = plot_event_dotplot(res, event_keys=[("HMDB0001509", "LTB4R2")])
+```
+
+Legacy `(name, hmdb_id, sensor_gene)` tuples remain accepted, but their name is
+ignored. Display-label strings are no longer accepted as selectors.
+`selected_events` returns display labels; `selected_event_keys` returns the
+two-field tuples to reuse for selection. Requested order is retained and
+repeated identities appear once. Update old name-only calls to pass IDs, then
+replot affected results; event scores, permutation p-values, and FDR require
+no recalculation.
+
+Dotplot color always represents the selected score. Significance controls
+marker size only when its value is available:
+
+| Significance in the displayed rows | Markers and legend |
+|---|---|
+| All available | Circles sized by significance, with the numeric legend. |
+| Partly missing | Available values size the circles; missing values use fixed-size diamonds labeled `Unavailable`. |
+| All missing, including `n_perms=0`, or both probability columns absent | Fixed-size diamonds and `Significance: Unavailable`; no numeric significance legend. |
+
+The fixed size is the midpoint of `min_dot_size` and `max_dot_size`. Missing
+values stay NA in the returned data, and measured zero scores remain visible.
+The FDR column, when present, supplies the size scale; missing FDR never falls
+back to an unadjusted p-value. Only an absent FDR column enables the existing
+p-value size scale. Non-missing displayed probabilities must be finite and in
+`[0, 1]`; both 0 and 1 are available values. Explicit p-value/FDR thresholds
+still exclude missing values, raising an error if no events remain or a
+requested filter column is absent. Replot existing results to apply this
+display fix; no scoring or permutation rerun is needed.
+
 The four event-based plots expose their min-cells QC decision in the returned
 `qc` dictionary. Their default `qc_only=True` changes only what is displayed;
 it does not change the stored numerical scores or inference results. Set
@@ -359,18 +492,18 @@ it does not change the stored numerical scores or inference results. Set
 | Parameter | Default | Description |
 |---|---|---|
 | `adata` | *required* | AnnData object containing single-cell expression data |
-| `enzyme_metabolite` | `None` | Normalized enzyme-metabolite DataFrame or CSV path (str/Path). None loads the latest built-in database |
-| `metabolite_sensor` | `None` | Normalized metabolite-sensor DataFrame or CSV path (str/Path). None loads the latest built-in database |
+| `enzyme_metabolite` | `None` | Raw or normalized enzyme-metabolite DataFrame or CSV path (str/Path). None loads the latest built-in database |
+| `metabolite_sensor` | `None` | Raw or normalized metabolite-sensor DataFrame or CSV path (str/Path). None loads the latest built-in database |
 | `cell_type_key` | `"cell_type"` | Column name in adata.obs containing cell type annotations |
 | `sample_key` | `None` | Column name in adata.obs containing sample annotations |
 | `sample_mode` | `"pooled_stratified"` | `"pooled_stratified"` computes pooled cell-type pseudobulks; `"sample_aware"` computes and scores `(sample, cell type)` units separately before aggregating event scores across samples |
 | `layer` | `None` | Name of expression layer to use. If None, uses adata.X |
 | `min_expr_frac` | `None` | Optional receiver expression-fraction gate; must be in `[0, 1]` |
-| `allow_self` | `True` | Whether to allow self-communication events (sender == receiver) |
+| `allow_self` | `True` | Python/NumPy boolean; whether to allow self-communication events (sender == receiver). Strings such as `"False"` are rejected |
 | `n_perms` | `0` | Non-negative integer permutation count. 0 = no permutation |
-| `random_state` | `0` | Random seed for reproducibility |
+| `random_state` | `0` | Non-negative Python/NumPy integer seed, validated even with zero permutations or empty events. Floats, booleans, strings, `None`, arrays and generator objects are rejected |
 | `n_jobs` | `1` | Permutation worker threads; `-1` uses all available CPUs |
-| `store_null_scores` | `False` | Store the full sample-aware event × permutation null matrix; p-values do not require it |
+| `store_null_scores` | `False` | Python/NumPy boolean; store the full sample-aware event × permutation null matrix; p-values do not require it |
 | `min_cells` | `100` | Positive-integer, QC-only cell-count threshold; observed units remain in every numerical calculation regardless of this flag |
 | `sender_abundance_exponent` | `1.0` | Finite non-negative exponent applied to sender cell fraction before P/C/E construction; `0` disables sender abundance adjustment |
 | `pce_reference` | `"mean"` | Strictly-positive P/C/E reference statistic; accepts `"mean"` or `"median"` |
@@ -386,8 +519,8 @@ it does not change the stored numerical scores or inference results. Set
     or permutation inference. A unit below the threshold is still calculated
     and receives ``passes_min_cells=False``. NA in sample-level results means
     the event was not computable in that sample (for example, an endpoint was
-    unobserved or no production availability was available), not merely that
-    its cell count was low.
+    unobserved), not merely that its cell count was low. Evaluable zero
+    production remains score 0 and contributes to the sample summaries.
 
 `sample_mode : {"pooled_stratified", "sample_aware"}, default="pooled_stratified"`
     ``pooled_stratified`` computes pooled cell-type pseudobulks across all
@@ -415,6 +548,48 @@ it does not change the stored numerical scores or inference results. Set
     expression. Observed cell types are equally weighted, so receiver cell
     count and fraction do not enter either the reference or score.
 
+### Optional receiver summaries
+
+`cellmesh.score.compute_sensor_scores()` can reuse `pseudobulk` (a DataFrame of
+cell-type mean gene expression), `expr_frac` (a DataFrame of fractions expressing
+each gene), and `cell_counts` (a Series of observed cell counts). Omit a summary
+to compute it from the supplied AnnData and selected layer.
+
+Supplied summaries follow these rules:
+
+- Rows must contain exactly the cell types actually observed in the current
+  AnnData, regardless of `min_cells` or all-zero expression. In sample-aware
+  scoring this means the current sample, not the union across samples. Unused
+  categorical levels are not required. Missing or extra groups raise errors;
+  they are never silently dropped or filled with zeros.
+- Both DataFrames must contain every sensor gene shared by the prior and
+  `adata.var_names`. Additional genes from that expression matrix are allowed;
+  genes absent from the matrix are rejected. Extra unrelated columns do not
+  enter numerical validation or receiver scoring.
+- Axis labels use the existing text/whitespace normalization. Empty/missing
+  labels and duplicates after normalization raise errors. Different row/column
+  orders are aligned by identifier without modifying the supplied objects.
+- Relevant means must be real, finite and non-negative; expression fractions
+  must be real, finite and in `[0,1]`, even when the expression gate is disabled.
+  Numeric text may be converted; invalid strings, booleans, complex values,
+  dates and missing numerical values are rejected.
+- Counts must be finite positive integer values equal to the actual counts in
+  `adata.obs`. Integral values such as `2.0` are accepted; values such as `1.9`
+  are rejected before integer conversion. Numeric text follows the same value
+  checks. Existing checks for optional `cell_fractions` continue to apply.
+
+For example, if A and B have mean expression 2 and 8, supplying only A would
+incorrectly change A's receiver score from `2/(2+5)` to `2/(2+2)`. This input
+now reports missing B. Supply a complete summary or let the function compute it.
+Validation checks observations and the relevant summary values without
+recomputing supplied expression summaries. The caller must ensure the cached
+values were derived from the same cells, expression data and layer; structural
+and range checks cannot establish that provenance. Original cell-level
+expression validation still runs when summaries are supplied.
+
+`compute_metabolite_availability(return_intermediates=...)` also requires a
+Python/NumPy boolean; strings and integer substitutes are rejected.
+
 ## Inspect the Packaged Database
 
 ```python
@@ -427,13 +602,64 @@ print(metabolite_sensor.head())
 ```
 
 ### Enzyme Table Columns
-```
-metabolite, hmdb_id, gene, role, evidence_level, source, reaction
-```
 
-`metabolite`, `hmdb_id`, `gene`, `role`, and `reaction` are required. Every
-reaction identifier must be non-empty; CELL MESH never infers a shared enzyme
-complex from rows whose reaction identity is unknown.
+| Meaning | Standard column | Accepted aliases | Required field |
+|---|---|---|---|
+| Metabolite display name | `metabolite` | `standard_metName` | Yes |
+| HMDB identifier | `hmdb_id` | `HMDB_ID` | Yes |
+| Enzyme gene(s) | `gene` | `Gene_name` | Yes |
+| Reaction identifier | `reaction` | `Reactions` | Yes |
+| Reaction role | `role` | `Direction`, `direction` (value mapping below) | Yes |
+| Evidence | `evidence_level` | None | No |
+| Source | `source` | None | No |
+
+Each required field needs one recognized column; supplying both a standard name
+and its aliases is optional. Column names match the exact spellings above,
+including case and spaces; arbitrary capitalization or padded headers are not
+accepted aliases. Optional references and other custom columns are retained as
+metadata. Enzyme metadata columns have no additional alias mapping.
+
+The columns `metabolite`, `hmdb_id`, `gene`, `role`, and `reaction` are required.
+The metabolite name may be missing or blank; it is only used for display.
+Every reaction identifier must be non-empty; CELL MESH never infers a shared
+enzyme complex from rows whose reaction identity is unknown.
+
+Both Enzyme and Interaction CSVs validate every logical record before parsing:
+its field count must equal the header width. Empty values need explicit empty
+fields; short or extra-wide records, invalid quoting, and NUL characters raise
+errors with the file and original line location. Quoted commas/newlines,
+escaped quotes, literal identifiers, BOM, and supported CSV compression remain
+valid. Blank lines outside quoted records are ignored. DataFrame inputs retain
+their existing column/schema checks and may have a custom row index.
+
+Standard `role` tables can be saved with `to_csv(index=False)` and loaded again
+through `load_cell_mesh_database()` or `run_cell_mesh()`. Raw
+`Direction`/`direction` tables use `product -> production`,
+`substrate -> degradation`, and `exporter`/`export`/legacy `transporter` all map
+to `role="export"`. If both role and direction are supplied, non-empty
+direction values must agree with populated role values. Enzyme aliases are
+checked before any rows are filtered: equivalent values are merged, blank
+values are filled from non-empty aliases, and conflicts report the affected
+rows and columns. This also applies to simultaneous `Direction`/`direction`
+columns without `role`, and to `gene`/`Gene_name`, `hmdb_id`/`HMDB_ID`,
+`reaction`/`Reactions`, and `metabolite`/`standard_metName`. Duplicate column
+names and missing required columns raise an explicit error. After conversion,
+the role is carried solely by the canonical `role` column so raw direction
+values cannot override it during scoring. Reaction IDs and other textual
+identifiers are read as text, preserving leading zeros. Existing
+`source`, `evidence_level`, references, and custom metadata columns are retained.
+
+In both `role` and `Direction`/`direction` tables, `gene` can contain one symbol
+or multiple symbols separated by `;`, `,`, or `|`, such as
+`G1[Enzyme]; G2[Enzyme]`. Database loading expands these fields to one gene per
+row **before** matching expression genes, retaining the same reaction identity
+and provenance. Separators inside `[evidence]` remain part of the annotation.
+Existing `evidence_level` values take precedence over inline annotations;
+otherwise inline evidence from equivalent gene aliases is retained, including
+distinct annotations for the same gene. Consumed alias columns are removed so
+they cannot contradict expanded rows on a later load. Empty gene entries are ignored. Repeated
+normalization preserves the expanded records. Both public scoring entrypoints
+and the permutation scorer consume this shared normalization.
 
 Reaction genes are grouped by `canonical_hmdb_id + reaction + direction`, not
 by metabolite name. Exact symbols are deduplicated within a reaction to define
@@ -444,37 +670,169 @@ omitted in favor of its superset, so only inclusion-maximal gene sets remain.
 Sets that are not subsets of one another retain all their genes and all
 contribute. The retained reaction activities are summed into one P, C, or E
 value. Reaction-count metadata counts these maximal contributing gene sets.
-The first enzyme-prior metabolite name observed for an HMDB ID is retained only
-as display metadata.
+Display names prefer the first non-empty Enzyme name for an HMDB ID, then the
+first non-empty Interaction name, then the HMDB ID itself. Names are selected
+from normalized scoring priors; standalone scoring uses its available prior.
+Changing a name never changes event identity or sample aggregation.
+
+Reaction gene-set comparisons use the **complete prior**, including genes not
+measured in the expression matrix. Only after deduplication does each retained
+reaction use its measured genes to calculate activity. Unmeasured genes are
+excluded from the geometric mean; measured zero-expression genes remain in it.
+A reaction with no measured genes has zero capacity and retains its prior
+identity for counts and evidence-status reporting. Both public entrypoints and
+compiled permutations use this order. Results from earlier versions may change
+when filtering missing genes previously changed reaction subset relationships.
 
 `compute_metabolite_availability()` also accepts this standard
-`enzyme_metabolite` schema directly. Legacy direction-style inputs are only
-kept as a compatibility path for low-level availability tests. Enzyme genes
+`enzyme_metabolite` schema directly, as well as legacy direction-style inputs.
+It shares enzyme normalization with `run_cell_mesh()`, including field aliases,
+direction values, and conflict checks, instead of maintaining a separate
+direction parser. Enzyme genes
 within one reaction contribute equally; legacy/custom enzyme `weight` columns
 are ignored and removed during prior validation.
 
+### Production Evaluability and Zero Scores
+
+Production availability is determined from the complete retained reaction
+definitions and normalized `adata.var_names`, independently of the cell labels
+or expression magnitude. Both observed and permuted scoring use this rule:
+
+| Production evidence | `production_status` | `production_evaluable` | Scoring behavior |
+|---|---|---|---|
+| No production relation | `prior_missing` | False | No sender/event score |
+| Production relations exist, but none of their genes are in the matrix | `prior_gene_unavailable` | False | No sender/event score |
+| Some production genes are available, all calculated P capacities are zero | `prior_no_expression` | True | Keep zero sender/event scores |
+| Some production genes are available and a cell type has positive P | `supported` | True | Score each cell type, including its zeros |
+
+Both paths apply this eligibility mask before P/C/E reference normalization.
+References still include all observed cell types in each scoring unit. Relevant
+raw expression and computed capacities are validated before this selection;
+production-ineligible rows skip reference calculation, rather than being
+normalized and discarded only when extracting the observed events.
+
+Partial gene availability retains the existing calculation from measured genes;
+missing genes do not enter the reaction's geometric mean as zeros. Entirely
+unmeasured reactions use internal numerical placeholders, but their zeros do
+not establish production evaluability. If no enzyme prior gene matches the
+matrix at all, `run_cell_mesh()` still raises an error before analysis.
+
+These statuses summarize each metabolite across cell types in one scoring unit
+(pooled data or one sample). For scored metabolites they appear in `metadata`,
+whose index remains aligned to P/C/E and availability. The separate
+`production_diagnostics` table includes `n_product_reactions` and both status
+columns for **all Enzyme-prior metabolites**, including ones excluded from score
+matrices. Each sample's availability result contains its own diagnostics. To
+display unavailable production as NA alongside measured zeros:
+
+```python
+unit = res.availability_results  # pooled mode
+# For sample_aware: unit = res.availability_results["availability_by_sample"]["D1"]
+production_status = unit["production_diagnostics"][["production_status", "production_evaluable"]]
+P_display = unit["P"].reindex(production_status.index)  # excluded rows become NA
+```
+
+In `sample_aware` mode, evaluable zero samples participate in medians, IQR,
+`n_samples_coobserved`, cell-count/QC summaries, and the denominator of
+`event_prevalence`. An absent sender or receiver cell type remains NA and is
+excluded from that event's sample denominator. For example, scores
+`[0.474342, 0, NA]` give a median of `0.237171`, two co-observed samples, and
+positive prevalence `0.5`. Zero production never implies absent endpoint cells.
+
+Both inference modes retain measured all-zero metabolites as zero-score events.
+When permutations are run, a zero observed score has `perm_pvalue=1`; with
+`n_perms=0`, p-values remain NA. Previous versions discarded all-zero P rows,
+which could omit evaluable samples from summaries. Rerun affected analyses:
+sample medians/prevalence can change, and adding evaluable zero events expands
+the FDR correction family in either mode.
+
+Availability currently follows the shared gene columns in the supplied AnnData
+object. If upstream processing filled unavailable measurements with zeros,
+the matrix alone cannot recover their missingness; that requires separate
+measurement-availability information. Zeros are never used to infer missing genes.
+
 ### Sensor Table Columns
-```
-ID, HMDB_ID, standard_metName, Gene_name, Protein_name, Annotation, Database source, Reference
-```
+
+| Meaning | Standard column | Accepted aliases | Required field |
+|---|---|---|---|
+| Metabolite display name | `metabolite` | `standard_metName`, `standard_metname` | Yes |
+| HMDB identifier | `hmdb_id` | `HMDB_ID` | Yes |
+| Sensor gene | `sensor_gene` | `Gene_name`, `gene_name`, `gene` | Yes |
+| Sensor type | `sensor_type` | `Annotation`, `annotation` | Yes |
+| Source | `source` | `Database source`, `database_source` | No |
+| Protein name | `protein_name` | `Protein_name` | No |
+| Reference | `reference` | `Reference` | No |
+| Evidence | `evidence_level` | None | No |
+
+The first four fields are required; provide one recognized column for each.
+Column names are matched exactly. The current `Interaction1.41.csv` supplies
+`Gene_name`, which is renamed to `sensor_gene` and used for expression matching.
+Interaction rows represent one sensor gene each. Multiple sensors must be
+separate rows: Interaction gene fields are not split on `;`, `,`, or `|`, and do
+not parse Enzyme-style `[evidence]` suffixes.
+
+Both `load_cell_mesh_database()` and `run_cell_mesh()` apply these rules to CSV
+and DataFrame inputs before gene filtering or pair deduplication:
+
+1. Exact duplicate column names raise an error, even when their values agree.
+   CSV headers are checked before pandas can rename duplicates to `.1`.
+2. All coexisting standard/alias columns are compared row by row, including
+   aliases without a standard column. Equivalent values merge; missing values
+   are filled from populated aliases. Conflicting populated values raise an
+   error identifying the field, columns, values, and 1-based data-row positions
+   (plus DataFrame index labels).
+3. HMDB values are stripped and compared in uppercase. Genes, metabolite names,
+   and source/protein/reference metadata are compared as stripped, case-sensitive
+   text. Sensor types are compared by their normalized category. Missing types
+   are filled before applying the `Other receptor` fallback.
+4. Equivalent values retain the populated standard value, or the first populated
+   alias in the order listed above. This preserves existing display/provenance
+   text; gene, HMDB, and type values then undergo their normal normalization.
+   Consumed alias columns are removed. Other metadata, such as `ID`,
+   `Interaction_mode`, and `STITCH_evidence`, is retained.
+5. `Annotation`/`annotation` originals fill missing `evidence_level` values.
+   Distinct annotation texts with the same normalized category are joined with
+   `; ` in alias order; duplicate texts after trimming are kept once. Populated
+   `evidence_level` values take precedence. Evidence never weights a score.
+
+For example, `sensor_gene=S1` with `Gene_name=S1` merges; a blank `sensor_gene`
+with `Gene_name=S1` is filled; `sensor_gene=S1` with `Gene_name=S2` raises.
+These are different-name aliases, so checking duplicate headers alone cannot
+replace the row-wise comparison. Both gene aliases empty still remove the row;
+records without an HMDB identifier or a measured sensor gene are excluded during
+runtime validation. Use the recommended three sensor categories explicitly.
+
+CSV inputs use UTF-8 (a BOM is accepted), with column names in the first row.
+Recognized text fields preserve leading zeros and literal `NA` values; actual
+blank cells remain missing. For DataFrames, required fields must be columns,
+not only index levels. Save normalized tables with `to_csv(index=False)`.
 
 The packaged interaction database does not define a quantitative sensor
 `weight`. Legacy/custom sensor `weight` columns are ignored and removed during
 prior validation; receiver scoring depends only on expression and its selected
 positive-value reference.
 
-Runtime prior validation also guarantees one row per
+Database loading and runtime prior validation guarantee one row per
 `canonical_hmdb_id + sensor_gene`. Repeated rows with the same sensor type keep
 their first metadata record and cannot duplicate communication events. If the
-same HMDB/sensor pair has multiple sensor types, validation raises an error
-because silently choosing one would make sensor-type-specific FDR ambiguous.
+same HMDB/sensor pair has multiple sensor types, loading raises an error before
+deduplication for both CSV and DataFrame inputs, including pairs whose genes
+are absent from a later expression dataset. Silently choosing a type by row
+order would make sensor-type-specific FDR ambiguous.
 
 ## Supported Sensor Types
 
-From the `Annotation` column in the packaged interaction CSV:
+After normalization from `sensor_type`, `Annotation`, or `annotation`:
+
 - `Cell surface receptor`
 - `Transporter`
 - `Other receptor`
+
+Type values are stripped and matched without case sensitivity. Text containing
+`cell surface` or `surface receptor` maps to `Cell surface receptor`; otherwise,
+text containing `transport` maps to `Transporter`. Other or missing values map
+to `Other receptor`. Simultaneous nonempty aliases must agree after this mapping;
+an explicit `Other receptor` is a populated type, not a blank eligible for fallback.
 
 ## Main Outputs
 
@@ -510,16 +868,21 @@ Contains one row per communication event. Important columns:
 
 ### Other Outputs
 - `res.sender_scores`: `(metabolite, hmdb_id)` × cell type matrix of availability
-  scores; sample-aware mode uses the across-sample median.
+  scores; sample-aware mode groups by HMDB ID for the across-sample median, then
+  reattaches the name in the display index.
 - `res.receiver_scores`: Table of sensor scores per metabolite-sensor-cell type
-  combination; sample-aware component columns use across-sample medians.
+  combination; sample-aware component columns use across-sample medians grouped
+  by `hmdb_id + sensor_gene + receiver`. Names and sensor types are annotations.
 - `res.availability_results`: Dictionary containing abundance-adjusted raw
   `P`/`C`/`E` capacities, continuous `P_score`/`C_score`/`E_score` matrices,
   per-metabolite `P_ref`/`C_ref`/`E_ref` positive-value references,
   `pce_reference`, `receiver_reference`, per-cell pseudobulk means,
   `cell_counts`, `cell_fractions`, `celltype_qc`, `sender_abundance_weights`,
   `sender_abundance_exponent`, reaction counts, `consumption_status`,
-  `export_status`, and other intermediate results. Only the formal continuous
+  `export_status`, `production_status`, `production_evaluable`, and other
+  intermediate results. `metadata` stays aligned to score matrices;
+  `production_diagnostics` also includes unscorable Enzyme-prior metabolites.
+  Only the formal continuous
   score matrices are exposed; obsolete signed contrasts and score aliases are
   no longer returned.
 - In pooled mode, `res.celltype_qc` and
@@ -530,8 +893,45 @@ Contains one row per communication event. Important columns:
   counts, and explicitly named min-cells pass-count summaries. Sample event
   rows carry the same three endpoint/pair flags as pooled events. NA indicates
   that the sample-level event was not computable (for example, an endpoint was
-  unobserved or no production availability was available), never merely that
-  an observed unit failed min-cells QC.
+  unobserved), never merely that an observed unit failed min-cells QC or had
+  evaluable zero production. Computed zeros keep their cell counts and QC flags.
+
+### Export Results
+
+Call `res.to_csv(prefix)` explicitly to export results; `run_cell_mesh()` does
+not write these files automatically. The parent directory must already exist.
+
+```python
+import json
+import pandas as pd
+
+res.to_csv("analysis")
+sender_scores = pd.read_csv(
+    "analysis.sender_scores.csv",
+    dtype={"metabolite": "string", "hmdb_id": "string"},
+    float_precision="round_trip",
+).set_index(["metabolite", "hmdb_id"])
+with open("analysis.parameters.json", encoding="utf-8") as stream:
+    parameters = json.load(stream)
+```
+
+Exports include `<prefix>.events.csv`, `.sender_scores.csv`,
+`.receiver_scores.csv`, and `.parameters.json`. When present, `.celltype_qc.csv`,
+`.sample_validation.csv`, `.sample_sender_scores.csv`,
+`.sample_receiver_scores.csv`, and `.sample_events.csv` are also written.
+Existing files with these names are overwritten.
+
+Sender score CSVs contain `metabolite` and `hmdb_id` as ordinary columns;
+sample sender scores also contain `sample`. These identifiers are written once,
+even if the score table was already converted with `reset_index()`.
+Event and receiver tables retain their existing columns, and QC index labels
+are preserved as columns. Conflicting column names raise an error before any
+files are written. Empty score tables retain identifier headers.
+
+This exports the result tables and parameters, including sample-level missing
+values as empty CSV fields. CSV does not store pandas dtype metadata;
+`availability_results` intermediates, DataFrame attributes, and stored
+permutation null matrices are not included.
 
 ## Notes
 - **Transcriptomics-only**: CELL MESH estimates metabolite availability using expression proxies and prior knowledge. Direct metabolomics, spatial data, or perturbation experiments should be used to validate predictions.
@@ -555,4 +955,4 @@ Contains one row per communication event. Important columns:
 - **Multiple-testing correction**: Both inference modes report `fdr_global`
   across all events and `fdr_sensor_type` corrected separately within each
   sensor type.
-- **Permutation null**: Empirical p-values compare each observed full event key (`sender`, `receiver`, `metabolite`, `hmdb_id`, `sensor_gene`, `sensor_type`) against the same key after cell-type label permutation. Static priors and relevant expression columns are compiled once; permutation scoring evaluates only retained observed keys and accumulates exceedance counts online. `n_jobs` controls deterministic batch parallelism. In sample-aware mode, the full null matrix is stored only with `store_null_scores=True`.
+- **Permutation null**: Empirical p-values compare each observed event key (`sender`, `receiver`, `hmdb_id`, `sensor_gene`) against the same key after cell-type label permutation. Names and sensor types are annotations, excluded from event matching and null indices; sensor type still determines the stratified FDR group. Static priors and relevant expression columns are compiled once; permutation scoring evaluates only retained observed keys and accumulates exceedance counts online. `n_jobs` controls deterministic batch parallelism. In sample-aware mode, the full null matrix is stored only with `store_null_scores=True`, with the four identity fields as its index levels.

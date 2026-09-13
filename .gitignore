@@ -11,6 +11,11 @@ __pycache__/
 data/
 *.h5ad
 
+# 仅保留数据库目录中的输入规范，测试数据库及其他目录内容继续忽略
+!/cellmesh/data/
+/cellmesh/data/*
+!/cellmesh/data/README.md
+
 # 忽略日志文件
 *.log
 

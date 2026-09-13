@@ -21,4 +21,4 @@ dev = ["pytest", "matplotlib"]
 include = ["cellmesh*"]
 
 [tool.setuptools.package-data]
-"cellmesh.data" = ["*.csv", "*.h5ad"]
+"cellmesh.data" = ["*.csv", "*.h5ad", "README.md"]

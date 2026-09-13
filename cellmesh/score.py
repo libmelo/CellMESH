@@ -7,7 +7,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
-from scipy.stats import gmean
+
+from ._numerics import _check_numeric_result, _positive_reference_scores, _reaction_activity
 
 from .config import (
     METABOLITE_AVAILABILITY_DEFAULTS,
@@ -16,14 +17,19 @@ from .config import (
     PCE_REFERENCE_METHODS,
     RECEIVER_REFERENCE_METHODS,
     ROLE_TO_DIRECTION,
-    VALID_ROLES,
 )
-from .database import _normalize_hmdb_series, _valid_hmdb_mask
+from .database import (
+    _normalize_hmdb_id, _prior_metabolite_names, _valid_hmdb_mask,
+    normalize_enzyme_database,
+)
 from .preprocess import (
     _all_celltype_counts,
     _build_celltype_pseudobulk,
     _compute_celltype_fractions,
     _compute_celltype_expr_frac,
+    _normalized_label_series,
+    _validate_scoring_expression,
+    _validated_gene_names,
 )
 
 
@@ -39,7 +45,10 @@ def _resolve_cell_fractions(
         fractions = _compute_celltype_fractions(adata, celltype_col)
     else:
         fractions = pd.Series(cell_fractions, dtype=float).copy()
-        fractions.index = fractions.index.astype(str)
+        fractions.index = pd.Index(_normalized_label_series(
+            pd.Series(fractions.index, dtype=object), "cell_fractions index",
+            reject_collisions=False,
+        ))
         if fractions.index.has_duplicates:
             raise ValueError("cell_fractions must contain one value per cell type")
         supplied_values = pd.to_numeric(fractions, errors="coerce").to_numpy(dtype=float)
@@ -135,6 +144,92 @@ def _validate_min_expr_frac(value: Any) -> Optional[float]:
     return fraction
 
 
+def _validate_boolean(value: Any, name: str) -> bool:
+    """Do not interpret strings such as 'False' through Python truthiness."""
+    if not isinstance(value, (bool, np.bool_)):
+        raise TypeError(f"{name} must be a boolean")
+    return bool(value)
+
+
+def _summary_axis(values, name: str) -> pd.Index:
+    labels = pd.Index(_normalized_label_series(
+        pd.Series(values, dtype=object), name, reject_collisions=False,
+    ))
+    if labels.has_duplicates:
+        duplicates = labels[labels.duplicated()].unique().tolist()
+        raise ValueError(f"{name} must be unique after normalization: {duplicates[:10]}")
+    return labels
+
+
+def _summary_coverage(actual, required, name: str, *, exact: bool = True) -> None:
+    missing = required.difference(actual)
+    extra = actual.difference(required) if exact else pd.Index([])
+    if len(missing) or len(extra):
+        raise ValueError(
+            f"{name} does not match current AnnData: "
+            f"missing={missing.tolist()[:10]}, unexpected={extra.tolist()[:10]}"
+        )
+
+
+def _summary_numbers(frame: pd.DataFrame, name: str) -> np.ndarray:
+    # Never discard imaginary parts, interpret booleans as counts, or coerce
+    # invalid text to missing data. Numeric text may be converted explicitly.
+    for column in frame.columns:
+        values = frame[column]
+        if (pd.api.types.is_bool_dtype(values.dtype)
+                or pd.api.types.is_complex_dtype(values.dtype)
+                or pd.api.types.is_datetime64_any_dtype(values.dtype)
+                or pd.api.types.is_timedelta64_dtype(values.dtype)
+                or (not pd.api.types.is_numeric_dtype(values.dtype) and any(
+                    isinstance(v, (bool, np.bool_, complex, np.complexfloating))
+                    for v in values
+                ))):
+            raise TypeError(f"{name} must contain real numeric values, not booleans, complex values or dates")
+    try:
+        return frame.apply(pd.to_numeric, errors="raise").to_numpy(dtype=float, na_value=np.nan)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{name} must contain real numeric values") from exc
+
+
+def _checked_receiver_summary(value, *, name, counts, genes, required_genes):
+    if not isinstance(value, pd.DataFrame):
+        raise TypeError(f"{name} must be a pandas DataFrame")
+    frame = value.copy(deep=False)
+    frame.index = _summary_axis(value.index, f"{name} index")
+    frame.columns = _summary_axis(value.columns, f"{name} columns")
+    _summary_coverage(frame.index, counts.index, f"{name} cell types")
+    _summary_coverage(genes, frame.columns, f"{name} genes", exact=False)
+    _summary_coverage(frame.columns, required_genes, f"{name} required sensor genes", exact=False)
+    # Use the actual observed groups and measured prior genes, never the cache
+    # itself, to define coverage. Dropping B changes A's positive reference;
+    # filling B with zero also changes the scientific meaning of the input.
+    # Unrelated expression columns may contain overflow and are not scored.
+    selected = frame.loc[counts.index, required_genes]
+    values = _summary_numbers(selected, name)
+    if np.any(~np.isfinite(values)) or np.any(values < 0):
+        raise ValueError(f"{name} must be finite and non-negative")
+    if name == "expr_frac" and np.any(values > 1):
+        raise ValueError("expr_frac must be between 0 and 1 inclusive")
+    return pd.DataFrame(values, index=counts.index, columns=required_genes)
+
+
+def _checked_receiver_counts(value, observed: pd.Series) -> pd.Series:
+    if not isinstance(value, pd.Series):
+        raise TypeError("cell_counts must be a pandas Series")
+    counts = value.copy(deep=False)
+    counts.index = _summary_axis(value.index, "cell_counts index")
+    _summary_coverage(counts.index, observed.index, "cell_counts cell types")
+    values = _summary_numbers(counts.reindex(observed.index).to_frame(), "cell_counts")[:, 0]
+    if (np.any(~np.isfinite(values)) or np.any(values <= 0)
+            or np.any(values != np.floor(values))):
+        raise ValueError("cell_counts must contain finite positive integer counts")
+    if np.any(values != observed.to_numpy()):
+        raise ValueError("cell_counts must match actual observed cell counts in current AnnData")
+    # Only return integer counts after validation; int(1.9) must never hide an
+    # invalid input. Counts come from obs, not a full expression recomputation.
+    return observed.copy()
+
+
 def compute_sensor_scores(
     adata,
     sensor_prior: pd.DataFrame,
@@ -161,16 +256,39 @@ def compute_sensor_scores(
     cell-type means; ``receiver_reference="mean"`` selects their unweighted
     arithmetic mean. Positive expression is normalized continuously as
     ``R / (R + R_ref)``. Zero expression remains zero.
+
+    Optional summaries must cover exactly the cell types observed in this
+    AnnData (the current sample for sample-aware calls) and every measured
+    prior sensor gene. Axes are normalized and aligned without mutating inputs.
+    Unused categorical levels are not observed groups. Relevant means must be
+    finite and non-negative; fractions must be in [0, 1]; cell counts must match
+    obs. These checks do not prove that cached values came from this X/layer;
+    callers remain responsible for cache provenance.
     """
     min_cells = _validate_min_cells(min_cells)
     min_expr_frac = _validate_min_expr_frac(min_expr_frac)
     receiver_reference = _validate_receiver_reference(receiver_reference)
+    # Cached summaries cannot prove that the underlying cell values are valid.
+    _validate_scoring_expression(adata, sensor_prior["sensor_gene"], layer)
+    observed_counts = _all_celltype_counts(adata, celltype_col)
+    genes = _validated_gene_names(adata)
+    valid_genes = pd.Index([g for g in sensor_prior["sensor_gene"].unique() if g in genes])
     if pseudobulk is None:
         pseudobulk = _build_celltype_pseudobulk(adata, celltype_col, layer)
     if expr_frac is None:
         expr_frac = _compute_celltype_expr_frac(adata, celltype_col, layer)
     if cell_counts is None:
-        cell_counts = _all_celltype_counts(adata, celltype_col)
+        cell_counts = observed_counts
+    else:
+        cell_counts = _checked_receiver_counts(cell_counts, observed_counts)
+    pseudobulk = _checked_receiver_summary(
+        pseudobulk, name="pseudobulk", counts=observed_counts,
+        genes=genes, required_genes=valid_genes,
+    )
+    expr_frac = _checked_receiver_summary(
+        expr_frac, name="expr_frac", counts=observed_counts,
+        genes=genes, required_genes=valid_genes,
+    )
     cell_fractions = _resolve_cell_fractions(
         adata,
         pseudobulk,
@@ -178,8 +296,7 @@ def compute_sensor_scores(
         cell_fractions=cell_fractions,
     )
 
-    valid_genes = [g for g in sensor_prior["sensor_gene"].unique() if g in pseudobulk.columns]
-    if not valid_genes:
+    if len(valid_genes) == 0:
         return pd.DataFrame(
             columns=[
                 "metabolite",
@@ -198,22 +315,12 @@ def compute_sensor_scores(
     sensor_gene_scores = {}
     for gene in valid_genes:
         expr_values = pseudobulk[gene].to_numpy(dtype=float)
-        if np.any(~np.isfinite(expr_values)) or np.any(expr_values < 0.0):
-            raise ValueError(
-                "receiver pseudobulk expression must be finite and non-negative"
-            )
-
-        positive = expr_values > 0.0
-        scores = np.zeros_like(expr_values, dtype=float)
-        if positive.any():
-            positive_values = expr_values[positive]
-            if receiver_reference == "mean":
-                reference = float(np.mean(positive_values))
-            else:
-                reference = float(np.median(positive_values))
-            scores[positive] = positive_values / (positive_values + reference)
+        scores, _ = _positive_reference_scores(
+            expr_values, receiver_reference, "receiver pseudobulk expression",
+        )
         sensor_gene_scores[gene] = pd.Series(scores, index=pseudobulk.index)
 
+    display_names = _prior_metabolite_names(sensor_prior)
     rows = []
     for _, row in sensor_prior.iterrows():
         gene = row["sensor_gene"]
@@ -228,7 +335,7 @@ def compute_sensor_scores(
 
             rows.append(
                 {
-                    "metabolite": row["metabolite"],
+                    "metabolite": display_names.get(_normalize_hmdb_id(row["hmdb_id"]), row["hmdb_id"]),
                     "hmdb_id": row["hmdb_id"],
                     "sensor_gene": gene,
                     "sensor_type": row["sensor_type"],
@@ -250,78 +357,45 @@ def _normalize_enzyme_metabolite(enzyme_metabolite: pd.DataFrame) -> pd.DataFram
     """
     Normalize enzyme-metabolite prior rows for availability scoring.
     """
-    df = enzyme_metabolite.copy()
-
-    if "hmdb_id" not in df.columns and "HMDB_ID" in df.columns:
-        df["hmdb_id"] = df["HMDB_ID"]
-    if "direction" not in df.columns:
-        if "role" not in df.columns:
-            raise ValueError("enzyme_metabolite must contain either 'role' or 'direction'")
-        df["role"] = df["role"].astype(str).str.lower()
-        df = df[df["role"].isin(VALID_ROLES)]
-        df["direction"] = df["role"].map(ROLE_TO_DIRECTION)
-    else:
-        df["direction"] = df["direction"].replace({"transporter": "exporter"})
-
-    required_cols = ["metabolite", "hmdb_id", "gene", "direction"]
-    for col in required_cols:
-        if col not in df.columns:
-            raise ValueError(f"enzyme_metabolite is missing required column: {col}")
-
-    if "reaction" not in df.columns:
-        raise ValueError("enzyme_metabolite is missing required column: reaction")
-    invalid_reaction = df["reaction"].isna() | df["reaction"].astype(str).str.strip().eq("")
-    if invalid_reaction.any():
-        raise ValueError("enzyme_metabolite reaction values must be non-empty")
-    df["reaction"] = df["reaction"].astype(str).str.strip()
-    df["hmdb_id"] = _normalize_hmdb_series(df["hmdb_id"])
-    df = df[_valid_hmdb_mask(df["hmdb_id"])]
-    df = df[df["direction"].isin({"product", "substrate", "exporter"})]
+    # 与数据库读取共用标准化规则，不能另设方向别名映射或优先使用原始
+    # direction，否则直接调用 availability 与 run_cell_mesh 会得到不同的 E。
+    # 回归测试：test_public_availability_entrypoints_share_prior_normalization。
+    df = normalize_enzyme_database(enzyme_metabolite)
+    df = df.loc[_valid_hmdb_mask(df["hmdb_id"])].copy()
+    df["direction"] = df["role"].map(ROLE_TO_DIRECTION)
 
     return df[["metabolite", "hmdb_id", "reaction", "gene", "direction"]].reset_index(drop=True)
 
 
 def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
     """
-    Group genes by canonical HMDB ID, reaction, and direction.
+    Group normalized single-gene rows by canonical HMDB ID, reaction, and direction.
 
-    The first metabolite name observed for an HMDB ID is retained only as
-    display metadata. Gene symbols are deduplicated within each reaction. For
+    The first non-empty metabolite name for an HMDB ID, or the ID itself, is
+    retained only as display metadata. Gene symbols are deduplicated within each reaction. For
     the same HMDB ID and direction, only maximal gene sets contribute: exact
     duplicates are retained once, strict subsets are omitted, and partially
     overlapping sets that are not subsets of one another remain intact.
+    These are complete prior gene sets, including unmeasured genes. Expression
+    availability is considered only when computing the retained reactions.
     """
     df = reaction_table.copy()
     if df.empty:
         return pd.DataFrame(columns=["metabolite", "hmdb_id", "reaction", "direction", "genes"])
 
-    canonical_names = (
-        df.drop_duplicates("hmdb_id", keep="first")
-        .set_index("hmdb_id")["metabolite"]
-        .to_dict()
-    )
+    canonical_names = _prior_metabolite_names(df)
 
     def get_reaction_id(row):
         return (str(row["hmdb_id"]), str(row["reaction"]), str(row["direction"]))
 
-    def parse_genes(gene_str):
-        if pd.isna(gene_str) or gene_str == "":
-            return []
-        for sep in [";", ",", "|"]:
-            if sep in gene_str:
-                genes = [g.strip() for g in gene_str.split(sep)]
-                genes = [g.split("[")[0].strip() for g in genes]
-                return [g for g in genes if g]
-        gene = gene_str.split("[")[0].strip()
-        return [gene] if gene else []
-
     df["_reaction_id"] = df.apply(get_reaction_id, axis=1)
-    df["_genes"] = df["gene"].apply(parse_genes)
 
+    # 多基因字段已由 normalize_enzyme_database 在表达基因匹配前统一拆分。
+    # 此处不要再独立解析分隔符或注释，否则主流程、直接评分与置换会分歧。
     reaction_dict = {}
     for _, row in df.iterrows():
         rid = row["_reaction_id"]
-        genes = row["_genes"]
+        gene = row["gene"]
 
         if rid not in reaction_dict:
             reaction_dict[rid] = {
@@ -332,9 +406,8 @@ def _get_reaction_gene_sets(reaction_table: pd.DataFrame) -> pd.DataFrame:
                 "genes": [],
             }
 
-        for gene in genes:
-            if gene not in reaction_dict[rid]["genes"]:
-                reaction_dict[rid]["genes"].append(gene)
+        if gene not in reaction_dict[rid]["genes"]:
+            reaction_dict[rid]["genes"].append(gene)
 
     candidates = []
     seen_gene_sets: Dict[tuple[str, str], set[frozenset[str]]] = {}
@@ -390,6 +463,18 @@ def _build_prior_role_coverage(
     return coverage
 
 
+def _production_evaluable_mask(hmdb_ids, prior_role_coverage) -> np.ndarray:
+    """Select production priors with at least one measured reaction gene."""
+    # 观测与置换必须共用“生成基因可用”条件，不能为提速改回 P > 0。
+    # 基因已测得但 P 全零是可计算的零分，必须参与样本中位数和阳性比例；
+    # 反应基因全部不可用时，内部容量的占位 0 不能当作测得的零表达。
+    # 回归测试：tests/test_production_evaluability.py。
+    return np.asarray(
+        [bool(prior_role_coverage.get((str(hmdb), "product"), False)) for hmdb in hmdb_ids],
+        dtype=bool,
+    )
+
+
 def _compute_reaction_scores(
     pseudobulk: pd.DataFrame,
     reaction_genes: pd.DataFrame,
@@ -407,11 +492,15 @@ def _compute_reaction_scores(
         valid_gene_idx = [i for i, g in enumerate(row["genes"]) if g in pseudobulk.columns]
 
         if not valid_gene_idx:
+            # Numerical placeholder only. Production evaluability is checked
+            # separately before this reaction can contribute a scored event.
             scores.append(pd.Series(0.0, index=pseudobulk.index))
         else:
+            # 去重已使用完整基因集合；此处才选可测得基因。缺失基因不当作
+            # 零表达基因，完全不可测得的反应容量为 0，并保留其先验证据状态。
             valid_genes = [row["genes"][i] for i in valid_gene_idx]
             expr = pseudobulk[valid_genes].values
-            geo_mean = gmean(expr + 1, axis=1) - 1
+            geo_mean = _reaction_activity(expr)
             scores.append(pd.Series(geo_mean, index=pseudobulk.index))
 
     reaction_index = pd.MultiIndex.from_tuples(
@@ -451,20 +540,15 @@ def _compute_PCE_matrices(
         hmdb = info["hmdb_id"]
         met_idx = metabolites_dict[str(hmdb)]
 
-        if direction == "product":
-            P.loc[met_idx] += reaction_scores.loc[rid]
-        elif direction == "substrate":
-            C.loc[met_idx] += reaction_scores.loc[rid]
-        elif direction == "exporter":
-            E.loc[met_idx] += reaction_scores.loc[rid]
+        with np.errstate(over="ignore", invalid="ignore"):
+            if direction == "product":
+                P.loc[met_idx] += reaction_scores.loc[rid]
+            elif direction == "substrate":
+                C.loc[met_idx] += reaction_scores.loc[rid]
+            elif direction == "exporter":
+                E.loc[met_idx] += reaction_scores.loc[rid]
 
     return {"P": P, "C": C, "E": E}
-
-
-def _safe_hmdb_compare(row: pd.Series, hmdb: Optional[str]) -> bool:
-    if pd.isna(row["hmdb_id"]) or pd.isna(hmdb):
-        return False
-    return str(row["hmdb_id"]) == str(hmdb)
 
 
 def _score_PCE_by_reference(
@@ -488,23 +572,7 @@ def _score_PCE_by_reference(
     C_ref = pd.Series(np.nan, index=P.index, dtype=float, name="C_ref")
     E_ref = pd.Series(np.nan, index=P.index, dtype=float, name="E_ref")
     def normalize(values: np.ndarray) -> tuple[np.ndarray, float]:
-        x = np.asarray(values, dtype=float)
-        score = np.zeros_like(x, dtype=float)
-        if np.any(~np.isfinite(x)):
-            raise ValueError("P/C/E capacities must be finite and non-negative")
-        if np.any(x < 0.0):
-            raise ValueError("P/C/E capacities must be finite and non-negative")
-        positive = x > 0.0
-        if not positive.any():
-            return score, np.nan
-
-        if pce_reference == "mean":
-            reference = float(np.mean(x[positive]))
-        else:
-            reference = float(np.median(x[positive]))
-        denominator = x[positive] + reference
-        score[positive] = x[positive] / denominator
-        return score, reference
+        return _positive_reference_scores(values, pce_reference, "P/C/E capacities")
 
     for met_idx in P.index:
         p_score, p_ref = normalize(P.loc[met_idx].to_numpy())
@@ -547,6 +615,11 @@ def compute_metabolite_availability(
     """
     Compute sender scores from continuously normalized P/C/E capacities.
 
+    Enzyme DataFrames use the same schema normalization and role/direction
+    conflict checks as :func:`run_cell_mesh`. Raw field aliases and standard
+    role tables are supported; export, exporter, and the legacy transporter
+    direction all denote export evidence.
+
     Reaction activity is multiplied by ``cell_fraction`` raised to
     ``sender_abundance_exponent`` before P/C/E construction. The default of
     1.0 preserves linear population-capacity scoring, while 0.0 removes the
@@ -564,11 +637,15 @@ def compute_metabolite_availability(
     ``min_cells`` only annotates cell-count QC;
     all observed cell types contribute to pseudobulk, fractions, references,
     and scores. ``_prior_role_coverage`` is an internal
-    sidecar used by :func:`run_cell_mesh` to distinguish a genuinely missing
-    C/E relation from a relation whose genes are unavailable in the expression
-    matrix; it never contributes to P/C/E calculation.
+    sidecar used by :func:`run_cell_mesh` to distinguish a missing relation from
+    one whose genes are unavailable. Production requires at least one measured
+    gene; evaluable zero capacities retain zero scores in both inference modes.
+    Metadata stays aligned to score matrices. A separate production_diagnostics
+    table covers all enzyme-prior metabolites, including unscorable ones, with
+    production_status and production_evaluable explaining their inclusion.
     """
     min_cells = _validate_min_cells(min_cells)
+    return_intermediates = _validate_boolean(return_intermediates, "return_intermediates")
     sender_abundance_exponent = _validate_sender_abundance_exponent(
         sender_abundance_exponent
     )
@@ -579,6 +656,11 @@ def compute_metabolite_availability(
     # participate in pseudobulk construction, abundance adjustment, P/C/E
     # references, and formal scores.
     cell_counts = _all_celltype_counts(adata, celltype_col)
+    parsed_reactions = _normalize_enzyme_metabolite(enzyme_metabolite)
+    reaction_genes = _get_reaction_gene_sets(parsed_reactions)
+    _validate_scoring_expression(
+        adata, (gene for genes in reaction_genes["genes"] for gene in genes), layer,
+    )
     pseudobulk = _build_celltype_pseudobulk(adata, celltype_col=celltype_col, layer=layer)
     expr_frac = _compute_celltype_expr_frac(adata, celltype_col=celltype_col, layer=layer)
     cell_fractions = _resolve_cell_fractions(
@@ -597,8 +679,6 @@ def compute_metabolite_availability(
     )
     celltype_qc.index.name = celltype_col
 
-    parsed_reactions = _normalize_enzyme_metabolite(enzyme_metabolite)
-    reaction_genes = _get_reaction_gene_sets(parsed_reactions)
     prior_role_coverage = (
         _build_prior_role_coverage(enzyme_metabolite, pseudobulk.columns)
         if _prior_role_coverage is None
@@ -608,6 +688,7 @@ def compute_metabolite_availability(
     sender_abundance_weights = cell_fractions.pow(sender_abundance_exponent)
     sender_abundance_weights.name = "sender_abundance_weight"
     reaction_scores = reaction_scores.mul(sender_abundance_weights, axis="columns")
+    _check_numeric_result(reaction_scores.to_numpy(), "abundance-adjusted reaction activity")
     PCE = _compute_PCE_matrices(reaction_scores, reaction_genes)
     P, C, E = PCE["P"], PCE["C"], PCE["E"]
     for name, matrix in PCE.items():
@@ -618,7 +699,48 @@ def compute_metabolite_availability(
                 "check the selected expression layer and enzyme prior"
             )
 
-    valid_mets = P.index[P.sum(axis=1) > 0]
+    def prior_state(met_idx, direction, capacity):
+        key = (str(met_idx[1]), direction)
+        if key not in prior_role_coverage:
+            return "prior_missing"
+        if not prior_role_coverage[key]:
+            return "prior_gene_unavailable"
+        if bool((capacity.loc[met_idx] > 0.0).any()):
+            return "supported"
+        return "prior_no_expression"
+
+    # Keep an audit record even when production is unscorable. Otherwise a
+    # removed P row loses the distinction between absent prior and absent genes.
+    metadata = pd.DataFrame(index=P.index)
+    reaction_counts = reaction_genes.groupby(["hmdb_id", "direction"], sort=False).size().to_dict()
+    for column, direction in [
+        ("n_product_reactions", "product"),
+        ("n_substrate_reactions", "substrate"),
+        ("n_exporter_reactions", "exporter"),
+    ]:
+        metadata[column] = np.asarray(
+            [reaction_counts.get((str(hmdb), direction), 0) for _, hmdb in P.index],
+            dtype=int,
+        )
+    for column, direction, capacity in [
+        ("consumption_status", "substrate", C),
+        ("export_status", "exporter", E),
+        ("production_status", "product", P),
+    ]:
+        metadata[column] = pd.Series(
+            [prior_state(met_idx, direction, capacity) for met_idx in P.index],
+            index=P.index, dtype=object,
+        )
+    metadata["production_evaluable"] = _production_evaluable_mask(
+        P.index.get_level_values("hmdb_id"), prior_role_coverage,
+    )
+    production_diagnostics = metadata[
+        ["n_product_reactions", "production_status", "production_evaluable"]
+    ].copy()
+    valid_mets = P.index[metadata["production_evaluable"]]
+    # Existing callers use metadata indices to select P/C/E rows. Keep that
+    # alignment while the separate diagnostics retain unscorable metabolites.
+    metadata = metadata.loc[valid_mets].copy()
     if len(valid_mets) == 0:
         empty_index = P.index[:0]
         empty_matrix = pd.DataFrame(
@@ -626,19 +748,10 @@ def compute_metabolite_availability(
             columns=P.columns,
             dtype=float,
         )
-        metadata = pd.DataFrame(index=empty_index)
-        for column in [
-            "n_product_reactions",
-            "n_substrate_reactions",
-            "n_exporter_reactions",
-        ]:
-            metadata[column] = pd.Series(index=empty_index, dtype=int)
-        for column in ["consumption_status", "export_status"]:
-            metadata[column] = pd.Series(index=empty_index, dtype=object)
-
         result = {
             "availability": empty_matrix.copy(),
             "metadata": metadata,
+            "production_diagnostics": production_diagnostics,
             "pce_reference": pce_reference,
             "export_weight": export_weight,
             "celltype_qc": celltype_qc,
@@ -683,6 +796,7 @@ def compute_metabolite_availability(
     C_score = scored["C_score"]
     E_score = scored["E_score"]
     denominator = P_score + C_score
+    _check_numeric_result(denominator.to_numpy(), "sender normalization denominator")
     base_availability = (
         P_score.pow(2)
         .div(denominator.where(denominator > 0.0))
@@ -690,34 +804,9 @@ def compute_metabolite_availability(
         .clip(lower=0.0, upper=1.0)
     )
 
-    def prior_state(
-        met_idx: tuple[Any, Any],
-        direction: str,
-        capacity: pd.DataFrame,
-    ) -> str:
-        _, hmdb = met_idx
-        key = (str(hmdb), direction)
-        has_prior = key in prior_role_coverage
-        has_usable_gene = bool(prior_role_coverage.get(key, False))
-        if not has_prior:
-            return "prior_missing"
-        if not has_usable_gene:
-            return "prior_gene_unavailable"
-        if bool((capacity.loc[met_idx] > 0.0).any()):
-            return "supported"
-        return "prior_no_expression"
-
-    consumption_states = {
-        met_idx: prior_state(met_idx, "substrate", C)
-        for met_idx in P.index
-    }
-    export_states = {
-        met_idx: prior_state(met_idx, "exporter", E)
-        for met_idx in P.index
-    }
-
     E_effective = pd.DataFrame(0.0, index=P.index, columns=P.columns, dtype=float)
-    for met_idx, state in export_states.items():
+    for met_idx in P.index:
+        state = metadata.at[met_idx, "export_status"]
         if state == "supported":
             E_effective.loc[met_idx] = E_score.loc[met_idx]
         elif state in {"prior_missing", "prior_gene_unavailable"}:
@@ -725,27 +814,14 @@ def compute_metabolite_availability(
         # ``prior_no_expression`` remains zero: the prior is evaluable and
         # supplies direct evidence that exporter expression is absent.
     E_factor = (1.0 - export_weight) + export_weight * E_effective
-    availability = (base_availability * E_factor).clip(lower=0.0, upper=1.0)
-
-    metadata = pd.DataFrame(index=P.index)
-    metadata["n_product_reactions"] = [
-        sum(_safe_hmdb_compare(row, hmdb) and row["direction"] == "product" for _, row in reaction_genes.iterrows())
-        for _, hmdb in P.index
-    ]
-    metadata["n_substrate_reactions"] = [
-        sum(_safe_hmdb_compare(row, hmdb) and row["direction"] == "substrate" for _, row in reaction_genes.iterrows())
-        for _, hmdb in P.index
-    ]
-    metadata["n_exporter_reactions"] = [
-        sum(_safe_hmdb_compare(row, hmdb) and row["direction"] == "exporter" for _, row in reaction_genes.iterrows())
-        for _, hmdb in P.index
-    ]
-    metadata["consumption_status"] = [consumption_states[met_idx] for met_idx in P.index]
-    metadata["export_status"] = [export_states[met_idx] for met_idx in P.index]
+    availability = base_availability * E_factor
+    _check_numeric_result(availability.to_numpy(), "sender scores")
+    availability = availability.clip(lower=0.0, upper=1.0)
 
     result = {
         "availability": availability.astype(float),
         "metadata": metadata,
+        "production_diagnostics": production_diagnostics,
         "pce_reference": pce_reference,
         "export_weight": export_weight,
         "celltype_qc": celltype_qc,

@@ -455,9 +455,15 @@ def test_all_zero_product_keeps_receiver_schema_and_intermediates():
         n_perms=0,
     )
 
-    assert result.events.empty
-    assert result.sender_scores.shape == (0, 2)
+    # A measured production gene with zero expression is evaluable. Its zero
+    # events must remain available to sample summaries and permutation tests.
+    assert len(result.events) == 4
+    assert result.events["cell_mesh_score"].eq(0.0).all()
+    assert result.sender_scores.shape == (1, 2)
+    assert result.sender_scores.eq(0.0).all().all()
     assert result.sender_scores.columns.tolist() == ["A", "B"]
+    assert result.availability_results["metadata"]["production_status"].tolist() == ["prior_no_expression"]
+    assert result.availability_results["metadata"]["production_evaluable"].all()
     assert set(result.receiver_scores["receiver"]) == {"A", "B"}
     assert result.availability_results["pseudobulk"].shape == (2, 2)
     assert result.availability_results["expr_frac"].shape == (2, 2)

@@ -2,19 +2,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Sequence
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
 from scipy import sparse
-from scipy.stats import gmean
+
+from ._numerics import _check_numeric_result, _positive_reference_scores, _reaction_activity
 
 from .config import MISSING_EXPORT_SCORE
 from .database import _normalize_hmdb_id
+from .preprocess import (
+    _grouped_expression_mean,
+    _validate_expression_values,
+    _validated_celltype_labels,
+    _validated_gene_names,
+    _validated_obs_labels,
+)
 from .score import (
     _build_prior_role_coverage,
     _get_reaction_gene_sets,
     _normalize_enzyme_metabolite,
+    _production_evaluable_mask,
 )
 
 
@@ -55,9 +64,11 @@ class CompiledPermutationScorer:
         self.export_weight = float(export_weight)
         self.receiver_reference = receiver_reference
 
+        # As in observed scoring, deduplicate complete reaction gene sets before
+        # selecting measured columns. Filtering genes first changes subset rules.
         parsed = _normalize_enzyme_metabolite(enzyme_prior)
         reaction_genes = _get_reaction_gene_sets(parsed)
-        measured_genes = pd.Index(adata.var_names).astype(str)
+        measured_genes = _validated_gene_names(adata)
         measured_set = set(measured_genes)
         sensor_genes = [
             str(gene)
@@ -77,7 +88,9 @@ class CompiledPermutationScorer:
         gene_positions = measured_genes.get_indexer(selected_genes)
         source = adata.layers[layer] if layer is not None else adata.X
         self.X = source[:, gene_positions]
-        self._validate_expression(self.X)
+        # Same raw-value rule as observed scoring; validate once at compilation,
+        # never inside the repeated label-shuffling/scoring loop.
+        _validate_expression_values(self.X, layer=layer)
         self.gene_to_col = {gene: i for i, gene in enumerate(selected_genes)}
 
         self.reactions: list[tuple[int, str, np.ndarray]] = []
@@ -105,6 +118,9 @@ class CompiledPermutationScorer:
             if prior_role_coverage is None
             else dict(prior_role_coverage)
         )
+        self.production_evaluable = _production_evaluable_mask(
+            (hmdb for _, hmdb in self.metabolites), self.prior_role_coverage,
+        )
 
         self.event_met = np.asarray(
             [
@@ -121,13 +137,18 @@ class CompiledPermutationScorer:
         self.event_receiver = observed_events["receiver"].astype(str).to_numpy()
         self.n_events = len(observed_events)
 
-        labels = adata.obs[cell_type_key].astype(str).to_numpy()
+        # 这里必须使用与观测评分相同的标准化标识，不能直接 astype(str)。
+        # 若观测为 A 而置换仍为 " A "，事件匹配会失败并被当作零分，
+        # 使本应为 1 的 p 值变为 1/(n_perms+1)。基因名和样本名同样共用
+        # 标准化规则；仅在编译时处理一次，不在每次置换中重复清理。
+        # 回归测试：tests/test_identifier_normalization.py。
+        labels = _validated_celltype_labels(adata, cell_type_key).to_numpy()
         self.original_labels = labels
+        samples = _validated_obs_labels(adata, sample_key).to_numpy() if sample_key is not None else None
         exponent = float(sender_abundance_exponent)
         if sample_mode == "sample_aware":
             if sample_key is None:
                 raise ValueError("sample_aware permutation scoring requires sample_key")
-            samples = adata.obs[sample_key].astype(str).to_numpy()
             self.sample_indices = [
                 np.flatnonzero(samples == sample)
                 for sample in pd.unique(samples)
@@ -139,21 +160,11 @@ class CompiledPermutationScorer:
         else:
             all_indices = np.arange(len(labels), dtype=int)
             self.sample_indices = (
-                [np.flatnonzero(adata.obs[sample_key].astype(str).to_numpy() == sample)
-                 for sample in pd.unique(adata.obs[sample_key].astype(str).to_numpy())]
+                [np.flatnonzero(samples == sample) for sample in pd.unique(samples)]
                 if sample_key is not None
                 else [all_indices]
             )
             self.group_plans = [self._make_group_plan(all_indices, labels, exponent)]
-
-    @staticmethod
-    def _validate_expression(X: Any) -> None:
-        values = X.data if sparse.issparse(X) else np.asarray(X)
-        values = np.asarray(values, dtype=float)
-        if np.any(~np.isfinite(values)) or np.any(values < 0.0):
-            raise ValueError(
-                "permutation-scoring expression must be finite and non-negative"
-            )
 
     @staticmethod
     def _make_group_plan(
@@ -168,11 +179,14 @@ class CompiledPermutationScorer:
         codes = np.asarray([group_to_code[str(label)] for label in local_labels], dtype=int)
         counts = np.bincount(codes, minlength=len(group_names)).astype(float)
         fractions = counts / float(len(indices))
+        with np.errstate(over="ignore", invalid="ignore"):
+            abundance_weights = np.power(fractions, exponent)
+        _check_numeric_result(abundance_weights, "permutation abundance weights")
         return _GroupPlan(
             cell_indices=np.asarray(indices, dtype=int),
             group_names=group_names,
             counts=counts,
-            abundance_weights=np.power(fractions, exponent),
+            abundance_weights=abundance_weights,
         )
 
     def permute_codes(self, rng: np.random.Generator) -> np.ndarray:
@@ -183,20 +197,19 @@ class CompiledPermutationScorer:
         return out.astype(str)
 
     @staticmethod
-    def _normalize_rows(values: np.ndarray, method: str) -> np.ndarray:
+    def _normalize_rows(
+        values: np.ndarray,
+        method: str,
+        *,
+        evaluable: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Normalize eligible rows while retaining compiled metabolite indices."""
         scores = np.zeros_like(values, dtype=float)
-        for i in range(values.shape[0]):
-            row = values[i]
-            positive = row > 0.0
-            if not positive.any():
-                continue
-            positive_values = row[positive]
-            reference = (
-                float(np.mean(positive_values))
-                if method == "mean"
-                else float(np.median(positive_values))
+        rows = range(values.shape[0]) if evaluable is None else np.flatnonzero(evaluable)
+        for i in rows:
+            scores[i], _ = _positive_reference_scores(
+                values[i], method, "P/C/E capacities",
             )
-            scores[i, positive] = positive_values / (positive_values + reference)
         return scores
 
     def _pseudobulk(
@@ -209,17 +222,20 @@ class CompiledPermutationScorer:
         codes = np.asarray([group_to_code[str(label)] for label in local_labels], dtype=int)
         indicator = sparse.csr_matrix(
             (
-                np.ones(len(codes), dtype=float),
+                np.ones(len(codes), dtype=np.float64),
                 (codes, np.arange(len(codes), dtype=int)),
             ),
             shape=(len(plan.group_names), len(codes)),
         )
         local_x = self.X[plan.cell_indices, :]
-        sums = indicator @ local_x
+        pseudobulk = _grouped_expression_mean(local_x, indicator, plan.counts)
+        # 原始值只需检查一次，但重新分组可能让求和溢出。因此每次置换的
+        # 中间结果都必须检查，不能用观测评分通过校验来替代。
+        _check_numeric_result(pseudobulk, "permutation pseudobulk expression")
+        # Keep X > 0 aligned with observed expression fractions. Do not use
+        # nnz/getnnz as a shortcut: stored zeros must not pass expression gates.
         positive = indicator @ (local_x > 0.0)
-        sums = sums.toarray() if sparse.issparse(sums) else np.asarray(sums)
         positive = positive.toarray() if sparse.issparse(positive) else np.asarray(positive)
-        pseudobulk = np.asarray(sums, dtype=float) / plan.counts[:, None]
         expr_frac = np.asarray(positive, dtype=float) / plan.counts[:, None]
         return pseudobulk, expr_frac
 
@@ -239,17 +255,31 @@ class CompiledPermutationScorer:
         for met_idx, direction, cols in self.reactions:
             if len(cols) == 0:
                 continue
-            activity = gmean(pseudobulk[:, cols] + 1.0, axis=1) - 1.0
-            capacities[direction][met_idx] += activity * plan.abundance_weights
+            activity = _reaction_activity(pseudobulk[:, cols])
+            with np.errstate(over="ignore", invalid="ignore"):
+                capacities[direction][met_idx] += activity * plan.abundance_weights
+
+        # Inf/NaN must be rejected before positive masks, where(), or clipping
+        # can turn the failure into a plausible zero score.
+        for direction, capacity in capacities.items():
+            _check_numeric_result(capacity, f"permutation {direction} capacities")
 
         P = capacities["product"]
         C = capacities["substrate"]
         E = capacities["exporter"]
-        valid_met = P.sum(axis=1) > 0.0
-        P_score = self._normalize_rows(P, self.pce_reference)
-        C_score = self._normalize_rows(C, self.pce_reference)
-        E_score = self._normalize_rows(E, self.pce_reference)
+        # Gene availability is fixed during label shuffling. A computed all-zero
+        # sample must enter the same median as observed scoring, not become NA.
+        valid_met = self.production_evaluable
+        # 必须在归一化前应用与观测相同的可计算性筛选；仅在提取观测事件时
+        # 过滤太晚，会对已排除代谢物的 C/E 求无用参考值，甚至造成溢出。
+        # 不能改为 P > 0；可计算的零值仍需参与。原始表达和容量校验仍在上游。
+        # 保留全长数组，未计算行用 0 占位，并由 valid_met 排除，避免索引错位。
+        # 回归测试：tests/test_permutation_evaluability.py。
+        P_score = self._normalize_rows(P, self.pce_reference, evaluable=valid_met)
+        C_score = self._normalize_rows(C, self.pce_reference, evaluable=valid_met)
+        E_score = self._normalize_rows(E, self.pce_reference, evaluable=valid_met)
         denominator = P_score + C_score
+        _check_numeric_result(denominator, "permutation sender normalization denominator")
         base = np.divide(
             P_score ** 2,
             denominator,
@@ -264,23 +294,16 @@ class CompiledPermutationScorer:
             elif np.any(E[met_idx] > 0.0):
                 E_effective[met_idx] = E_score[met_idx]
         factor = (1.0 - self.export_weight) + self.export_weight * E_effective
-        availability = np.clip(base * factor, 0.0, 1.0)
+        availability = base * factor
+        _check_numeric_result(availability, "permutation sender scores")
+        availability = np.clip(availability, 0.0, 1.0)
 
         receiver_scores: dict[int, np.ndarray] = {}
         for gene_col in set(self.sensor_gene_to_col.values()):
             values = pseudobulk[:, gene_col]
-            score = np.zeros(n_groups, dtype=float)
-            positive_mask = values > 0.0
-            if positive_mask.any():
-                positive_values = values[positive_mask]
-                reference = (
-                    float(np.mean(positive_values))
-                    if self.receiver_reference == "mean"
-                    else float(np.median(positive_values))
-                )
-                score[positive_mask] = positive_values / (
-                    positive_values + reference
-                )
+            score, _ = _positive_reference_scores(
+                values, self.receiver_reference, "receiver pseudobulk expression",
+            )
             if self.min_expr_frac is not None:
                 score[expr_frac[:, gene_col] < self.min_expr_frac] = 0.0
             receiver_scores[gene_col] = score
@@ -319,6 +342,7 @@ class CompiledPermutationScorer:
         )
         group_to_idx = {name: i for i, name in enumerate(plan.group_names)}
         out = np.full(self.n_events, structural_missing, dtype=float)
+        computed = np.zeros(self.n_events, dtype=bool)
         for event_idx in range(self.n_events):
             met_idx = self.event_met[event_idx]
             gene_col = self.event_sensor_col[event_idx]
@@ -337,4 +361,8 @@ class CompiledPermutationScorer:
                 availability[met_idx, sender_idx]
                 * receiver_scores[gene_col][receiver_idx]
             )
+            computed[event_idx] = True
+        # Only deliberately uncomputable sample-event slots may contain NaN.
+        # Check computed slots before sample nanmedian can skip numerical NaN.
+        _check_numeric_result(out[computed], "permutation event scores")
         return out

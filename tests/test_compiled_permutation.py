@@ -74,10 +74,12 @@ def _aligned_scores(events, observed):
     ("use_sparse", "pce_reference", "receiver_reference"),
     [(False, "mean", "median"), (True, "median", "mean")],
 )
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_compiled_pooled_scores_match_full_recomputation(
-    use_sparse, pce_reference, receiver_reference
+    use_sparse, pce_reference, receiver_reference, dtype
 ):
     adata, _, _, enzyme, sensor, kwargs = _case()
+    adata.X = adata.X.astype(dtype)
     if use_sparse:
         adata.X = sparse.csr_matrix(adata.X)
     kwargs["pce_reference"] = pce_reference
@@ -111,7 +113,8 @@ def test_compiled_pooled_scores_match_full_recomputation(
             s, r, allow_self=True, cell_counts=a["cell_counts"], min_cells=1
         )
         np.testing.assert_allclose(
-            scorer.score(labels), _aligned_scores(events, observed), atol=1e-12
+            scorer.score(labels), _aligned_scores(events, observed),
+            rtol=1e-12, atol=1e-14,
         )
 
 
@@ -119,10 +122,12 @@ def test_compiled_pooled_scores_match_full_recomputation(
     ("use_sparse", "pce_reference", "receiver_reference"),
     [(False, "mean", "median"), (True, "median", "mean")],
 )
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_compiled_sample_aware_scores_match_full_recomputation(
-    use_sparse, pce_reference, receiver_reference
+    use_sparse, pce_reference, receiver_reference, dtype
 ):
     adata, _, _, enzyme, sensor, kwargs = _case()
+    adata.X = adata.X.astype(dtype)
     if use_sparse:
         adata.X = sparse.csr_matrix(adata.X)
     kwargs["pce_reference"] = pce_reference
@@ -153,7 +158,8 @@ def test_compiled_sample_aware_scores_match_full_recomputation(
             availability_kwargs=kwargs, cell_fractions_by_sample=fractions,
         )
         np.testing.assert_allclose(
-            scorer.score(labels), _aligned_scores(events, observed), atol=1e-12
+            scorer.score(labels), _aligned_scores(events, observed),
+            rtol=1e-12, atol=1e-14,
         )
 
 

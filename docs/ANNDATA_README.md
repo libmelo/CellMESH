@@ -125,10 +125,45 @@ print(result.events.head())
 
 ### 10x 模式
 
-读取 10X Genomics Cell Ranger 的输出目录。目录应包含：
-- `matrix.mtx.gz` 或 `matrix.mtx`
-- `genes.tsv.gz` / `genes.tsv` / `features.tsv.gz` / `features.tsv`
-- `barcodes.tsv.gz` / `barcodes.tsv`
+读取 10X Genomics Cell Ranger 的输出目录。三个文件均无表头，文本文件使用 UTF-8，
+可带 BOM；各文件可独立选择未压缩或 gzip 形式：
+
+| 文件 | 内容及规范 |
+|---|---|
+| `matrix.mtx` 或 `matrix.mtx.gz` | 基因/特征 × 细胞的 Matrix Market 矩阵，读入后转为细胞 × 特征 |
+| legacy `genes.tsv` 或 `genes.tsv.gz` | 每条记录严格两列：基因 ID、基因符号 |
+| modern `features.tsv` 或 `features.tsv.gz` | 每条记录严格三列：基因 ID、基因符号、特征类型 |
+| `barcodes.tsv` 或 `barcodes.tsv.gz` | 每条记录严格一列：细胞 barcode |
+
+目录中每类文件必须唯一。压缩和未压缩版本并存，或同时存在 `genes.tsv` 和
+`features.tsv` 时会报告歧义；程序不猜测应采用哪一份。支持 `prefix="patient_"`
+读取 `patient_matrix.mtx` 等带统一前缀的文件。注释记录数必须与原始矩阵维度一致，
+空记录不跳过；格式错误报告文件及原始行位置。
+
+**标识和选择参数：**
+
+- `var_names="gene_symbols"`（默认）使用第二列基因符号作为 `adata.var_names`，
+  第一列保存在 `adata.var["gene_ids"]`。选择 `var_names="gene_ids"` 时反过来，
+  符号保存在 `adata.var["gene_symbols"]`。Enzyme 的 `gene` 和 Interaction 的
+  `sensor_gene` 必须与所选标识体系一致；读取器不自动转换两种体系。
+- 原始标识保持文本，`01`、`1`、`NA` 不合并。保留的基因轴和细胞轴必须非空，
+  首尾空白去除后不能重复。重复基因错误同时列出原始 ID、符号及记录位置。
+  不自动合并表达列或添加后缀；`make_unique=False` 可显式传入，`True` 会报错。
+  原本合法且唯一的 `G-1` 等名称照常保留。
+- `gex_only=True`（默认）在 modern 文件中只保留 `Gene Expression` 特征，
+  特征类型保存在 `adata.var["feature_types"]`。基因重复检查作用于保留的特征；
+  `gex_only=False` 时全部特征都必须满足所选标识的唯一性要求。legacy 文件不按类型筛选。
+- `cache`、`cache_compression` 保留 Scanpy 的数值矩阵缓存行为；原始文件仍须存在，
+  基因和 barcode 注释每次重新读取、校验。替换原始矩阵后应关闭或清理旧缓存。
+  `gex_only`、`make_unique`、`cache` 接受布尔值，不接受字符串 `"False"`。
+
+```python
+adata = cellmesh.read_anndata("path/to/10x_directory", mode="10x")
+# 仅在先验基因字段也使用这些 ID 时选择 gene_ids：
+adata_by_id = cellmesh.read_anndata(
+    "path/to/10x_directory", mode="10x", var_names="gene_ids", make_unique=False,
+)
+```
 
 **需要:** `scanpy` 包
 **安装:** `pip install -e ".[scanpy]"`
@@ -143,6 +178,42 @@ print(result.events.head())
 - `cell_id_col`: 细胞 ID 列名
 - `transpose`: 是否转置矩阵 (默认: False)
 
+**标识与重复检查：**
+
+- 第一列为行标识，其余列为表达量；默认细胞 × 基因，`transpose=True` 时按基因 × 细胞解释。
+  表头和最终轴标识均检查重复，首尾空格去除后重名也会报错，并指出名称及位置。
+- 原始表头在 pandas 自动改名之前检查。`PROD,PROD` 会报错；原本就叫 `PROD.1` 的合法列保留。
+  `usecols` 或显式 `names` 不会掩盖原始表头冲突。空的左上角表头允许存在，
+  实际细胞/基因标识必须非空且唯一，不自动合并或添加编号。
+- 细胞/基因标识从读取时保留文本，`01` 与 `1` 不同，字面 `NA`、`nan` 等不会被转换成缺失。
+  表达矩阵正文仍使用数值解析；`dtype` 和表达量列的 `converters` 可以继续使用。
+- 细胞和基因元数据的所有字段默认保留文本，因为后续分析可以选任意列作为样本或细胞类型。
+  元数据空字段仍是缺失值。年龄、计数等附加字段需要时显式转为数值；例如：
+
+```python
+import pandas as pd
+
+adata.obs["age"] = pd.to_numeric(adata.obs["age"], errors="raise")
+```
+
+元数据表头只允许首列留空，实际行标识必须非空；表头和行标识中的重复、
+首尾空格后的重名同样拒绝。元数据按原始文本标识对齐；未匹配的记录仍保留缺失，
+不会补成零。细胞/基因名中的首尾空格可由后续评分规范化，但导入时两份文件的对齐标识应一致。
+
+**读取参数与兼容范围：**
+
+CSV/TSV 使用 pandas 的 C 或 Python 解析器，支持单行表头（或 `header=None`）、
+`names`、分隔符、引号、编码、压缩、注释、跳过行、`nrows`、`usecols` 等常用参数。
+非表格前言可用 `skiprows` 跳过。完整读入后再建立 AnnData，不接受分块迭代结果、
+多层表头、`parse_dates` 或标识列转换器；第一列固定用于行标识。
+这些限制会明确报错，不会静默改变标识。
+
+**旧结果处理：**
+
+旧版本可能把重复基因表头改成 `.1`，或把样本 `01`、`1` 都读成整数 `1`。
+如果已发生这种信息丢失，应从原始文本文件重新读取并重跑分析；
+对旧 AnnData 再执行 `astype(str)` 无法恢复原始名称。
+
 ### Loom 模式
 
 读取 Loom 格式文件。
@@ -151,14 +222,22 @@ print(result.events.head())
 
 ### mtx 模式
 
-读取 Matrix Market 格式文件。
+读取 Matrix Market 格式文件，支持 `coordinate`（稀疏存储）和
+`array`（稠密存储），以及 `.mtx.gz` 压缩文件。这里区分的是文件存储格式。
 
 **MTX 额外参数:**
 - `genes_path`: 基因列表文件路径
 - `barcodes_path`: 细胞 barcode 文件路径
 
 MTX 矩阵按基因 × 细胞读取，并在构建 AnnData 时转为细胞 × 基因。提供的
-基因名或 barcode 数量必须与矩阵维度一致。
+基因名或 barcode 数量必须与矩阵维度一致。两种格式沿用同一转置和名称
+校验规则，保留原始表达值：`coordinate` 读取后的 `adata.X` 保持稀疏，
+`array` 则保持二维 NumPy 数组，单个基因或单个细胞也不压缩维度。
+
+名称文件无表头；基因文件有多列时使用第二列，barcode 使用第一列。
+`.csv`（含 `.csv.gz` 等压缩形式）按逗号读取，其余名称文件按制表符读取，
+单列文件不猜测分隔符。名称保留文本和前导零，字面 `NA` 等保持原值；
+空名称、重复名称和去除首尾空格后重名都会明确报错。
 
 **需要:** `anndata` 和 `scipy` 包，均已包含在 CELL MESH 核心依赖中。
 **安装:** `pip install -e .`

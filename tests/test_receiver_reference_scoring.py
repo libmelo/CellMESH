@@ -95,10 +95,10 @@ def test_receiver_single_positive_expression_maps_to_half():
 
 
 @pytest.mark.parametrize("invalid_expression", [-1.0, np.nan, np.inf])
-def test_receiver_rejects_invalid_pseudobulk_expression(invalid_expression):
+def test_receiver_rejects_invalid_expression_before_pseudobulk(invalid_expression):
     with pytest.raises(
         ValueError,
-        match="receiver pseudobulk expression must be finite and non-negative",
+        match="scoring expression must be finite and non-negative",
     ):
         compute_sensor_scores(
             _receiver_adata([1.0, invalid_expression]),

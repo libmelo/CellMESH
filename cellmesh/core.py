@@ -6,11 +6,14 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import json
 import os
 from typing import Optional, Dict, Any, Literal
 
 import numpy as np
 import pandas as pd
+
+from ._numerics import _check_numeric_result
 
 # 导入集中配置
 from .config import (
@@ -19,9 +22,12 @@ from .config import (
     MISSING_EXPORT_SCORE,
 )
 
-from .database import _normalize_hmdb_id, load_cell_mesh_database, validate_priors
+from .database import (
+    _normalize_hmdb_id, _prior_metabolite_names, load_cell_mesh_database, validate_priors,
+)
 from .score import (
     _build_prior_role_coverage,
+    _validate_boolean,
     _validate_export_weight,
     _validate_min_expr_frac,
     _validate_min_cells,
@@ -33,8 +39,11 @@ from .score import (
 )
 from .preprocess import (
     _compute_celltype_fractions,
+    _normalized_label_series,
+    _validate_scoring_expression,
     _validated_celltype_labels,
     _validated_gene_names,
+    _validated_obs_labels,
 )
 from .permutation import CompiledPermutationScorer
 
@@ -58,8 +67,14 @@ EVENT_COLUMNS = [
 ]
 
 SAMPLE_MODES = {"pooled_stratified", "sample_aware"}
-EVENT_KEY_COLUMNS = ["sender", "receiver", "metabolite", "hmdb_id", "sensor_gene", "sensor_type"]
-SAMPLE_AWARE_EVENT_COLUMNS = EVENT_KEY_COLUMNS + [
+# 身份只由 HMDB、受体基因及细胞类型上下文决定。名称允许缺失/别名，
+# 不得为提速或复用展示索引把 metabolite 放回分组键：groupby 会丢弃 NA
+# 名称或拆分别名。sensor_type 是经先验校验的注释，仍用于分类型 FDR。
+# 回归测试：tests/test_scoring_event_identity.py。
+EVENT_KEY_COLUMNS = ["sender", "receiver", "hmdb_id", "sensor_gene"]
+EVENT_ANNOTATION_COLUMNS = ["metabolite", "sensor_type"]
+SAMPLE_AWARE_EVENT_COLUMNS = [
+    "sender", "receiver", "metabolite", "hmdb_id", "sensor_gene", "sensor_type",
     "metabolite_availability_median",
     "sensor_score_median",
     "sensor_expr_frac_median",
@@ -80,6 +95,34 @@ SAMPLE_AWARE_EVENT_COLUMNS = EVENT_KEY_COLUMNS + [
 ]
 
 
+def _result_table_for_csv(
+    frame: pd.DataFrame,
+    table_name: str,
+    index_columns: tuple[str, ...] = (),
+) -> pd.DataFrame:
+    """保留结果标识，并在写文件前检查 CSV 表头是否有冲突。"""
+    index_to_export = [name for name in frame.index.names if name in index_columns]
+    headers = [str(name) for name in index_to_export + frame.columns.tolist()]
+    if len(headers) != len(set(headers)):
+        raise ValueError(f"{table_name}: duplicate CSV column names or index/column name conflict")
+
+    # sender_scores 的代谢物标识存于索引，不能直接 to_csv(index=False)。
+    # 只转换仍在索引中的标识；已 reset_index() 的表不再添加同名列。
+    # events/receiver_scores 的标识本来就是普通列，无需转换。
+    # 回归测试：tests/test_result_export.py。
+    table = frame.reset_index(level=index_to_export) if index_to_export else frame
+    missing = [name for name in index_columns if name not in table.columns]
+    if missing:
+        if len(table.index):
+            raise ValueError(f"{table_name}: missing identifier columns {missing}")
+        # 无可评分代谢物时，样本模式可能返回没有命名索引的空表。
+        # 仍保留标识表头，使空结果也能被 read_csv() 读取。
+        table = table.copy()
+        for name in reversed(missing):
+            table.insert(0, name, pd.Series(dtype=object))
+    return table
+
+
 @dataclass
 class CellMeshResult:
     """CELL MESH 运行结果容器"""
@@ -94,18 +137,49 @@ class CellMeshResult:
     sample_events: Optional[pd.DataFrame] = None
     celltype_qc: Optional[pd.DataFrame] = None
 
-    def to_csv(self, prefix: str) -> None:
+    def to_csv(self, prefix: str | os.PathLike[str]) -> None:
         """
-        将结果保存为 CSV 文件
+        将结果表保存为 CSV，并将运行参数保存为 JSON。
+
+        评分表和 QC 表的命名索引转为普通列，标识只输出一次。
+        存在样本级结果时一并导出；不导出 availability_results 中间量。
 
         参数:
-            prefix: 保存路径前缀
+            prefix: 保存路径前缀；父目录须已存在，同名文件会被覆盖。
         """
-        self.events.to_csv(f"{prefix}.events.csv", index=False)
-        self.sender_scores.to_csv(f"{prefix}.sender_scores.csv", index=False)
-        self.receiver_scores.to_csv(f"{prefix}.receiver_scores.csv", index=False)
-        if self.celltype_qc is not None:
-            self.celltype_qc.to_csv(f"{prefix}.celltype_qc.csv")
+        index_columns = {
+            "events": (),
+            "sender_scores": ("metabolite", "hmdb_id"),
+            "receiver_scores": (),
+            "celltype_qc": (
+                tuple(name for name in self.celltype_qc.index.names if name is not None)
+                if self.celltype_qc is not None else ()
+            ),
+            "sample_validation": (),
+            "sample_sender_scores": ("sample", "metabolite", "hmdb_id"),
+            "sample_receiver_scores": (),
+            "sample_events": (),
+        }
+        tables = {
+            name: _result_table_for_csv(frame, name, keys)
+            for name, keys in index_columns.items()
+            if (frame := getattr(self, name)) is not None
+        }
+
+        def json_parameter(value):
+            # random_state 等参数可由调用者传入 NumPy 标量。
+            if isinstance(value, np.generic):
+                return value.item()
+            raise TypeError(f"Parameter of type {type(value).__name__} is not JSON serializable")
+
+        # 先验证全部表头和参数，避免格式错误发生时已写出部分文件。
+        parameters_json = json.dumps(
+            self.parameters, ensure_ascii=False, indent=2, default=json_parameter,
+        )
+        for name, table in tables.items():
+            table.to_csv(f"{prefix}.{name}.csv", index=False, encoding="utf-8")
+        with open(f"{prefix}.parameters.json", "w", encoding="utf-8") as stream:
+            stream.write(parameters_json + "\n")
 
 
 def _bh_fdr(pvalues: np.ndarray) -> np.ndarray:
@@ -172,6 +246,11 @@ def _compute_availability_scores(
     返回:
         (sender_scores, receiver_scores, availability_results) 元组
     """
+    # Attach a consistent display name without changing identity or mutating
+    # either caller-owned prior. All sample units use the same complete priors.
+    display_names = _prior_metabolite_names(enzyme_prior, sensor_prior)
+    enzyme_prior = enzyme_prior.assign(metabolite=enzyme_prior["hmdb_id"].map(display_names))
+    sensor_prior = sensor_prior.assign(metabolite=sensor_prior["hmdb_id"].map(display_names))
     # Compute abundance-adjusted P/C/E and the continuous sender score.
     avail_results = compute_metabolite_availability(
         adata,
@@ -218,12 +297,7 @@ def _validate_sample_key(adata, sample_key: Optional[str], sample_mode: str) -> 
         raise ValueError("sample_aware mode requires a valid sample_key")
     if sample_key is None:
         return
-    if sample_key not in adata.obs:
-        raise KeyError(f"{sample_key!r} not found in adata.obs")
-    values = adata.obs[sample_key]
-    text = values.astype(str).str.strip()
-    if values.isna().any() or (text == "").any():
-        raise ValueError(f"{sample_key!r} must not contain NA or empty strings")
+    _validated_obs_labels(adata, sample_key)
 
 
 def _validate_n_perms(value: Any) -> int:
@@ -246,6 +320,15 @@ def _validate_n_jobs(value: Any) -> int:
     if workers < 1:
         raise ValueError("n_jobs must be -1 or greater than or equal to 1")
     return workers
+
+
+def _validate_random_state(value: Any) -> int:
+    """Validate the documented integer seed even when permutations are skipped."""
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        raise TypeError("random_state must be a non-negative integer")
+    if value < 0:
+        raise ValueError("random_state must be a non-negative integer")
+    return int(value)
 
 
 def _resolved_n_jobs(n_jobs: int) -> int:
@@ -280,8 +363,8 @@ def _compiled_permutation_scores(
 def _sample_validation_table(adata, sample_key: str, cell_type_key: str, min_cells: int) -> pd.DataFrame:
     obs = pd.DataFrame(
         {
-            "sample": adata.obs[sample_key].astype(str),
-            "cell_type": adata.obs[cell_type_key].astype(str),
+            "sample": _validated_obs_labels(adata, sample_key),
+            "cell_type": _validated_celltype_labels(adata, cell_type_key),
         }
     )
     validation = (
@@ -364,6 +447,18 @@ def _assign_fdr_columns(
     return out
 
 
+def _permutation_score_thresholds(observed_scores: np.ndarray) -> np.ndarray:
+    """Include float64 roundoff ties in one-sided permutation tail counts.
+
+    Use the same 100-epsilon relative tolerance convention as SciPy's
+    permutation_test. There is no absolute tolerance floor, so zero null
+    scores remain below even very small positive observed scores.
+    """
+    scores = np.asarray(observed_scores, dtype=np.float64)
+    tolerance = 100.0 * np.finfo(np.float64).eps * np.abs(scores)
+    return scores - tolerance
+
+
 def _sample_aware_empirical_pvalues(
     obs_events: pd.DataFrame,
     adata,
@@ -432,14 +527,17 @@ def _sample_aware_empirical_pvalues(
     )
     ge_counts = np.zeros(len(out), dtype=int)
     ge_counts[valid_values & ~score_mask] = n_perms
+    score_thresholds = _permutation_score_thresholds(obs_values[score_mask])
     null_columns = [] if store_null_scores else None
-    for perm_scores in _compiled_permutation_scores(
+    for permutation_index, perm_scores in enumerate(_compiled_permutation_scores(
         scorer,
         n_perms=n_perms,
         random_state=random_state,
         n_jobs=n_jobs,
-    ):
-        ge_counts[score_mask] += perm_scores >= obs_values[score_mask]
+    )):
+        # Numerical NaN compares False and would silently reduce the tail count.
+        _check_numeric_result(perm_scores, f"permutation {permutation_index + 1} event scores")
+        ge_counts[score_mask] += perm_scores >= score_thresholds
         if null_columns is not None:
             null_columns.append(perm_scores)
 
@@ -481,7 +579,9 @@ def _compute_sample_aware_scores(
     cell_fractions_by_sample: Optional[Dict[str, pd.Series]] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     min_cells = availability_kwargs.get("min_cells", METABOLITE_AVAILABILITY_DEFAULTS["min_cells"])
+    display_names = _prior_metabolite_names(enzyme_prior, sensor_prior)
     validation = _sample_validation_table(adata, sample_key, cell_type_key, min_cells)
+    sample_labels = _validated_obs_labels(adata, sample_key)
     if cell_fractions_by_sample is None:
         cell_fractions_by_sample = _sample_cell_fractions(validation)
     all_celltypes = pd.Index(sorted(validation["cell_type"].unique()))
@@ -497,8 +597,7 @@ def _compute_sample_aware_scores(
         # ``min_cells`` is carried only as a QC annotation.
         valid_sample_names.append(sample)
 
-        obs = adata.obs
-        mask = obs[sample_key].astype(str).values == sample
+        mask = sample_labels.to_numpy() == sample
         adata_sample = adata[mask, :].copy()
         sender_scores, receiver_scores, availability_results = _compute_availability_scores(
             adata_sample,
@@ -541,22 +640,29 @@ def _compute_sample_aware_scores(
         if sample_sender
         else pd.DataFrame(columns=all_celltypes)
     )
-    sender_scores = (
-        sample_sender_scores.groupby(level=["metabolite", "hmdb_id"]).median()
-        if not sample_sender_scores.empty
-        else pd.DataFrame()
-    )
+    if not sample_sender_scores.empty:
+        # Compute by ID, then restore the existing display index for consumers
+        # and CSV export. The name level must never select which samples count.
+        sender_scores = sample_sender_scores.groupby(level="hmdb_id").median()
+        sender_scores.index = pd.MultiIndex.from_arrays(
+            [sender_scores.index.map(display_names), sender_scores.index],
+            names=["metabolite", "hmdb_id"],
+        )
+        sender_scores = sender_scores.sort_index()
+    else:
+        sender_scores = pd.DataFrame()
 
     sample_receiver_scores = (
         pd.concat(sample_receiver, ignore_index=True)
         if sample_receiver
         else pd.DataFrame()
     )
-    receiver_key = ["metabolite", "hmdb_id", "sensor_gene", "sensor_type", "receiver"]
+    receiver_key = ["hmdb_id", "sensor_gene", "receiver"]
     if not sample_receiver_scores.empty:
         receiver_scores = (
             sample_receiver_scores.groupby(receiver_key, as_index=False)
             .agg(
+                sensor_type=("sensor_type", "first"),
                 sensor_score=("sensor_score", "median"),
                 sensor_expr_frac=("sensor_expr_frac", "median"),
                 receiver_n_cells=("receiver_n_cells", "sum"),
@@ -576,6 +682,12 @@ def _compute_sample_aware_scores(
             receiver_scores["n_samples_passing_min_cells"]
             / receiver_scores["n_observed_samples"]
         )
+        receiver_scores.insert(0, "metabolite", receiver_scores["hmdb_id"].map(display_names))
+        receiver_scores = receiver_scores[
+            ["metabolite", "hmdb_id", "sensor_gene", "sensor_type", "receiver"]
+            + [column for column in receiver_scores if column not in
+               {"metabolite", "hmdb_id", "sensor_gene", "sensor_type", "receiver"}]
+        ]
     else:
         receiver_scores = pd.DataFrame()
 
@@ -584,18 +696,27 @@ def _compute_sample_aware_scores(
         if sample_events
         else pd.DataFrame(columns=["sample"] + EVENT_COLUMNS)
     )
-    event_key = ["sender", "receiver", "metabolite", "hmdb_id", "sensor_gene", "sensor_type"]
+    event_key = EVENT_KEY_COLUMNS
     if not sample_events_df.empty:
-        event_index = sample_events_df[event_key].drop_duplicates()
+        event_annotations = sample_events_df[
+            event_key + EVENT_ANNOTATION_COLUMNS
+        ].drop_duplicates(event_key).copy()
+        event_annotations["metabolite"] = event_annotations["hmdb_id"].map(display_names)
+        event_index = event_annotations[event_key]
         sample_event_index = pd.MultiIndex.from_frame(
             event_index.merge(pd.DataFrame({"sample": valid_sample_names}), how="cross")[
                 event_key + ["sample"]
             ]
         )
         sample_events_complete = (
-            sample_events_df.set_index(event_key + ["sample"])
+            sample_events_df.drop(columns=EVENT_ANNOTATION_COLUMNS)
+            .set_index(event_key + ["sample"])
             .reindex(sample_event_index)
             .reset_index()
+            # Missing sample endpoints still have a known event identity and
+            # annotations. Reattach only those; scores/QC must remain NA.
+            .merge(event_annotations, on=event_key, how="left", validate="many_to_one")
+            .reindex(columns=["sample"] + EVENT_COLUMNS)
         )
         # Preserve the distinction between an event that is not computable in
         # this sample (NA) and a computed event that fails cell-count QC (False).
@@ -609,6 +730,8 @@ def _compute_sample_aware_scores(
             ].astype("boolean")
         sample_events_df = sample_events_complete
 
+        # 可评估的零生成样本已由共享评分路径保留为 0，必须进入 median/count
+        # 和阳性比例分母。不能 drop 掉零分，或把 reindex 产生的结构性 NA 填 0。
         grouped_scores = sample_events_df.groupby(event_key)["cell_mesh_score"]
         score_summary = grouped_scores.agg(
             event_score_median="median",
@@ -653,6 +776,7 @@ def _compute_sample_aware_scores(
         )
         events = (
             meta_summary.merge(score_summary, on=event_key, how="inner")
+            .merge(event_annotations, on=event_key, how="left", validate="one_to_one")
             .query("n_samples_coobserved > 0")
             .assign(
                 cell_mesh_score=lambda df: df["event_score_median"],
@@ -660,6 +784,7 @@ def _compute_sample_aware_scores(
             )
             .sort_values("cell_mesh_score", ascending=False, na_position="last")
             .reset_index(drop=True)
+            .reindex(columns=SAMPLE_AWARE_EVENT_COLUMNS)
         )
     else:
         events = pd.DataFrame(columns=SAMPLE_AWARE_EVENT_COLUMNS)
@@ -707,16 +832,20 @@ def _make_cell_mesh_events(
     if sender_scores.empty or receiver_scores.empty:
         return pd.DataFrame(columns=EVENT_COLUMNS)
 
+    if (not isinstance(sender_scores.index, pd.MultiIndex)
+            or sender_scores.index.names != ["metabolite", "hmdb_id"]):
+        raise ValueError(
+            "sender_scores must have a ('metabolite', 'hmdb_id') MultiIndex; "
+            "matching by metabolite name is not supported"
+        )
     rows = []
     for _, rr in receiver_scores.iterrows():
-        metabolite = rr["metabolite"]
         hmdb_id = rr.get("hmdb_id", np.nan)
-        if isinstance(sender_scores.index, pd.MultiIndex):
-            sender_matches = [
-                idx for idx in sender_scores.index if _same_hmdb(idx[1], hmdb_id)
-            ]
-        else:
-            sender_matches = [metabolite] if metabolite in sender_scores.index else []
+        # Never fall back to names when ID-bearing input is absent. Homonymous
+        # metabolites may have different IDs and must not create a false event.
+        sender_matches = [
+            idx for idx in sender_scores.index if _same_hmdb(idx[1], hmdb_id)
+        ]
 
         if not sender_matches:
             continue
@@ -749,8 +878,8 @@ def _make_cell_mesh_events(
                     {
                         "sender": sender,
                         "receiver": receiver,
-                        "metabolite": sender_idx[0] if isinstance(sender_idx, tuple) else metabolite,
-                        "hmdb_id": sender_idx[1] if isinstance(sender_idx, tuple) else hmdb_id,
+                        "metabolite": sender_idx[0],
+                        "hmdb_id": sender_idx[1],
                         "sensor_gene": rr["sensor_gene"],
                         "sensor_type": rr["sensor_type"],
                         "metabolite_availability": availability,
@@ -788,12 +917,12 @@ def _permute_labels(
     返回:
         置换后的标签
     """
-    vals = labels.astype(str).copy()
+    vals = _normalized_label_series(labels, "cell_type labels")
     out = vals.copy()
     if sample_labels is None:
         out[:] = rng.permutation(vals.values)
     else:
-        sample_text = sample_labels.astype(str)
+        sample_text = _normalized_label_series(sample_labels, "sample labels")
         for sample in sample_text.unique():
             idx = np.flatnonzero(sample_text.values == sample)
             out.iloc[idx] = rng.permutation(vals.iloc[idx].values)
@@ -889,13 +1018,15 @@ def _empirical_pvalues_by_sensor_type(
         prior_role_coverage=availability_kwargs.get("_prior_role_coverage"),
     )
     ge_counts[~active] = n_perms
-    for perm_values in _compiled_permutation_scores(
+    score_thresholds = _permutation_score_thresholds(obs_score[active])
+    for permutation_index, perm_values in enumerate(_compiled_permutation_scores(
         scorer,
         n_perms=n_perms,
         random_state=random_state,
         n_jobs=n_jobs,
-    ):
-        ge_counts[active] += perm_values >= obs_score[active]
+    )):
+        _check_numeric_result(perm_values, f"permutation {permutation_index + 1} event scores")
+        ge_counts[active] += perm_values >= score_thresholds
 
     # 计算 p 值
     p = (ge_counts + 1) / (n_perms + 1)
@@ -939,15 +1070,15 @@ def run_cell_mesh(
 
     参数:
         adata: AnnData 对象,包含单细胞表达数据
-        enzyme_metabolite: 标准化的酶-代谢物 DataFrame 或 CSV 路径(str/Path),默认为 None
-            CSV 路径通过 load_cell_mesh_database() 读取并标准化
+        enzyme_metabolite: 酶-代谢物 DataFrame 或 CSV 路径(str/Path),默认为 None
+            两种输入通过 load_cell_mesh_database() 统一标准化，接受 role 或 Direction/direction 表
             未传入或为 None 时,通过 load_cell_mesh_database() 加载并标准化
             cellmesh/data 下版本号最高的 Enzyme<version>.csv
             必需列:metabolite, hmdb_id, gene, role, reaction
             可选列:evidence_level, source
             role 取值:production (产生)、degradation (降解)、export (外排)
-        metabolite_sensor: 标准化的代谢物-传感器 DataFrame 或 CSV 路径(str/Path),默认为 None
-            CSV 路径通过 load_cell_mesh_database() 读取并标准化
+        metabolite_sensor: 代谢物-传感器 DataFrame 或 CSV 路径(str/Path),默认为 None
+            两种输入通过 load_cell_mesh_database() 统一标准化并检查传感器类型冲突
             未传入或为 None 时,通过 load_cell_mesh_database() 加载并标准化
             cellmesh/data 下版本号最高的 Interaction<version>.csv
             两个数据库独立选择最高版本;显式传入的先验表保持使用用户输入
@@ -955,9 +1086,9 @@ def run_cell_mesh(
         sample_key: 样本列名,用于置换检验时的样本内置换
         layer: 使用的表达层,None 表示使用 adata.X
         min_expr_frac: 可选 receiver 表达比例 gate；必须在 [0, 1]，None 表示不启用
-        allow_self: 是否允许自分泌通信
+        allow_self: 是否允许自分泌通信；只接受 Python/NumPy 布尔值
         n_perms: 非负整数置换检验次数，0 表示不进行置换检验
-        random_state: 随机种子
+        random_state: 非负 Python/NumPy 整数种子；即使不执行置换也会校验
         n_jobs: 置换评分线程数；-1 使用所有可用 CPU，默认 1
         store_null_scores: 是否保存 sample-aware 的完整 event × permutation
             null score 矩阵；默认 False，仅在线累计 exceedance counts
@@ -1032,15 +1163,18 @@ def run_cell_mesh(
     min_expr_frac = _validate_min_expr_frac(min_expr_frac)
     n_perms = _validate_n_perms(n_perms)
     n_jobs = _validate_n_jobs(n_jobs)
-    if not isinstance(store_null_scores, (bool, np.bool_)):
-        raise TypeError("store_null_scores must be a boolean")
-    store_null_scores = bool(store_null_scores)
+    # Validate before zero-permutation/empty-event shortcuts. String truthiness
+    # must not add self events and change the FDR family. Seed validation must
+    # not depend on whether the random-number generator happens to be reached.
+    allow_self = _validate_boolean(allow_self, "allow_self")
+    store_null_scores = _validate_boolean(store_null_scores, "store_null_scores")
+    random_state = _validate_random_state(random_state)
     if cell_type_key not in adata.obs:
         raise KeyError(f"{cell_type_key!r} not found in adata.obs")
     if len(adata.obs) == 0:
         raise ValueError("No observed cell types are available for analysis")
     _validated_celltype_labels(adata, cell_type_key)
-    _validated_gene_names(adata)
+    gene_names = _validated_gene_names(adata)
     sender_abundance_exponent = _validate_sender_abundance_exponent(
         sender_abundance_exponent
     )
@@ -1048,29 +1182,34 @@ def run_cell_mesh(
     export_weight = _validate_export_weight(export_weight)
     receiver_reference = _validate_receiver_reference(receiver_reference)
 
-    # 独立解析默认数据库、CSV 路径和已标准化的先验表
+    # 独立解析默认数据库、CSV 路径和 DataFrame，按字段结构统一标准化。
     for name, value in (("enzyme_metabolite", enzyme_metabolite), ("metabolite_sensor", metabolite_sensor)):
         if value is not None and not isinstance(value, (str, os.PathLike, pd.DataFrame)):
-            raise TypeError(f"{name} must be None, a CSV path, or a normalized pandas DataFrame")
+            raise TypeError(f"{name} must be None, a CSV path, or a pandas DataFrame")
     enzyme_metabolite, metabolite_sensor = load_cell_mesh_database(
         enzyme_file=enzyme_metabolite,
         interaction_file=metabolite_sensor,
     )
 
-    # Keep the unfiltered enzyme prior only for coverage-status reporting.
-    # Numerical scoring still uses the validated, expression-compatible prior.
-    prior_role_coverage = _build_prior_role_coverage(
-        enzyme_metabolite,
-        adata.var_names,
+    # 反应去重必须比较完整先验基因集合，不能为提速提前删除未测得基因。
+    # {G1, MISSING} 和 {G1, G2} 原本互不包含；先删 MISSING 会误删第一个
+    # 反应。观测、置换和证据状态共用完整先验，计算活性时才选择可测得基因。
+    # 回归测试：tests/test_enzyme_reaction_consistency.py。
+    enzyme_prior, sensor_prior = validate_priors(
+        enzyme_metabolite, metabolite_sensor, gene_names,
+        filter_enzyme_genes=False,
     )
 
-    # 验证先验
-    enzyme_prior, sensor_prior = validate_priors(enzyme_metabolite, metabolite_sensor, adata.var_names)
-
-    if enzyme_prior.empty:
+    if not enzyme_prior["gene"].isin(gene_names).any():
         raise ValueError("No enzyme prior genes found in adata.var_names")
     if sensor_prior.empty:
         raise ValueError("No sensor genes found in adata.var_names")
+    # Check both sides before any pooled/sample pseudobulk is built, including
+    # runs without permutations. Standalone scoring entrypoints also validate.
+    _validate_scoring_expression(
+        adata, list(enzyme_prior["gene"]) + list(sensor_prior["sensor_gene"]), layer,
+    )
+    prior_role_coverage = _build_prior_role_coverage(enzyme_prior, gene_names)
 
     # 计算 availability 和得分
     availability_kwargs = {

@@ -3,31 +3,150 @@ Single-cell data loading helpers.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
 
+from ._table_io import _delimited_records, _record_location
+
+
+def _checked_text_labels(values, *, context: str, allow_first_blank: bool = False) -> pd.Index:
+    """Keep literal identifiers while rejecting empty or ambiguous normalized names."""
+    labels = pd.Series(list(values), dtype="object")
+    normalized = labels.astype("string").str.strip()
+    empty = normalized.isna() | normalized.eq("")
+    if allow_first_blank and len(empty):
+        empty.iloc[0] = False
+    if empty.any():
+        positions = (np.flatnonzero(empty.to_numpy(dtype=bool)) + 1).tolist()
+        raise ValueError(f"{context}: empty identifiers at positions {positions[:10]}")
+    repeated = normalized.duplicated(keep=False)
+    if repeated.any():
+        details = []
+        for name in normalized[repeated].drop_duplicates().head(10):
+            positions = (np.flatnonzero(normalized.eq(name).to_numpy(dtype=bool)) + 1).tolist()
+            details.append(f"{name!r} at positions {positions}")
+        raise ValueError(f"{context}: duplicate identifiers after stripping whitespace: " + "; ".join(details))
+    return pd.Index(labels.astype(str), name=getattr(values, "name", None))
+
+
+def _csv_columns(path: Path, options: dict, *, context: str) -> pd.Index:
+    """Check original headers before pandas can rename duplicates to .1/.2."""
+    if options.get("chunksize") is not None or options.get("iterator", False):
+        raise ValueError("AnnData CSV/TSV loading requires a complete table, not an iterator")
+    if options.get("index_col") is not None:
+        raise ValueError("AnnData CSV/TSV loading uses the first selected column as its identifier")
+    if options.get("engine") == "pyarrow":
+        raise ValueError("AnnData CSV/TSV header validation requires engine='c' or engine='python'")
+    if options.get("parse_dates") is not None and options.get("parse_dates") is not False:
+        raise ValueError("AnnData CSV/TSV loading preserves text identifiers; parse_dates is not supported")
+
+    header = options.get("header", "infer")
+    names = options.get("names")
+    if header == "infer":
+        header = 0 if names is None else None
+    if header is not None and (
+        isinstance(header, (bool, np.bool_))
+        or not isinstance(header, (int, np.integer))
+        or header < 0
+    ):
+        raise ValueError("AnnData CSV/TSV loading requires one header row or header=None")
+
+    # Keep delimiter, quoting, compression, encoding, comments, and skipped rows
+    # identical to the data read. Only data conversion/selection is disabled.
+    probe = dict(options)
+    for key in ("names", "usecols", "dtype", "converters", "na_values", "dtype_backend"):
+        probe.pop(key, None)
+    probe.update(index_col=None, dtype=str, keep_default_na=False, na_filter=False,
+                 parse_dates=False, skipfooter=0)
+    if header is not None:
+        # A preamble before header=1, for example, may have fewer fields than
+        # the real header. Supply its width so pandas pads that preamble instead
+        # of treating the header itself as an over-wide data row.
+        width = len(pd.read_csv(path, **{**probe, "header": int(header), "nrows": 0}).columns)
+        raw = pd.read_csv(path, **{
+            **probe, "header": None, "names": list(range(width)), "nrows": int(header) + 1,
+        })
+        if len(raw) <= header:
+            raise ValueError(f"{context}: header row {header} is missing")
+        if not isinstance(raw.index, pd.RangeIndex):
+            raise ValueError(f"{context}: use skiprows for preamble rows wider than the header")
+        _checked_text_labels(raw.iloc[int(header)], context=f"{context} header", allow_first_blank=True)
+    if names is not None:
+        _checked_text_labels(names, context=f"{context} supplied names", allow_first_blank=True)
+
+    schema = pd.read_csv(path, **{
+        **probe, "header": options.get("header", "infer"), "names": names,
+        "usecols": options.get("usecols"), "nrows": 0,
+    })
+    if len(schema.columns) < 1:
+        raise ValueError(f"{context}: no identifier column is available")
+    return schema.columns
+
+
+def _read_text_matrix(path: Path, options: dict) -> pd.DataFrame:
+    """Read numeric expression while keeping the axis identifier as literal text."""
+    columns = _csv_columns(path, options, context=f"Expression file {path}")
+    identifier = columns[0]
+    converters = dict(options.get("converters") or {})
+    if identifier in converters or 0 in converters:
+        raise ValueError("A converter cannot replace the expression matrix identifier column")
+    # The Python parser still applies NA-token matching after a text converter.
+    # A one-item tuple protects the literal during parsing; unwrap only after
+    # the numeric columns have been read, before constructing the actual index.
+    converters[identifier] = lambda value: (value,)
+    read_options = {**options, "index_col": None, "converters": converters}
+    dtype = read_options.get("dtype")
+    if dtype is not None:
+        if isinstance(dtype, Mapping):
+            read_options["dtype"] = {key: value for key, value in dtype.items()
+                                     if key not in (identifier, 0)}
+        else:
+            read_options["dtype"] = {column: dtype for column in columns[1:]}
+
+    # 先将标识作为普通文本列读取，再设为索引。直接 index_col=0 即使有
+    # converter，pandas 仍可能把空表头下的 01 变成 1，或把字面 NA 变成缺失。
+    # 表达量继续使用数值解析；不能为方便将整个表达矩阵先读成字符串。
+    # 回归测试：tests/test_io_identifiers.py。
+    frame = pd.read_csv(path, **read_options)
+    if not isinstance(frame.index, pd.RangeIndex):
+        raise ValueError(f"Expression file {path}: data rows contain more fields than the header")
+    frame[identifier] = frame[identifier].map(lambda value: value[0])
+    return frame.set_index(identifier)
+
 
 def _read_metadata_table(path: Union[str, Path], id_col: Optional[str] = None) -> pd.DataFrame:
-    metadata = pd.read_csv(path)
+    path = Path(path)
+    options = {"encoding": "utf-8-sig"}
+    _csv_columns(path, options, context=f"Metadata file {path}")
+    # 分组列名可由 run_cell_mesh() 任意指定，因此所有元数据默认保留文本。
+    # 读取后再 astype(str) 无法恢复已合并的 01/1，也无法恢复被当作 NA 的文本。
+    # 只有空字段是真正的缺失；计数、年龄等附加字段由调用者显式转为数值。
+    metadata = pd.read_csv(path, **options, dtype=str, keep_default_na=False, na_values=[""])
+    if not isinstance(metadata.index, pd.RangeIndex):
+        raise ValueError(f"Metadata file {path}: data rows contain more fields than the header")
     if id_col is not None:
         if id_col not in metadata.columns:
             raise ValueError(f"{id_col!r} not found in {path}")
         metadata = metadata.set_index(id_col)
     else:
         metadata = metadata.set_index(metadata.columns[0])
-    metadata.index = metadata.index.astype(str)
+    metadata.index = _checked_text_labels(metadata.index, context=f"Metadata file {path} row identifiers")
     return metadata
 
 
 def _read_name_list(path: Union[str, Path], prefer_second_column: bool = False) -> list[str]:
     path = Path(path)
-    sep = "\t" if path.suffix.lower() in {".tsv", ".txt"} else None
-    table = pd.read_csv(path, sep=sep, engine="python", header=None, comment="#")
+    # Do not sniff a delimiter from a single-column barcode such as 001 or NA.
+    # Inner suffixes also recognize compressed .csv.gz/.tsv.gz name files.
+    sep = "," if ".csv" in [suffix.lower() for suffix in path.suffixes] else "\t"
+    table = pd.read_csv(path, sep=sep, header=None, comment="#", encoding="utf-8-sig",
+                        dtype=str, keep_default_na=False, na_values=[""], skip_blank_lines=False)
     column = 1 if prefer_second_column and table.shape[1] > 1 else 0
-    return table.iloc[:, column].astype(str).tolist()
+    return _checked_text_labels(table.iloc[:, column], context=f"Name file {path}").tolist()
 
 
 def read_anndata(
@@ -63,13 +182,109 @@ def _read_h5ad(path: Path, **kwargs):
     return anndata.read_h5ad(path, **kwargs)
 
 
-def _read_10x(path: Path, gex_only: bool = True, **kwargs):
+def _10x_file(path: Path, prefix: str, stems: tuple[str, ...]) -> Path:
+    candidates = [path / f"{prefix}{stem}{suffix}" for stem in stems for suffix in ("", ".gz")]
+    matches = [candidate for candidate in candidates if candidate.is_file()]
+    if not matches:
+        raise FileNotFoundError("10X file not found; expected one of: " + ", ".join(map(str, candidates)))
+    if len(matches) != 1:
+        raise ValueError("10X directory has ambiguous files: " + ", ".join(map(str, matches)))
+    return matches[0]
+
+
+def _10x_annotations(path: Path, width: int, *, keep_locations=True) -> tuple[pd.DataFrame, list[str]]:
+    rows, locations = [], []
+    # A blank barcode/feature record occupies a matrix position; never skip it.
+    with _delimited_records(path, delimiter="\t", skip_blank_lines=False) as records:
+        for start, end, row in records:
+            if len(row) != width:
+                raise ValueError(
+                    f"10X file {path}, {_record_location(start, end)}: "
+                    f"expected {width} fields, got {len(row)}"
+                )
+            rows.append(row)
+            if keep_locations:
+                locations.append(_record_location(start, end))
+    if not rows:
+        raise ValueError(f"10X file {path}: expected at least one annotation record")
+    return pd.DataFrame(rows, columns=range(width), dtype=object), locations
+
+
+def _read_10x(
+    path: Path, gex_only: bool = True, *, var_names: str = "gene_symbols",
+    make_unique: bool = False, prefix: Optional[str] = None, cache: bool = False,
+    **kwargs,
+):
+    """Read raw 10X labels before matrix loading; never manufacture gene IDs.
+
+    Accept legacy genes.tsv and modern features.tsv, each plain or gzip, with
+    optional prefixes. Scanpy still handles numerical matrix loading/caching;
+    raw annotations are revalidated even when a matrix cache is used.
+    """
+    for name, value in (("gex_only", gex_only), ("make_unique", make_unique), ("cache", cache)):
+        if not isinstance(value, (bool, np.bool_)):
+            raise TypeError(f"10X {name} must be a boolean")
+    if make_unique:
+        raise ValueError(
+            "10X make_unique=True is not supported: automatic gene renaming hides "
+            "ambiguous prior matches. Resolve duplicate symbols or use unique "
+            "var_names='gene_ids' with matching prior gene identifiers."
+        )
+    if var_names not in ("gene_symbols", "gene_ids"):
+        raise ValueError("10X var_names must be 'gene_symbols' or 'gene_ids'")
+    if prefix is not None and not isinstance(prefix, str):
+        raise TypeError("10X prefix must be a string or None")
+    unexpected = set(kwargs) - {"cache_compression"}
+    if unexpected:
+        raise TypeError(f"Unsupported 10X reader arguments: {sorted(unexpected)}")
+    prefix = "" if prefix is None else prefix
+    matrix_path = _10x_file(path, prefix, ("matrix.mtx",))
+    features_path = _10x_file(path, prefix, ("genes.tsv", "features.tsv"))
+    barcodes_path = _10x_file(path, prefix, ("barcodes.tsv",))
+    modern = features_path.name in (f"{prefix}features.tsv", f"{prefix}features.tsv.gz")
+    features, locations = _10x_annotations(features_path, 3 if modern else 2)
+    barcodes, _ = _10x_annotations(barcodes_path, 1, keep_locations=False)
+    if modern and features[2].str.strip().eq("").any():
+        raise ValueError(f"10X file {features_path}: feature types must not be empty")
+    selected = features.loc[features[2].str.strip().eq("Gene Expression")] if modern and gex_only else features
+    selected_column = 1 if var_names == "gene_symbols" else 0
+    try:
+        genes = _checked_text_labels(selected[selected_column], context=f"10X file {features_path} {var_names}")
+    except ValueError as error:
+        normalized = selected[selected_column].str.strip()
+        bad = normalized.eq("") | normalized.duplicated(keep=False)
+        details = [
+            f"record {i + 1} ({locations[i]}): gene_id={row[0]!r}, symbol={row[1]!r}"
+            for i, row in selected.loc[bad].head(10).iterrows()
+        ]
+        raise ValueError(f"{error}; raw feature records: " + "; ".join(details)) from error
+    cells = _checked_text_labels(barcodes[0], context=f"10X file {barcodes_path} barcodes")
+    # sc.read_10x_mtx defaults to make_unique=True and also infers label dtypes.
+    # G/G -> G/G-1 would evade later duplicate checks, while 01/1/NA could become
+    # 1/1/NaN. Keep raw validated labels; neither renaming nor summing is allowed.
+    # 回归测试：tests/test_io_10x.py，包含所有布局及 cache 路径。
     try:
         import scanpy as sc
     except ImportError:
         raise ImportError("读取 10X 数据需要 scanpy 包")
 
-    return sc.read_10x_mtx(path, gex_only=gex_only, **kwargs)
+    data = sc.read(matrix_path, cache=bool(cache), **kwargs).T
+    expected_shape = (len(barcodes), len(features))
+    if data.shape != expected_shape:
+        raise ValueError(
+            f"10X matrix {matrix_path}: dimensions {data.shape} after transpose, "
+            f"expected {expected_shape} from {barcodes_path} and {features_path}"
+        )
+    if len(selected) != len(features):
+        data = data[:, selected.index.to_numpy()].copy()
+    data.obs = pd.DataFrame(index=pd.Index(cells.to_numpy()))
+    annotations = pd.DataFrame(index=pd.Index(genes.to_numpy()))
+    other_column = "gene_ids" if var_names == "gene_symbols" else "gene_symbols"
+    annotations[other_column] = selected[1 - selected_column].to_numpy()
+    if modern:
+        annotations["feature_types"] = selected[2].to_numpy()
+    data.var = annotations
+    return data
 
 
 def _read_csv(
@@ -85,11 +300,11 @@ def _read_csv(
     except ImportError:
         raise ImportError("读取 CSV 文件需要 anndata 包")
 
-    df = pd.read_csv(path, index_col=0, **kwargs)
+    df = _read_text_matrix(path, kwargs)
     if transpose:
         df = df.T
-    df.index = df.index.astype(str)
-    df.columns = df.columns.astype(str)
+    df.index = _checked_text_labels(df.index, context=f"Expression file {path} cell identifiers")
+    df.columns = _checked_text_labels(df.columns, context=f"Expression file {path} gene identifiers")
 
     obs = None
     if cell_meta_path is not None:
@@ -123,11 +338,17 @@ def _read_mtx(
 ):
     try:
         import anndata
+        from scipy import sparse
         from scipy.io import mmread
     except ImportError:
         raise ImportError("读取 mtx 文件需要 anndata 和 scipy 包")
 
-    mat = mmread(path).tocsr()
+    mat = mmread(path)
+    # Matrix Market 的 coordinate 返回稀疏矩阵，array 返回 NumPy 数组。
+    # 不能假定 mmread() 的结果都有 .tocsr()；按类型处理，保留稀疏存储以
+    # 避免大矩阵被展开，同时保留稠密数组的值和维度。转置和名称校验共用。
+    # 回归测试：tests/test_io_mtx.py。
+    mat = mat.tocsr() if sparse.issparse(mat) else np.asarray(mat)
     adata = anndata.AnnData(mat.T)
     if barcodes_path is not None:
         barcodes = _read_name_list(barcodes_path)

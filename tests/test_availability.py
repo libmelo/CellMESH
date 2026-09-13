@@ -687,15 +687,16 @@ def test_boundary_cases():
     })
     
     result2 = compute_metabolite_availability(adata, enzyme2, min_cells=1)
-    # availability 应该为空（因为 P 全 0，被过滤掉了）
+    # 生成基因不可用，不能把内部数值占位 0 当作测得的零分。
     assert result2['availability'].empty, "所有 product 基因都缺失的代谢物应该被跳过"
     assert result2["availability"].columns.tolist() == ["A", "B"]
     assert result2["pseudobulk"].shape == (2, 2)
     assert result2["expr_frac"].shape == (2, 2)
     assert not result2["reaction_genes"].empty
+    assert result2["production_diagnostics"]["production_status"].tolist() == ["prior_gene_unavailable"]
 
-    # 2b. Product gene 存在但表达全零时，同样跳过 metabolite，同时保持
-    # observed cell-type schema 和真实中间结果。
+    # 2b. Product gene 存在但表达全零时保留零分，同时保持 cell-type schema
+    # 和真实中间结果；它与生成基因缺失的情况必须区分。
     adata_zero = FakeAnnData(
         np.zeros((4, 1), dtype=float),
         ["Gene1"],
@@ -715,7 +716,9 @@ def test_boundary_cases():
         enzyme_zero,
         min_cells=1,
     )
-    assert result_zero["availability"].shape == (0, 2)
+    assert result_zero["availability"].shape == (1, 2)
+    assert result_zero["availability"].eq(0.0).all().all()
+    assert result_zero["production_diagnostics"]["production_status"].tolist() == ["prior_no_expression"]
     assert result_zero["availability"].columns.tolist() == ["A", "B"]
     assert result_zero["pseudobulk"].shape == (2, 1)
     assert result_zero["expr_frac"].shape == (2, 1)
