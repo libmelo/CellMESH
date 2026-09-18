@@ -9,7 +9,8 @@ from anndata import AnnData
 from cellmesh import run_cell_mesh
 
 
-def _result(sample_mode="pooled_stratified", zero_production=False, production_prior=True):
+def _result(sample_mode="pooled_stratified", zero_production=False, production_prior=True,
+            n_perms=3, store_null_scores=False):
     expression = np.array([[5, 1], [3, 1], [1, 8], [8, 0], [0, 5], [1, 9], [4, 0]], dtype=float)
     if zero_production:
         expression[:, 0] = 0.0
@@ -34,7 +35,7 @@ def _result(sample_mode="pooled_stratified", zero_production=False, production_p
     }])
     return run_cell_mesh(
         adata, enzyme, sensor, sample_key="sample", sample_mode=sample_mode,
-        min_cells=2, n_perms=3, random_state=np.int64(7),
+        min_cells=2, n_perms=n_perms, random_state=np.int64(7), store_null_scores=store_null_scores,
     )
 
 
@@ -62,7 +63,7 @@ def test_to_csv_roundtrip_preserves_identifiers_values_and_parameters(tmp_path, 
     result.to_csv(prefix)
 
     expected_files = {f"result.{name}.csv" for name in snapshots}
-    expected_files.add("result.parameters.json")
+    expected_files.update(["result.parameters.json", "result.manifest.json"])
     assert {path.name for path in tmp_path.iterdir()} == expected_files
 
     indexed_tables = {"sender_scores", "sample_sender_scores", "celltype_qc"}

@@ -72,6 +72,17 @@ not imply positive P in every cell type or statistical significance. If no
 enzyme-prior gene at all matches the matrix, `run_cell_mesh()` still raises an
 error before analysis.
 
+Stable reaction/base/event formulas preserve representable tiny positive
+values. If a positive result is still lost to floating-point underflow, the
+current user-selected policy reports it and continues with the rounded zero.
+Consult `result.parameters["numerical_diagnostics"]` for a main run, or the
+`numerical_diagnostics` key returned by standalone availability scoring.
+This diagnostic is exported with main-run parameters. A `prior_no_expression`
+state associated with reported underflow describes calculated zero capacity
+and is not proof of absent biological expression. References, scores and
+p/FDR may also be affected. See the
+[numerical policy](README.md#numerical-precision-and-underflow).
+
 ## Reference normalization and sender score
 
 For each metabolite and each direction `X` in `P`, `C`, and `E`, the reference

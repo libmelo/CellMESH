@@ -106,9 +106,31 @@ prior is missing or none of its genes were measured, `E_effective = 0.5` is a
 fixed neutral-evidence convention. When measured exporter genes are present
 but all capacities are zero, `E_effective = 0`. With the default
 `export_weight=0.2`, `E_factor` is restricted to `[0.8, 1.0]`; setting the
-weight to zero exactly recovers the base score. The fixed weight is motivated
-by the approximately 17.1% unique-HMDB exporter coverage of the current prior,
-but database coverage itself is not inserted into individual event scores.
+weight to zero exactly recovers the base score. `export_weight=0.2` is the
+current configurable model setting, not a value automatically derived from
+database coverage. Database coverage is not inserted into individual scores.
+
+For the local **Enzyme1.39.csv / Interaction1.41.csv** snapshot checked on
+2026-09-16, exporter-prior coverage is **76 / 1095 = 6.9406%** of all unique
+Enzyme HMDB IDs, or **56 / 346 = 16.1850%** when the denominator is restricted
+to HMDB IDs shared by both tables. These are distinct denominators, calculated
+from normalized complete priors without expression filtering. They do not
+measure how many exporters are evaluable in a particular expression dataset.
+File hashes and counts are recorded in the
+[coverage snapshot](docs/PRIOR_COVERAGE_2026-09-16.json). This replaces the
+unsupported 17.1% statement; neither the weight nor the formula changes.
+
+Recompute coverage for the current defaults or explicit files:
+
+```bash
+python -m cellmesh.prior_coverage
+python -m cellmesh.prior_coverage --enzyme cellmesh/data/Enzyme1.39.csv --interaction cellmesh/data/Interaction1.41.csv
+```
+
+The JSON report includes both numerators/denominators, file identities and
+SHA-256 checksums. A zero denominator has `percent: null`, not a fabricated
+zero coverage. Compare hashes before comparing a later run with the snapshot;
+a matching filename alone does not establish identical contents.
 
 Raw C is an expression-derived proxy for metabolite-consuming enzyme capacity;
 it is not a direct measurement of extracellular clearance flux.
@@ -198,6 +220,31 @@ For running the walkthrough notebook:
 pip install -e ".[notebook]"
 ```
 
+The four [example notebooks](examples/) should be run from a fresh kernel using
+**Restart Kernel and Run All**. Saved outputs are cleared so they cannot be
+mistaken for results from a different code/database version. The HNSC examples
+use measured genes to select demo HMDB IDs, then take **all enzyme records** for
+those IDs from the complete prior. Do not prefilter enzyme genes before passing
+these records to the algorithm: this can change reaction subset relationships.
+The comprehensive trace uses `validate_priors(..., filter_enzyme_genes=False)`
+to match the main workflow. An empty significance selection is valid: the pooled
+HNSC network reports it without relaxing thresholds. Later exploratory plots
+explicitly use their own selection and do not imply statistical significance.
+
+The toy example verifies production diagnostics and bounded exporter modulation.
+Its inputs are generated in the notebook. The other examples need the local
+HNSC/default prior or fixed walkthrough files described above; database contents
+remain excluded from Git during testing. To check the example input contracts,
+empty/nonempty network paths, and run all four notebooks in fresh Python
+processes (including figure rendering), use:
+
+```bash
+python -m pytest -q tests/test_notebook_contracts.py
+```
+
+This checks sequential Python execution, not the Jupyter browser interface.
+Notebook tests explicitly skip when IPython or their required local fixtures are absent.
+
 For development and tests:
 
 ```bash
@@ -211,15 +258,71 @@ pytest -q
 pip install -e ".[scanpy]"
 ```
 
+Loom loading also requires `loompy`; enable it with `pip install -e ".[loom]"`
+(or `pip install 'cellmesh[loom]'` for an installed package). Missing dependencies
+produce an installation hint; invalid-file errors remain distinguishable.
+
+### Prior input provenance
+
+Row-level `source` is evidence supplied by the data provider. Existing values
+are retained; missing Enzyme sources are not filled with a guessed database
+name based on the use of `direction` columns.
+
+`load_cell_mesh_database()` separately records each input in
+`table.attrs["input_provenance"]`; `run_cell_mesh()` stores both records under
+`result.parameters["prior_inputs"]`, also exported in `.parameters.json`:
+
+- `input_kind`: `default_file`, `user_file` or `dataframe`.
+- File inputs: `filename`, resolved `path`, `filename_version` when the basename
+  follows the Enzyme/Interaction version pattern, and `sha256` of file bytes
+  (compressed bytes for compressed CSVs). A filename version is a naming claim,
+  not independent verification of a database release. Content changes during
+  loading are rejected.
+- `raw_rows` and `normalized_rows`: counts before/after normalization and gene
+  expansion, before expression-gene filtering.
+- DataFrame inputs have null file/path/version/hash fields. Previously loaded
+  DataFrames may have been edited, so a new load records `dataframe` instead of
+  copying stale file claims from incoming attrs. User data and row-level source
+  annotations are not mutated. Retain earlier provenance separately if needed.
+
+These records describe the current input and do not certify its biological
+accuracy. They do not enter scoring or change `export_weight`.
+
 ## Basic Usage
 
 For expression-file import, see the [AnnData reading guide](docs/ANNDATA_README.md).
+H5AD inputs opened with `backed="r"` are supported by both inference modes,
+standalone scoring and violin plots, including dense/CSR/CSC storage and
+reordered backed views. Shared slicing reads sorted positions and restores the
+requested order; sample-aware materializes the current sample's chosen matrix.
+The caller retains ownership of the open file and should close `adata.file`
+after use. This is not a fully out-of-core algorithm: group/sample matrices,
+permutation-scoring gene subsets and intermediate results still require memory;
+AnnData may load layers into memory at read time. See the reading guide for the
+memory boundary and file-lifetime example.
+
+For CSR/CSC inputs with duplicate stored `(cell, gene)` coordinates, calculation
+uses a sparse copy promoted to float64 before combining the entries. This avoids
+overflow in the original dtype during expression-fraction comparisons or violin
+extraction. Raw relevant values are checked before combination, so negative
+entries cannot be hidden by cancellation. Caller matrices and files remain
+unchanged; ordinary canonical matrices do not require this copy.
+
 For CSV/TSV inputs, `read_anndata()` checks original headers before pandas
 can rename duplicate genes, and preserves axis identifiers such as `01`, `1`,
 and literal `NA` as distinct text. Expression values remain numeric. Cell and
 gene metadata are read as text by default, including custom sample/cell-type
 columns; empty fields remain missing. Convert additional numeric metadata
 explicitly when needed. MTX gene/barcode lists preserve the same literal names.
+Expression text, metadata and MTX name files are scanned for actual NUL
+characters before parsing, using the selected encoding and compression. A NUL
+raises an error with the file and physical line, even in a record excluded by
+`usecols`, `skiprows` or `nrows`; it is never silently removed or truncated.
+Pandas nullable numeric options such as `dtype="Float64"`, `dtype="Int64"` and
+`dtype_backend="numpy_nullable"` are converted to NumPy numeric columns before
+AnnData construction and transposition. Missing values remain NaN and undergo
+the usual scoring validation. Homogeneous integer columns without missing
+values retain their integer dtype.
 The MTX reader supports both sparse `coordinate` and dense `array` storage,
 including `.mtx.gz` files. Both preserve expression values and transpose from
 gene-by-cell to cell-by-gene; sparse inputs stay sparse and dense inputs stay
@@ -314,6 +417,13 @@ being silently merged. Repeated cells with the same label are valid; unused
 categorical levels do not create collisions. Explicit `cell_fractions` indices
 and expression-plot cell-type selections use the same whitespace rule.
 
+Explicit `cell_fractions` for standalone scoring accept real numbers and numeric
+text, including scientific notation. Booleans, complex values, dates, missing
+values and infinities are rejected before any lossy conversion. Fractions must
+be strictly positive, sum to at most 1 (tolerance `1e-9`), have unique normalized
+indices and cover all required observed cell types. Valid custom fractions are
+preserved rather than replaced with proportions derived from cell counts.
+
 Earlier versions could compare stripped observed labels with unstripped
 permutation labels, producing false significance. Rerun analyses affected by
 leading/trailing label whitespace to regenerate p-values and FDR.
@@ -322,6 +432,109 @@ leading/trailing label whitespace to regenerate p-values and FDR.
 
 Visualization functions are available from the top-level package and from the
 `cellmesh.plotting` implementation module.
+
+All six plotting functions validate numeric inputs before the operations that
+use them. Event tables are checked after min-cells QC and explicit context
+selection, but **before numeric thresholds, ranking and duplicate resolution**.
+The count plot checks the probabilities used by its thresholds; network and
+dot plots also check present probability columns used for ranking or display.
+The supplied data are not modified.
+
+| Plot input | Accepted values |
+|---|---|
+| Native `cell_mesh_score`, sender availability, receiver `sensor_score` | Finite real values in `[0, 1]`, or genuine missing values |
+| p/FDR and `sensor_expr_frac` | Finite real values in `[0, 1]`, or genuine missing values |
+| Custom event/sample `score_col` | Finite, non-negative real values; values above 1 are allowed |
+| Single-cell expression, reaction activity, P/C/E capacities | Finite, non-negative real values; no `[0, 1]` upper bound |
+| Thresholds | Finite values in the corresponding score/probability range |
+| Dot/node size and edge-width output ranges | Positive finite minimum and maximum, in order; equal values give a fixed size |
+| Color/value ranges | Finite bounds in order; equal bounds are allowed |
+
+Numeric strings such as `"1e-2"` are converted to numbers before comparison, so
+`0.01` ranks ahead of `0.5`. Malformed text (including literal `"NaN"` or empty
+strings), infinity, complex values and booleans raise an error naming the
+column and invalid record positions/indices. Genuine missing values are
+`None`, `numpy.nan` or `pandas.NA`, rather than arbitrary text placeholders.
+Valid native and nullable numeric dtypes are preserved, except that float16
+working copies are promoted to float64 for pandas sorting compatibility.
+
+Missingness remains distinct from zero:
+
+- Count, network and dot plots omit missing-score records and return them in
+  `missing_score_events`, with `plot_exclusion_reason="missing_score"`.
+- Dot plots retain missing significance as an unavailable-significance marker;
+  missing FDR is never filled with an unadjusted p-value.
+- Sample plots retain the existing NA markers and exclude only missing scores
+  from the median. Computed zeros remain in the median. Min-cells QC still
+  applies; use `qc_only=False` to include the sample rows that fail it.
+- Violin plots with automatic cell-type selection list omitted missing-score
+  types in `missing_score_cell_types`. Explicitly requesting an unavailable
+  type raises an error. `plot_data` contains plotted cell values, and
+  `missing_value_data` records any missing cell values. If no usable scores
+  remain, network/dot/sample/violin plots raise their no-data error; the count
+  plot can return a zero-count matrix.
+
+Dot-plot significance sizes distinguish zero, positive and unavailable values:
+
+- Positive probabilities use `-log10(p/FDR)`. Without zeros, their existing area
+  mapping is unchanged. If zeros are present in the selected plot, positives
+  use the lower 80% of the requested area interval, and zeros use its maximum.
+  This reserved area is a display convention, not a statistical distance.
+- With default sizes, `[0, 0.01, 0.1]` produces areas `[260, 212, 20]`;
+  `[0, 1, 1]` produces `[260, 116, 116]`. All-zero probabilities use area 260
+  and a single `0 (display cap)` legend entry, without inventing `1e-12`.
+- Both FDR and p-value legends label actual probabilities selected from the
+  displayed data (up to three distinct positive values plus zero/NA keys).
+  The p-value legend now reads `p-value` and labels raw probabilities, rather
+  than labeling transformed `-log10` values. Sizes still use the log scale.
+- NA retains its fixed-area diamond and `Unavailable` key. An existing NA FDR
+  never falls back to a p-value. Equal requested size bounds retain fixed sizes
+  and explicitly label that size encoding is disabled.
+- Returned `dot_sizes` has the same index as `plot_events`. `size_encoding`
+  records the statistic column, fixed-size setting, zero display cap, positive
+  area range, and actual positive probabilities used in the legend. Input
+  probabilities are not changed.
+
+Dot plots measure the actual legend, marker, title, colorbar and axis-label
+sizes before allocating space. The significance legend and score colorbar have
+separate regions for every missingness state, including all available values,
+zero-value keys and fixed-size explanations. Automatically created figures grow
+to fit long labels or large legend markers. Returned `legend`, `legend_ax`,
+`colorbar`, `title_artist` and `layout` expose the resulting layout;
+`layout` includes required and available sizes in inches.
+
+For a supplied `ax`, the plot, its labels, local title and sidebar all fit inside
+that axes' existing rectangle. The function does not resize the figure,
+reposition other subplots or replace a caller's figure-wide title. Allocate
+sufficient subplot space; an undersized rectangle raises an error stating the
+required and available dimensions. If the figure uses automatic `tight_layout`
+or `constrained_layout`, finalize that layout **before** calling the dot plot:
+
+```python
+fig.canvas.draw()
+fig.set_layout_engine("none")
+# Now call plot_event_dotplot(..., ax=ax) in the finalized subplot.
+```
+
+An active automatic layout engine is rejected before modifying the supplied
+axes, since it would otherwise rearrange the measured plot and other subplots
+on redraw or export. The function never disables the caller's engine silently.
+Finalize figure dimensions before plotting; do not subsequently shrink the
+figure or run global layout commands on the finished plot. Recreate the plot
+if those settings need to change. Export at a different DPI is supported;
+PNG, SVG and PDF export are covered by regression checks.
+
+Cell-type selectors and sample-order labels use the same whitespace stripping
+as source labels, and duplicate normalized selector entries are rejected.
+HMDB ID and receptor gene remain the matching identifiers; metabolite names
+only affect display. Reaction-gene lists are stripped and deduplicated **once
+for both identity comparison and actual expression calculation**. Complete
+reaction definitions retain unmeasured genes for identity checks; expression
+extraction still uses measured genes only.
+
+Actual floating-point underflow retains the
+[report-and-continue policy](#numerical-precision-and-underflow): its finite zero
+is valid input to these plots and is not rejected by the new checks.
 
 ```python
 from cellmesh import (
@@ -484,6 +697,71 @@ The four event-based plots expose their min-cells QC decision in the returned
 `qc` dictionary. Their default `qc_only=True` changes only what is displayed;
 it does not change the stored numerical scores or inference results. Set
 `qc_only=False` to visualize all calculated events or sample rows.
+
+For external tables, `passes_min_cells` accepts booleans, numeric 0/1 and text
+`True`/`False`/`1`/`0` (case-insensitive, surrounding whitespace ignored).
+Genuine missing values remain missing and do not pass the default QC filter.
+Other values, including empty strings and literal `"NA"`, raise an error even
+with `qc_only=False`. Normalization uses a copy and preserves the caller's table.
+Tables without this optional column retain the existing behavior without QC
+filtering.
+
+Validated float16 plotting columns are promoted to float64 on a working copy
+before sorting or ranking. This supports compressed external result tables
+without changing their stored values or the caller's data; it cannot recover
+precision already lost when the table was converted to float16.
+
+## Numerical precision and underflow
+
+Observation, compiled permutations and single-cell reaction plots share the
+stable equivalent calculation `expm1(mean(log1p(expression)))`; a one-gene
+reaction returns that gene's mean expression directly. Sender base scores use
+`P_score * (P_score / (P_score + C_score))`, with the existing zero-denominator
+rule. Events use `sqrt(sender_score) * sqrt(receiver_score)`. These forms avoid
+losing a representable positive result through adding/subtracting 1, squaring
+first, or multiplying before taking a square root. They preserve the existing
+reaction model and positive-reference definition.
+
+Actual positive-to-zero underflow is **reported and computation continues**.
+There is no small-value cutoff and no arbitrary epsilon replacement. Checks
+cover relevant pseudobulk means, reaction activity, abundance powers/products,
+positive-reference normalization, sender base/exporter multiplication, and
+event multiplication. Finite positive values remain usable however small;
+mathematically zero inputs do not trigger an underflow notice. Negative values,
+NaN, Inf and overflow still raise the existing errors.
+
+Each affected `run_cell_mesh()` invocation emits one aggregated WARNING-level
+logging message, including nested sample scoring and permutation workers. It
+does not use Python warnings that could become exceptions under `-W error`.
+The diagnostic is stored in `result.parameters["numerical_diagnostics"]` and
+`result.events.attrs["numerical_diagnostics"]`, and is included in the existing
+parameters JSON export. It contains `underflow_detected`,
+`policy="report_and_continue"` and a `stages` list with `stage` and `n_values`.
+Counts are occurrences across operations and permutations, not unique events.
+Runs without detected underflow do not add this key.
+
+Standalone availability and violin results expose the same diagnostic key in
+their returned dictionaries; standalone receiver scores use DataFrame attrs.
+Supplied receiver summaries that have positive expression fractions but zero
+means are also reported as a possible mean-underflow inconsistency; the caller
+remains responsible for cache provenance.
+
+Rounded zeros continue through the existing scoring and permutation rules;
+permutations are not skipped and the requested number of draws is retained.
+This continuation does **not** recover unrepresentable positive values.
+Affected references, `production_status` and other evidence states, scores and
+p/FDR can differ from higher-precision arithmetic. In particular, a
+`prior_no_expression` state associated with underflow is not proof of absent
+expression. Consult the diagnostic stages before interpreting these results.
+Structural sample NA remains distinct from computed zeros.
+
+Both violin functions recognize a constant only when all values are exactly
+equal. Nonconstant values are scaled to a unit range for density estimation and
+then plotted in their original units. If density estimation fails, original
+points replace the density and the existing `show_median` option still applies.
+The returned `density_fallbacks` lists affected groups/reasons, and
+`fallback_artists` contains the scatter artists. True constants retain their
+actual-value horizontal line.
 
 ## Full API Reference
 
@@ -916,17 +1194,46 @@ with open("analysis.parameters.json", encoding="utf-8") as stream:
 ```
 
 Exports include `<prefix>.events.csv`, `.sender_scores.csv`,
-`.receiver_scores.csv`, and `.parameters.json`. When present, `.celltype_qc.csv`,
+`.receiver_scores.csv`, `.parameters.json`, and `.manifest.json`. When present, `.celltype_qc.csv`,
 `.sample_validation.csv`, `.sample_sender_scores.csv`,
 `.sample_receiver_scores.csv`, and `.sample_events.csv` are also written.
-Existing files with these names are overwritten.
+These exact standard filenames form the exporter's reserved namespace:
+existing files are overwritten, and standard optional CSVs absent from the
+current result are removed. This includes older exports without a manifest.
+For example, sample-aware → pooled re-export with the same prefix removes the
+four stale sample-level CSVs. An absent optional QC table is handled likewise.
+Other prefixes, nonstandard suffixes (such as `analysis.notes.txt`) and database
+files are not scanned or cleaned. Do not store hand-created files under the
+same exact standard result names: their origin cannot be inferred from the
+name, so they are subject to the same replacement/removal rules.
+
+`<prefix>.manifest.json` lists this export's relative filenames (including
+itself), each table's columns and row count, and a format version. Cleanup uses
+only the exporter's fixed filename list, never paths from an existing manifest.
+Symbolic links and directories at standard target paths are rejected.
+
+All headers and parameters are prevalidated, and all CSV/JSON contents are
+written to a temporary directory beside the destination before replacing any
+result. Parameters use strict JSON: nested NaN/Infinity values and unsupported
+objects are rejected; valid NumPy scalar parameters remain supported. Genuine
+missing values in result tables still become empty CSV fields, while numeric
+zero remains zero. The manifest is published last, after replacements and
+stale-file cleanup. Ordinary write/cleanup failures trigger rollback of changed
+files from temporary backups. Prevalidation or staging failure leaves the
+previous export untouched. This is not a crash-safe multi-file transaction:
+do not write concurrently to the same prefix or read while it is being updated.
 
 Sender score CSVs contain `metabolite` and `hmdb_id` as ordinary columns;
 sample sender scores also contain `sample`. These identifiers are written once,
 even if the score table was already converted with `reset_index()`.
 Event and receiver tables retain their existing columns, and QC index labels
 are preserved as columns. Conflicting column names raise an error before any
-files are written. Empty score tables retain identifier headers.
+files are written. Empty score tables retain identifier headers. Empty event
+tables retain the same columns as nonempty tables within the same inference
+mode, including `inference_mode`. Both modes set `events.attrs["n_perms_completed"]`
+to zero when permutations are skipped or there are no events, and explicitly
+set `null_scores_stored` (sample-aware follows the requested storage setting;
+pooled does not store null matrices).
 
 This exports the result tables and parameters, including sample-level missing
 values as empty CSV fields. CSV does not store pandas dtype metadata;

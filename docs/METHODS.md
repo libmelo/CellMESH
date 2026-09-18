@@ -161,11 +161,30 @@ results after aggregation.
 Finite input also does not guarantee finite floating-point intermediates. Both
 scoring paths check relevant pseudobulk means, geometric reaction activities,
 summed P/C/E capacities, positive references, and normalization denominators.
-The same checked geometric-mean and positive-reference implementations serve
-observed and compiled scoring, preserving the existing formulas and accumulation
-order. A reference or denominator can overflow even when its input capacities
+The same checked reaction and positive-reference implementations serve
+observed and compiled scoring. Reaction activity uses the equivalent
+`expm1(mean(log1p(x)))` expression, with one-gene reactions returning x directly;
+this preserves tiny positive x that would disappear in `gmean(x+1)-1`.
+A reference or denominator can overflow even when its input capacities
 are finite; the denominator is checked before division can turn that failure
-into a finite zero. Numerical failures raise an error naming the affected stage.
+into a finite zero. Non-finite or negative results raise an error naming the affected stage.
+Actual positive-to-zero underflow is reported without aborting, as requested
+for the current analysis workflow. Relevant pseudobulk means, reactions,
+abundance powers/products, positive-reference normalization, sender base and
+exporter products, and event scores have explicit checks. Representable tiny
+values are not thresholded. A run aggregates stage/occurrence counts across
+observation and all permutation workers and stores `numerical_diagnostics` in
+result parameters (and hence the parameters JSON export). One logging notice
+describes the loss and continued use of rounded zeros. The same diagnostics
+are available from standalone scoring and the violin functions; details are
+in the [numerical input/output policy](../README.md#numerical-precision-and-underflow).
+No permutation draws are discarded because of underflow. Continued inference
+uses the rounded scores and can differ from higher-precision calculations:
+zeros can change positive-reference membership, production/evidence states,
+scores and p/FDR. A state associated with reported underflow must not be
+interpreted as proof of absent biological expression. Negative/non-finite
+values and overflow remain errors; structural sample missingness remains NA.
+
 The existence of positive production is tested directly, without an unnecessary
 potentially overflowing sum over cell types.
 
@@ -243,6 +262,13 @@ neutral value `0.5`, and measured all-zero exporter capacity uses `0`. The
 default `export_weight=0.2` restricts `E_factor` to `[0.8, 1.0]`, and zero
 weight exactly recovers the base formula. Metadata keeps `consumption_status`
 and `export_status` to distinguish these evidence states.
+
+The implementation evaluates the base as `P_score * (P_score / denominator)`
+instead of squaring P first, and event scores as
+`sqrt(sender_score) * sqrt(receiver_score)`. These are mathematically equivalent
+and avoid unnecessary underflow of intermediate products. Ordinary finite
+results may differ only by floating-point rounding; the observation and null
+paths share the stable helpers and retain the existing tail-tie rule.
 
 ## Receiver and event scores
 

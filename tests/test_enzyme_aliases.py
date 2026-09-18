@@ -144,7 +144,7 @@ def test_raw_direction_normalization_preserves_existing_column_order():
                         "direction": ["product"], "reference": ["00123"]})
     normalized = normalize_enzyme_database(raw)
     assert normalized.columns.tolist() == [
-        "metabolite", "hmdb_id", "reaction", "gene", "reference", "role", "evidence_level", "source",
+        "metabolite", "hmdb_id", "reaction", "gene", "reference", "role", "evidence_level",
     ]
     pd.testing.assert_frame_equal(normalize_enzyme_database(normalized), normalized)
 

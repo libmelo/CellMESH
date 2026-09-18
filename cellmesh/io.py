@@ -10,7 +10,7 @@ from typing import Literal, Optional, Union
 import numpy as np
 import pandas as pd
 
-from ._table_io import _delimited_records, _record_location
+from ._table_io import _delimited_records, _record_location, _reject_nul_text
 
 
 def _checked_text_labels(values, *, context: str, allow_first_blank: bool = False) -> pd.Index:
@@ -35,6 +35,9 @@ def _checked_text_labels(values, *, context: str, allow_first_blank: bool = Fals
 
 def _csv_columns(path: Path, options: dict, *, context: str) -> pd.Index:
     """Check original headers before pandas can rename duplicates to .1/.2."""
+    _reject_nul_text(path, **{key: options[key] for key in
+                             ("encoding", "compression", "encoding_errors", "storage_options")
+                             if key in options})
     if options.get("chunksize") is not None or options.get("iterator", False):
         raise ValueError("AnnData CSV/TSV loading requires a complete table, not an iterator")
     if options.get("index_col") is not None:
@@ -115,7 +118,26 @@ def _read_text_matrix(path: Path, options: dict) -> pd.DataFrame:
     if not isinstance(frame.index, pd.RangeIndex):
         raise ValueError(f"Expression file {path}: data rows contain more fields than the header")
     frame[identifier] = frame[identifier].map(lambda value: value[0])
-    return frame.set_index(identifier)
+    frame = frame.set_index(identifier)
+    # AnnData's conversion of nullable numeric columns can produce object X,
+    # even without missing values. Convert columns BEFORE transpose (which can
+    # itself discard extension dtype information). Never coerce arbitrary text,
+    # booleans or complex data into real expression. Keep integer precision when
+    # no NA exists; genuine missing integers require a floating NaN representation.
+    # Regression: tests/test_nullable_expression_reader.py.
+    for column in frame:
+        values = frame[column]
+        dtype = values.dtype
+        if isinstance(dtype, pd.api.extensions.ExtensionDtype) and dtype.kind in "iuf":
+            numpy_dtype = getattr(dtype, "numpy_dtype", None)
+            if numpy_dtype is None:
+                raise ValueError(f"Unsupported expression dtype {dtype!r} in column {column!r}")
+            if values.isna().any():
+                target = np.float64 if dtype.kind in "iu" else numpy_dtype
+                frame[column] = values.to_numpy(dtype=target, na_value=np.nan)
+            else:
+                frame[column] = values.to_numpy(dtype=numpy_dtype)
+    return frame
 
 
 def _read_metadata_table(path: Union[str, Path], id_col: Optional[str] = None) -> pd.DataFrame:
@@ -140,6 +162,7 @@ def _read_metadata_table(path: Union[str, Path], id_col: Optional[str] = None) -
 
 def _read_name_list(path: Union[str, Path], prefer_second_column: bool = False) -> list[str]:
     path = Path(path)
+    _reject_nul_text(path, encoding="utf-8-sig")
     # Do not sniff a delimiter from a single-column barcode such as 001 or NA.
     # Inner suffixes also recognize compressed .csv.gz/.tsv.gz name files.
     sep = "," if ".csv" in [suffix.lower() for suffix in path.suffixes] else "\t"
@@ -325,10 +348,26 @@ def _read_tsv(path: Path, **kwargs):
 def _read_loom(path: Path, **kwargs):
     try:
         import anndata
-    except ImportError:
-        raise ImportError("读取 Loom 文件需要 anndata 包")
+    except ImportError as error:
+        raise ImportError("读取 Loom 文件需要 anndata 包") from error
+    try:
+        import loompy  # noqa: F401 -- optional reader dependency, checked explicitly
+    except ModuleNotFoundError as error:
+        if error.name != "loompy":
+            raise
+        raise ImportError(
+            "读取 Loom 文件需要可选依赖 loompy；请安装 pip install 'cellmesh[loom]' "
+            "或 pip install loompy"
+        ) from error
+    # anndata.io is the supported entry in newer AnnData; older releases keep
+    # their top-level reader. Do not catch corrupt-file/reader errors as imports.
+    from importlib.util import find_spec
 
-    return anndata.read_loom(path, **kwargs)
+    if find_spec("anndata.io") is not None:
+        from anndata.io import read_loom
+    else:
+        read_loom = anndata.read_loom
+    return read_loom(path, **kwargs)
 
 
 def _read_mtx(

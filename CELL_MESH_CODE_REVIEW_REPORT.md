@@ -1,5 +1,12 @@
 # CELL MESH Code Review Status
 
+**Latest review (2026-09-17):** A01–A11 and B01–B06 remain resolved. B07 was
+explicitly set aside by the user and is not a pending revision. The subsequent
+[regular-input review](docs/REVIEW_REGULAR_INPUTS_2026-09-17.md) confirmed no new
+defect: 48 numerical configurations, 17 plotting checks, and 220 selected
+regression tests passed. No production code changed during that review. The
+dated entries below retain their historical findings and implementation records.
+
 The fixes in the resolved table below remain implemented. The systematic audit
 conducted on 2026-09-12–2026-09-13 confirmed **11 grouped open revision items** covering
 sample aggregation, input parsing, examples, numerical stability, optional
@@ -38,7 +45,7 @@ equivalence in both inference modes. The final full suite was **1147 passed,
 as the A01 baseline. A10 remains open for Loom dependencies/imports and backed
 AnnData scoring; the audit evidence JSON remains the original pre-fix snapshot.
 
-A05 was fixed on 2026-09-13; **8 grouped revision items remain open**.
+A05 was fixed on 2026-09-13.
 Receiver summaries are checked against the current AnnData's actually observed
 cell types and measured prior sensor genes. Normalized axes must be unique,
 relevant means and fractions must have valid ranges, and supplied counts must
@@ -51,6 +58,131 @@ integrity, sample-local coverage, zero expression, invalid parameters and
 seeded serial/parallel equivalence. The final full suite was **1363 passed,
 1 skipped, 213 warnings in 147.98 s**, retaining the original skip and AnnData
 warnings. A09's exporter-level strict JSON check remains open.
+
+A04 was fixed on 2026-09-13, leaving 7 grouped items open at that stage.
+Reaction activity uses shared log1p/expm1 arithmetic, with exact one-gene
+evaluation; sender base divides before multiplying and event scores multiply
+square roots. Per the user's explicit decision, actual underflow is reported
+and computation continues with rounded zeros, without discarding permutation
+draws. One aggregated logging notice and exportable `numerical_diagnostics`
+record stage/occurrence counts, including threaded work. These zeros can affect
+references, evidence states, scores and p/FDR and do not prove absent expression.
+Other numeric validity and overflow errors remain in place. Both violin
+functions use exact constant detection and scale-stable density estimation,
+falling back to original-value points with returned diagnostics if KDE fails.
+The 67 new regression cases and visual checks passed. Full validation was
+**1430 passed, 1 skipped, 213 warnings in 149.90 s**; the skip and AnnData
+warnings are unchanged from A05. The historical audit evidence JSON is unchanged.
+
+A06 was fixed on 2026-09-14, leaving 6 grouped items open at that stage
+(A03 and A07–A11, with A10 limited to Loom/backed AnnData). All six plotting
+entrances now use numeric validation before the operations consuming those
+values, consistent selector normalization, and explicit missing-score outputs.
+Native scores/probabilities/fractions are bounded in [0, 1]; custom scores and
+raw expression/capacities are finite and non-negative without an upper bound.
+Invalid text, infinity, complex and boolean values cannot masquerade as NA;
+native complex columns also fail without a preceding cast warning. Reaction
+lists are normalized for actual calculation as well as duplicate comparison.
+Display ranges are finite and ordered. The A04 underflow policy is unchanged.
+The 288 new regression cases passed; final full validation was **1718 passed,
+1 skipped, 213 warnings in 153.03 s**, retaining the existing AnnData
+warnings and skip. README and public docstrings describe the input/output
+contract; A07/A08's probability-zero display and layout work remains separate.
+
+A07 was subsequently fixed on 2026-09-14, leaving 5 grouped items open at that stage (A03 and A08–A11). Zero probabilities have an explicit maximum-area display
+cap; positive probabilities use the lower 80% of the area interval when zeros
+are present. Without zeros, the previous size mapping is unchanged. Both FDR
+and p-value legends label actual probabilities, including the smallest positive
+float, without inventing a floor for zero. Fixed-size plots explicitly disable
+size encoding, and NA keeps its unavailable marker. Returned `dot_sizes` and
+`size_encoding` make the display mapping inspectable without changing the data.
+The 55 new cases and rendered checks passed; full validation was **1773 passed,
+1 skipped, 213 warnings in 155.34 s**. A08's layout work remains open.
+
+A08 was fixed on 2026-09-14, leaving 4 grouped items open at that stage
+(A03 and A09–A11). Dotplot legends and colorbars use separate regions sized from
+rendered text, marker and axis extents, independent of missingness. Automatic
+figures expand to fit. External axes fit all decorations inside their existing
+rectangle, preserve other subplots and the caller's suptitle, and report required
+space if undersized. Active automatic layout engines are rejected before axes
+mutation; callers first draw their overall layout, then set the engine to
+`none`. The function does not silently change the caller's layout engine.
+The 74 new layout cases cover missingness/zero/fixed-size branches, both
+statistics, long labels, large markers, multiple senders, external subplot
+ownership and PNG/SVG/PDF at two DPIs. Rendered examples were also inspected.
+Full validation was **1847 passed, 1 skipped, 213 warnings in 176.43 s**;
+the original skip and AnnData warnings remain unchanged.
+
+A09 was fixed on 2026-09-16, leaving 3 grouped items open at that stage
+(A03, A10 and A11). Exports stage all CSV/strict JSON contents before updating
+reserved result filenames, remove obsolete optional standard files, and publish
+a manifest last. Ordinary update failures attempt rollback using backups;
+prevalidation/staging failures preserve previous exports. Cleanup never scans
+arbitrary prefix matches or trusts paths from an old manifest. Exact standard
+names are reserved even if hand-created; symlink/directory targets are rejected.
+This does not guarantee crash-safe multi-file atomicity or concurrent writes.
+Nested non-finite JSON parameters are rejected while valid NumPy scalars remain
+supported. Empty pooled events retain inference_mode and skipped permutation
+paths carry explicit completion/storage metadata. CSV NA/zero and identifier
+semantics are unchanged. The 49 new cases passed; final full validation was
+**1896 passed, 1 skipped, 213 warnings in 184.24 s**, retaining the
+original skip and AnnData warnings.
+
+A10's remaining Loom/backed work was fixed on 2026-09-16, leaving 2 grouped
+revision items open at that stage (A03 and A11). Loom declares its optional dependency and uses
+the current AnnData reader when available, with accurate missing-dependency
+hints and unchanged file/internal-dependency errors. Shared expression slicing
+sorts disk indices and restores requested row/gene order, preserving sparse
+storage. It covers validation, summaries, compiled permutations and violins,
+including reordered backed views. Sample-aware materializes only the current
+sample's chosen matrix plus obs/var. Files remain unchanged and caller-owned.
+Documentation states the memory boundary: this is not a fully out-of-core
+algorithm and AnnData may load layers eagerly. View mapping is isolated and
+regression-tested against the installed AnnData version.
+The 96 backed and 8 Loom cases passed; temporary Loom dependencies under `/tmp`
+were enabled for full validation: **2000 passed, 1 skipped, 213 warnings
+in 201.20 s**. No new Loom tests were skipped; the original skip and warnings
+are unchanged. A10's previously completed 10X changes remain covered.
+
+A11 was fixed on 2026-09-16, leaving only A03 open at that stage. Missing direction-format
+Enzyme sources are no longer assigned an invented test-library name. Row-level
+sources remain distinct from loader provenance in table attrs and exported
+`parameters.prior_inputs`. File records carry input kind, filename/path,
+filename-derived version, byte SHA-256 and raw/normalized row counts. DataFrames
+have no claimed file identity; stale incoming file attrs are not inherited.
+The coverage CLI and hash-identified snapshot reproduce 76/1095 (6.9406%) for all
+Enzyme HMDB IDs and 56/346 (16.1850%) for the intersection with Interaction.
+Neither statistic filters by expression. The configurable export weight 0.2 and
+all scoring formulas remain unchanged; the unsupported 17.1% justification was
+removed. The 32 new cases passed; full validation was **2032 passed,
+1 skipped, 213 warnings in 210.22 s**, retaining the existing skip and
+AnnData warnings. Database contents remain local and ignored by Git.
+
+A03 was fixed on 2026-09-17; **all 11 groups in this audit are now closed**.
+The HNSC examples retain complete enzyme reactions for selected HMDB IDs, and
+the comprehensive trace explicitly preserves these priors and asserts agreement
+with the main workflow. Empty thresholded networks report the empty state without
+relaxing thresholds. The toy example checks current production metadata and
+explains bounded exporter modulation. Old notebook outputs and execution metadata
+were cleared. Eleven new regression cases cover actual example preparation,
+both inference modes, empty/nonempty network selections, and all four notebooks
+in fresh Python processes with figure rendering (not browser-level Jupyter testing).
+Full validation: **2043 passed, 1 skipped, 213 warnings in 225.66s**, with the existing skip and AnnData warnings
+unchanged. No scoring formula or database contents were changed for A03.
+
+The supplementary review on 2026-09-17 identified B01–B03 beyond the original
+A01–A11 scope. These have now been revised: duplicate sparse coordinates are
+promoted before reduction, external plotting QC values are validated and
+normalized, and external cell fractions are checked before float conversion.
+The implementation adds 282 regression cases. See the
+[supplementary review and validation record](docs/REVIEW_2026-09-17.md) for the
+pre-fix evidence, affected inputs and post-fix results.
+
+B04–B06 from the follow-up review have also been revised: decoded input text is
+checked for NUL before parsing, nullable numeric expression columns are converted
+before AnnData construction, and validated float16 plotting columns are promoted
+before sorting. This adds 168 regression cases. See the
+[follow-up review and implementation record](docs/REVIEW_POST_B_2026-09-17.md).
 
 The historical bounded-median-contrast implementation has been removed. The
 active implementation uses sender-abundance-adjusted positive-reference
@@ -96,6 +228,13 @@ sample-aware full null matrix is opt-in.
 | A01: scoring and sample identity | Aggregate and align events by HMDB/gene and cell-type/sample context. Missing names and aliases cannot remove or split events; names and types remain annotations. | [Scoring identity](tests/test_scoring_event_identity.py), [receptor context](tests/test_receptor_context.py) |
 | A02: original prior and 10X input integrity; A10: 10X formats | Reject malformed prior CSV logical records before implicit index shifts or padding. Validate original selected 10X gene and barcode labels without automatic suffixes; support legacy/modern plain and gzip layouts. | [Prior CSV structure](tests/test_prior_csv_structure.py), [10X import and scoring](tests/test_io_10x.py), [reading guide](docs/ANNDATA_README.md) |
 | A05: receiver caches and calculation parameters | Validate cache coverage against current observations, relevant numerical ranges and actual integer cell counts. Reject ambiguous booleans and invalid seeds before zero-permutation or empty-event shortcuts. | [Scoring input contracts](tests/test_scoring_input_contracts.py), [summary contract](README.md#optional-receiver-summaries) |
+| A04: tiny positive values and violin variability | Share stable reaction/base/event formulas. Report actual underflow and continue with exportable diagnostics, as requested. Preserve real violin variation; use original points if density estimation fails. | [Numerical stability](tests/test_numeric_stability.py), [overflow checks](tests/test_numeric_overflow.py), [precision policy](README.md#numerical-precision-and-underflow) |
+| A06: plotting input contracts | Validate numeric views before thresholds/ranking/deduplication, preserve genuine NA, return missing-score exclusions, normalize selectors and actual reaction lists, and check finite ordered display ranges. | [Plotting input contracts](tests/test_plotting_input_contracts.py), [visualization contract](README.md#visualization) |
+| A07: zero-probability dot sizes and legends | Separate zero display caps from positive log-scaled areas; show actual probability keys and preserve unavailable/fixed-size semantics. | [Zero significance](tests/test_dotplot_zero_significance.py), [visualization contract](README.md#visualization) |
+| A08: dotplot layout | Allocate separate legend/colorbar regions from rendered dimensions. Expand automatic figures, preserve caller subplot ownership, and report insufficient external space or unfinished automatic layout. | [Dotplot layout](tests/test_dotplot_layout.py), [usage constraints](README.md#visualization) |
+| A09: export consistency and empty results | Stage all files, strictly validate JSON, manage only reserved same-prefix filenames, publish a manifest last, and keep mode-specific empty schemas and permutation metadata consistent. | [Export consistency](tests/test_export_consistency.py), [export contract](README.md#export-results) |
+| A10: Loom and backed AnnData | Declare Loom dependency and current reader; preserve file errors. Share disk-safe ordered slicing and materialize current sample matrices while preserving file ownership and sparse structure. | [Backed inputs](tests/test_backed_inputs.py), [Loom](tests/test_loom_reader.py), [reading guide](docs/ANNDATA_README.md) |
+| A11: prior provenance and coverage | Preserve row sources without invention, separately export actual input identities, and reproduce explicitly defined coverage from hash-identified files without changing model weights. | [Provenance tests](tests/test_prior_provenance.py), [coverage snapshot](docs/PRIOR_COVERAGE_2026-09-16.json) |
 | Observed/permutation precision | Both paths use the same float64 group-mean accumulation; tail counts include roundoff ties. Constant expression retains p-values of 1. | [Precision](tests/test_permutation_precision.py), [compiled scoring](tests/test_compiled_permutation.py) |
 | Sparse expression fractions | Count expression values strictly greater than zero. Stored sparse zeros do not count as expressing cells. | [Expression fractions](tests/test_expression_fraction.py) |
 | Result export | Preserve named index identifiers once, reject ambiguous headers before writing, and keep measured zeros distinct from missing values. | [CSV export](tests/test_result_export.py) |
@@ -151,6 +290,11 @@ information; the expression matrix alone cannot identify them as missing.
 
 ## Effects on existing analyses
 
+- Rerun analyses affected by positive reactions or intermediate products being
+  rounded to zero. Stable formulas preserve representable positive results.
+  Review `numerical_diagnostics` when present: continued underflow runs retain
+  floating-point zeros and may have affected references, states and inference.
+  Replot tiny nonconstant single-cell distributions previously shown as a line.
 - Rerun custom analyses whose supplied receiver summaries omitted observed
   groups or measured sensor genes, or contained invalid fractions/counts.
   Use complete summaries from the same X/layer or omit them for automatic
@@ -402,9 +546,9 @@ and FDR were exactly equal. Recommended cleanup: give this test explicit string
 cell identifiers rather than suppressing warnings globally. The old-format
 H5AD warnings in the full suite are a separate compatibility notice.
 
-## Open follow-ups: zero significance and complete-data legend layouts
+## Historical dotplot follow-ups: A07 and A08 resolved
 
-1. **Zero FDR is mapped to the smallest positive FDR for display.** The existing
+1. **A07 historical finding, now resolved: zero FDR was mapped to the smallest positive FDR.** The previous
    log-transform floor is the minimum positive value in the displayed rows.
    For `[0, 0.01, 0.1]`, default dot sizes are `[260, 260, 20]`, and the numeric
    legend stops at `0.01`. For `[0, 1, 1]`, all sizes are `140`, and the legend
@@ -415,7 +559,7 @@ H5AD warnings in the full suite are a separate compatibility notice.
    positive probability. Extend regression checks to size ordering and truthful
    zero legends; the existing 0/1 tests only verify availability and preservation.
 
-2. **Complete-data layouts retain the older legend arrangement.** The previous
+2. **A08 historical finding, now resolved: complete-data layouts retained the older legend arrangement.** The previous
    adjustment applied only when significance was missing. With all values
    available, a supplied axis still places its numeric legend over the full-height
    colorbar. The default faceted p-value fallback can also place its longer
@@ -424,9 +568,9 @@ H5AD warnings in the full suite are a separate compatibility notice.
    share the legend/colorbar layout rules across all missingness states and both
    statistic types, then check rendered bounds and overlap for every branch.
 
-Both findings affect visualization, without changing stored event scores,
-probabilities, identities, or inference. They are recorded for confirmation
-before implementation, following the agreed review workflow.
+Both findings concern visualization, without changing stored event scores,
+probabilities, identities, or inference. A07 and A08 are now resolved as recorded
+above; the original reproductions are retained as historical context.
 
 To reproduce the full check from the project root in the `cellmesh` environment:
 

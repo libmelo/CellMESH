@@ -1,0 +1,957 @@
+{
+  "review_date": "2026-09-17",
+  "branch": "feature-modified",
+  "scope": "after B01-B03; no production edits in this review",
+  "baseline": {
+    "source": "/tmp/b01-b03-full.log",
+    "rerun_in_this_review": false,
+    "passed": 2325,
+    "skipped": 1,
+    "warnings": 213,
+    "seconds": 249.65
+  },
+  "environment": {
+    "python": "3.10.20",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "scipy": "1.15.3",
+    "anndata": "0.11.4",
+    "matplotlib": "3.10.9"
+  },
+  "source_sha256": {
+    "cellmesh/__init__.py": "a38bf1697eddf2e33ede7c05b0811dccadd322c47ab04619b7184348b8830c45",
+    "cellmesh/_numerics.py": "8b03f0b9164129b510383c34e9c83bfd8fcd390b6d6ce29e2ffee2fd60d167db",
+    "cellmesh/_table_io.py": "371de3f849f1ef199c04e2381df35ef375fbf09990184799ce43c29519d908f8",
+    "cellmesh/config.py": "26c734263a441aff39d215899a36214362df6e6a666bf24f07e6b67cae97bf42",
+    "cellmesh/core.py": "afe0884fde598144fc6f8871459ee3682b47b0f75e368e67145ae2cdb7460cf3",
+    "cellmesh/database.py": "329a5bc344d2468a90eae5e3240300c56e67e345999ad5e02485fccb1fcc6590",
+    "cellmesh/io.py": "1e72ce92f2f7a41164174144b0ed951b5d749d965f712f4ff9c4647882821bac",
+    "cellmesh/permutation.py": "2b035ce939b3b44daf842ae0368d77cfd92b403fe5ac27906d5ecf57744b9706",
+    "cellmesh/plotting.py": "b00f8cde1c1459bafa4824aef135a66144886f483c4ad6b811fc12e5cd2e6e4a",
+    "cellmesh/preprocess.py": "93e30491f033d050d13f1c2e935dd50bdf5d283d8baacb03599ba28592efb977",
+    "cellmesh/prior_coverage.py": "e4ca12882e5680fe42215ddad21f27d652b0bc7c21e5effff391dbc73e85f0ae",
+    "cellmesh/score.py": "db4620d060a1ebdbb4b687a45da7166e191a8408a4f730bb55f3de929211207d"
+  },
+  "findings": [
+    {
+      "id": "B04",
+      "priority": "P2",
+      "status": "unfixed",
+      "trigger": "actual NUL in raw text parsed by default C engine",
+      "effect": "silent truncation before identifier/numeric validation"
+    },
+    {
+      "id": "B05",
+      "priority": "P2",
+      "status": "unfixed",
+      "trigger": "pandas nullable numeric dtype options in read_anndata",
+      "effect": "object X rejected by scoring for valid nonnegative values"
+    },
+    {
+      "id": "B06",
+      "priority": "P3",
+      "status": "unfixed",
+      "trigger": "float16 columns in external network/dotplot tables",
+      "effect": "NotImplementedError in pandas multi-column sorting"
+    }
+  ],
+  "differential": {
+    "cases": 64,
+    "vectors_compared": 384,
+    "event_values_compared": 18360,
+    "max_absolute_difference": 1.1102230246251565e-16,
+    "pvalue_mismatches": 0,
+    "failures": [],
+    "seconds": 63.6
+  },
+  "probes": {
+    "compatibility_probes": [
+      {
+        "name": "text-to-scoring-{}-pooled_stratified",
+        "status": "ok",
+        "value": {
+          "dtype": "int64",
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "text-to-scoring-{}-sample_aware",
+        "status": "ok",
+        "value": {
+          "dtype": "int64",
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "text-to-scoring-{'dtype_backend': 'numpy_nullable'}-pooled_stratified",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 26, in pipeline\n    r=run_cell_mesh(a,e,s,min_cells=1,n_perms=2,sample_mode=mode,sample_key='sample')\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/_numerics.py\", line 59, in wrapped\n    result = function(*args, **kwargs)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/core.py\", line 1280, in run_cell_mesh\n    _validate_scoring_expression(\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 216, in _validate_scoring_expression\n    _validate_expression_values(selected, layer=layer)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 97, in _validate_expression_values\n    raise ValueError(message)\nValueError: scoring expression must be finite and non-negative real values; check adata.X\n"
+      },
+      {
+        "name": "text-to-scoring-{'dtype_backend': 'numpy_nullable'}-sample_aware",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 26, in pipeline\n    r=run_cell_mesh(a,e,s,min_cells=1,n_perms=2,sample_mode=mode,sample_key='sample')\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/_numerics.py\", line 59, in wrapped\n    result = function(*args, **kwargs)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/core.py\", line 1280, in run_cell_mesh\n    _validate_scoring_expression(\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 216, in _validate_scoring_expression\n    _validate_expression_values(selected, layer=layer)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 97, in _validate_expression_values\n    raise ValueError(message)\nValueError: scoring expression must be finite and non-negative real values; check adata.X\n"
+      },
+      {
+        "name": "text-to-scoring-{'dtype': 'Float64'}-pooled_stratified",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 26, in pipeline\n    r=run_cell_mesh(a,e,s,min_cells=1,n_perms=2,sample_mode=mode,sample_key='sample')\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/_numerics.py\", line 59, in wrapped\n    result = function(*args, **kwargs)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/core.py\", line 1280, in run_cell_mesh\n    _validate_scoring_expression(\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 216, in _validate_scoring_expression\n    _validate_expression_values(selected, layer=layer)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 97, in _validate_expression_values\n    raise ValueError(message)\nValueError: scoring expression must be finite and non-negative real values; check adata.X\n"
+      },
+      {
+        "name": "text-to-scoring-{'dtype': 'Float64'}-sample_aware",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 26, in pipeline\n    r=run_cell_mesh(a,e,s,min_cells=1,n_perms=2,sample_mode=mode,sample_key='sample')\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/_numerics.py\", line 59, in wrapped\n    result = function(*args, **kwargs)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/core.py\", line 1280, in run_cell_mesh\n    _validate_scoring_expression(\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 216, in _validate_scoring_expression\n    _validate_expression_values(selected, layer=layer)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/preprocess.py\", line 97, in _validate_expression_values\n    raise ValueError(message)\nValueError: scoring expression must be finite and non-negative real values; check adata.X\n"
+      },
+      {
+        "name": "text-to-scoring-{'dtype': <class 'numpy.float32'>}-pooled_stratified",
+        "status": "ok",
+        "value": {
+          "dtype": "float32",
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "text-to-scoring-{'dtype': <class 'numpy.float32'>}-sample_aware",
+        "status": "ok",
+        "value": {
+          "dtype": "float32",
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "nul-header-c",
+        "status": "ok",
+        "value": [
+          "G",
+          "R"
+        ]
+      },
+      {
+        "name": "nul-header-python",
+        "status": "exception",
+        "error": "ParserError",
+        "message": "NULL byte detected. This byte cannot be processed in Python's native csv library at the moment, so please pass in engine='c' instead",
+        "trace": "Traceback (most recent call last):\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/python_parser.py\", line 805, in _next_iter_line\n    line = next(self.data)\n_csv.Error: line contains NUL\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 32, in nul_read\n    a=read_anndata(path,mode='csv',engine=engine)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/io.py\", line 166, in read_anndata\n    return _read_csv(path, **kwargs)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/io.py\", line 303, in _read_csv\n    df = _read_text_matrix(path, kwargs)\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/io.py\", line 92, in _read_text_matrix\n    columns = _csv_columns(path, options, context=f\"Expression file {path}\")\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/io.py\", line 69, in _csv_columns\n    width = len(pd.read_csv(path, **{**probe, \"header\": int(header), \"nrows\": 0}).columns)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/readers.py\", line 1026, in read_csv\n    return _read(filepath_or_buffer, kwds)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/readers.py\", line 620, in _read\n    parser = TextFileReader(filepath_or_buffer, **kwds)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/readers.py\", line 1620, in __init__\n    self._engine = self._make_engine(f, self.engine)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/readers.py\", line 1898, in _make_engine\n    return mapping[engine](f, **self.options)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/python_parser.py\", line 133, in __init__\n    ) = self._infer_columns()\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/python_parser.py\", line 404, in _infer_columns\n    line = self._buffered_line()\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/python_parser.py\", line 637, in _buffered_line\n    return self._next_line()\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/python_parser.py\", line 738, in _next_line\n    orig_line = self._next_iter_line(row_num=self.pos + 1)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/python_parser.py\", line 834, in _next_iter_line\n    self._alert_malformed(msg, row_num)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/io/parsers/python_parser.py\", line 781, in _alert_malformed\n    raise ParserError(msg)\npandas.errors.ParserError: NULL byte detected. This byte cannot be processed in Python's native csv library at the moment, so please pass in engine='c' instead\n"
+      },
+      {
+        "name": "float16-plot_event_dotplot-['cell_mesh_score']",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 44, in fp16\n    got=fn(data);got['fig'].canvas.draw()\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 1278, in plot_event_dotplot\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-plot_communication_network-['cell_mesh_score']",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "No events remain after filtering",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 44, in fp16\n    got=fn(data);got['fig'].canvas.draw()\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 636, in plot_communication_network\n    raise ValueError(\"No events remain after filtering\")\nValueError: No events remain after filtering\n"
+      },
+      {
+        "name": "float16-plot_significant_event_counts-['cell_mesh_score']",
+        "status": "ok",
+        "value": "rendered"
+      },
+      {
+        "name": "float16-plot_event_dotplot-['perm_pvalue']",
+        "status": "ok",
+        "value": "rendered"
+      },
+      {
+        "name": "float16-plot_communication_network-['perm_pvalue']",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "No events remain after filtering",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 44, in fp16\n    got=fn(data);got['fig'].canvas.draw()\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 636, in plot_communication_network\n    raise ValueError(\"No events remain after filtering\")\nValueError: No events remain after filtering\n"
+      },
+      {
+        "name": "float16-plot_significant_event_counts-['perm_pvalue']",
+        "status": "ok",
+        "value": "rendered"
+      },
+      {
+        "name": "float16-plot_event_dotplot-['fdr_sensor_type']",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 44, in fp16\n    got=fn(data);got['fig'].canvas.draw()\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 1278, in plot_event_dotplot\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-plot_communication_network-['fdr_sensor_type']",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "No events remain after filtering",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 44, in fp16\n    got=fn(data);got['fig'].canvas.draw()\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 636, in plot_communication_network\n    raise ValueError(\"No events remain after filtering\")\nValueError: No events remain after filtering\n"
+      },
+      {
+        "name": "float16-plot_significant_event_counts-['fdr_sensor_type']",
+        "status": "ok",
+        "value": "rendered"
+      },
+      {
+        "name": "float16-plot_event_dotplot-['cell_mesh_score', 'fdr_sensor_type']",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 44, in fp16\n    got=fn(data);got['fig'].canvas.draw()\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 1278, in plot_event_dotplot\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-plot_communication_network-['cell_mesh_score', 'fdr_sensor_type']",
+        "status": "exception",
+        "error": "ValueError",
+        "message": "No events remain after filtering",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 13, in record\n    value=fn();result.append(dict(name=name,status='ok',value=value))\n  File \"/tmp/cellmesh_review_post_b_20260917/compatibility_probes.py\", line 44, in fp16\n    got=fn(data);got['fig'].canvas.draw()\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 636, in plot_communication_network\n    raise ValueError(\"No events remain after filtering\")\nValueError: No events remain after filtering\n"
+      },
+      {
+        "name": "float16-plot_significant_event_counts-['cell_mesh_score', 'fdr_sensor_type']",
+        "status": "ok",
+        "value": "rendered"
+      }
+    ],
+    "control_probes": [
+      {
+        "name": "nullable-numeric-conversion-Int64",
+        "status": "matches",
+        "events": 4
+      },
+      {
+        "name": "nullable-numeric-conversion-Float64",
+        "status": "matches",
+        "events": 4
+      },
+      {
+        "name": "promote-existing-float16-values-plot_communication_network-cell_mesh_score",
+        "status": "renders"
+      },
+      {
+        "name": "promote-existing-float16-values-plot_event_dotplot-cell_mesh_score",
+        "status": "renders"
+      },
+      {
+        "name": "promote-existing-float16-values-plot_communication_network-perm_pvalue",
+        "status": "renders"
+      },
+      {
+        "name": "promote-existing-float16-values-plot_event_dotplot-perm_pvalue",
+        "status": "renders"
+      },
+      {
+        "name": "promote-existing-float16-values-plot_communication_network-fdr_sensor_type",
+        "status": "renders"
+      },
+      {
+        "name": "promote-existing-float16-values-plot_event_dotplot-fdr_sensor_type",
+        "status": "renders"
+      }
+    ],
+    "edge_probes": [
+      {
+        "name": "text-roundtrip-csv-c-False",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "text-roundtrip-csv-c-True",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "text-roundtrip-csv-python-False",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "text-roundtrip-csv-python-True",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "text-roundtrip-tsv-c-False",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "text-roundtrip-tsv-c-True",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "text-roundtrip-tsv-python-False",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "text-roundtrip-tsv-python-True",
+        "status": "ok",
+        "detail": "identifiers and values match"
+      },
+      {
+        "name": "read-options-{'dtype_backend': 'numpy_nullable'}",
+        "status": "ok",
+        "detail": {
+          "shape": [
+            2,
+            2
+          ],
+          "cells": [
+            "01",
+            "NA"
+          ],
+          "genes": [
+            "G",
+            "R"
+          ],
+          "dtype": "object",
+          "values": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ]
+        }
+      },
+      {
+        "name": "read-options-{'header': None, 'names': [0, 1, 2], 'skiprows': 1}",
+        "status": "ok",
+        "detail": {
+          "shape": [
+            2,
+            2
+          ],
+          "cells": [
+            "01",
+            "NA"
+          ],
+          "genes": [
+            "1",
+            "2"
+          ],
+          "dtype": "int64",
+          "values": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ]
+        }
+      },
+      {
+        "name": "read-options-{'usecols': ['G', 'R']}",
+        "status": "ok",
+        "detail": {
+          "shape": [
+            2,
+            1
+          ],
+          "cells": [
+            "1",
+            "3"
+          ],
+          "genes": [
+            "R"
+          ],
+          "dtype": "int64",
+          "values": [
+            [
+              2
+            ],
+            [
+              4
+            ]
+          ]
+        }
+      },
+      {
+        "name": "duplicate-row-index-plot_event_dotplot-[0, 0, 1, 1]",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "duplicate-row-index-plot_communication_network-[0, 0, 1, 1]",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "duplicate-row-index-plot_significant_event_counts-[0, 0, 1, 1]",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "duplicate-row-index-plot_event_dotplot-['x', 'x', 'x', 'x']",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "duplicate-row-index-plot_communication_network-['x', 'x', 'x', 'x']",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "duplicate-row-index-plot_significant_event_counts-['x', 'x', 'x', 'x']",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "numeric-dtype-float16",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported"
+      },
+      {
+        "name": "numeric-dtype-float32",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "numeric-dtype-Float64",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "numeric-dtype-Int64",
+        "status": "ok",
+        "detail": "rendered"
+      },
+      {
+        "name": "qc-category",
+        "status": "ok",
+        "detail": [
+          "True",
+          "False",
+          "nan"
+        ]
+      },
+      {
+        "name": "qc-category",
+        "status": "ok",
+        "detail": [
+          "True",
+          "False",
+          "<NA>"
+        ]
+      },
+      {
+        "name": "qc-string",
+        "status": "ok",
+        "detail": [
+          "True",
+          "<NA>",
+          "False"
+        ]
+      }
+    ],
+    "scope_probes": [
+      {
+        "name": "float16-plot_communication_network-cell_mesh_score",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 15, in record\n    try:results.append(dict(name=name,status='ok',value=fn()))\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 26, in plotted\n    got=fn(data,max_fdr=None);got['fig'].canvas.draw();return 'rendered'\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 654, in plot_communication_network\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-plot_event_dotplot-cell_mesh_score",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 15, in record\n    try:results.append(dict(name=name,status='ok',value=fn()))\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 26, in plotted\n    got=fn(data,max_fdr=None);got['fig'].canvas.draw();return 'rendered'\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 1278, in plot_event_dotplot\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-plot_communication_network-perm_pvalue",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 15, in record\n    try:results.append(dict(name=name,status='ok',value=fn()))\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 26, in plotted\n    got=fn(data,max_fdr=None);got['fig'].canvas.draw();return 'rendered'\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 654, in plot_communication_network\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-plot_event_dotplot-perm_pvalue",
+        "status": "ok",
+        "value": "rendered"
+      },
+      {
+        "name": "float16-plot_communication_network-fdr_sensor_type",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 15, in record\n    try:results.append(dict(name=name,status='ok',value=fn()))\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 26, in plotted\n    got=fn(data,max_fdr=None);got['fig'].canvas.draw();return 'rendered'\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 654, in plot_communication_network\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-plot_event_dotplot-fdr_sensor_type",
+        "status": "exception",
+        "error": "NotImplementedError",
+        "message": "float16 indexes are not supported",
+        "trace": "Traceback (most recent call last):\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 15, in record\n    try:results.append(dict(name=name,status='ok',value=fn()))\n  File \"/tmp/cellmesh_review_post_b_20260917/scope_probes.py\", line 26, in plotted\n    got=fn(data,max_fdr=None);got['fig'].canvas.draw();return 'rendered'\n  File \"/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/plotting.py\", line 1278, in plot_event_dotplot\n    filtered\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/frame.py\", line 7205, in sort_values\n    indexer = lexsort_indexer(\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/sorting.py\", line 351, in lexsort_indexer\n    cat = Categorical(k, ordered=True)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/arrays/categorical.py\", line 473, in __init__\n    dtype = CategoricalDtype(categories, dtype.ordered)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 221, in __init__\n    self._finalize(categories, ordered, fastpath=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 378, in _finalize\n    categories = self.validate_categories(categories, fastpath=fastpath)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/dtypes/dtypes.py\", line 572, in validate_categories\n    categories = Index._with_infer(categories, tupleize_cols=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 681, in _with_infer\n    result = cls(*args, **kwargs)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 577, in __new__\n    arr = klass._ensure_array(arr, arr.dtype, copy=False)\n  File \"/home/qsong/miniconda3/envs/cellmesh/lib/python3.10/site-packages/pandas/core/indexes/base.py\", line 602, in _ensure_array\n    raise NotImplementedError(\"float16 indexes are not supported\")\nNotImplementedError: float16 indexes are not supported\n"
+      },
+      {
+        "name": "float16-receptor-sensor_score",
+        "status": "ok",
+        "value": "rendered"
+      },
+      {
+        "name": "float16-receptor-sensor_expr_frac",
+        "status": "ok",
+        "value": "rendered"
+      },
+      {
+        "name": "nul-csv-gene",
+        "status": "ok",
+        "value": {
+          "cells": [
+            "a",
+            "b"
+          ],
+          "genes": [
+            "G",
+            "R"
+          ],
+          "expression": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "nul-csv-cell",
+        "status": "ok",
+        "value": {
+          "cells": [
+            "a",
+            "b"
+          ],
+          "genes": [
+            "G",
+            "R"
+          ],
+          "expression": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "nul-csv-expression",
+        "status": "ok",
+        "value": {
+          "cells": [
+            "a",
+            "b"
+          ],
+          "genes": [
+            "G",
+            "R"
+          ],
+          "expression": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "nul-csv-metadata",
+        "status": "ok",
+        "value": [
+          "A",
+          "B"
+        ]
+      },
+      {
+        "name": "nul-csv-names",
+        "status": "ok",
+        "value": [
+          "G",
+          "R"
+        ]
+      },
+      {
+        "name": "nul-tsv-gene",
+        "status": "ok",
+        "value": {
+          "cells": [
+            "a",
+            "b"
+          ],
+          "genes": [
+            "G",
+            "R"
+          ],
+          "expression": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "nul-tsv-cell",
+        "status": "ok",
+        "value": {
+          "cells": [
+            "a",
+            "b"
+          ],
+          "genes": [
+            "G",
+            "R"
+          ],
+          "expression": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "nul-tsv-expression",
+        "status": "ok",
+        "value": {
+          "cells": [
+            "a",
+            "b"
+          ],
+          "genes": [
+            "G",
+            "R"
+          ],
+          "expression": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "scores": [
+            0.5554920598635309,
+            0.46475800154489005,
+            0.41403933560541245,
+            0.34641016151377546
+          ],
+          "pvalues": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      {
+        "name": "nul-tsv-metadata",
+        "status": "ok",
+        "value": [
+          "A",
+          "B"
+        ]
+      },
+      {
+        "name": "nul-tsv-names",
+        "status": "ok",
+        "value": [
+          "G",
+          "R"
+        ]
+      }
+    ],
+    "io_scope": [
+      {
+        "probe": "nullable-gzip",
+        "mode": "csv",
+        "transpose": false,
+        "dtype": "Float64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "csv",
+        "transpose": false,
+        "dtype": "Int64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "csv",
+        "transpose": false,
+        "dtype": "backend",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "csv",
+        "transpose": true,
+        "dtype": "Float64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "csv",
+        "transpose": true,
+        "dtype": "Int64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "csv",
+        "transpose": true,
+        "dtype": "backend",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nul-gzip",
+        "mode": "csv",
+        "genes": [
+          "G",
+          "R"
+        ]
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "tsv",
+        "transpose": false,
+        "dtype": "Float64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "tsv",
+        "transpose": false,
+        "dtype": "Int64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "tsv",
+        "transpose": false,
+        "dtype": "backend",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "tsv",
+        "transpose": true,
+        "dtype": "Float64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "tsv",
+        "transpose": true,
+        "dtype": "Int64",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nullable-gzip",
+        "mode": "tsv",
+        "transpose": true,
+        "dtype": "backend",
+        "result_dtype": "object",
+        "status": "rejected",
+        "message": "scoring expression must be finite and non-negative real values; check adata.X"
+      },
+      {
+        "probe": "nul-gzip",
+        "mode": "tsv",
+        "genes": [
+          "G",
+          "R"
+        ]
+      },
+      {
+        "probe": "nul-public-mtx",
+        "genes": [
+          "G",
+          "R"
+        ],
+        "cells": [
+          "a",
+          "b"
+        ]
+      },
+      {
+        "probe": "nul-public-metadata",
+        "labels": [
+          "A",
+          "B"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "compatibility_probes.py": "4718c713d230031ebfca076c43ae1beecb010803f5815504432ed6893a48968e",
+    "control_probes.py": "84564407187317c7b956e047cdb4e0a14e8ca4dfffd1885782bc959cc4742912",
+    "differential.py": "a629b838585c5a77cffb1b108ed520ea4ccbb9687ba30fdc14b0f80da24f70ae",
+    "edge_probes.py": "5b6ae74cff1281c60ced92f049ebbc80fb95d4456699d6028e799b27c6859fa4",
+    "scope_probes.py": "8500d4d15b08a5b5996250f225eddb8f6da65e82809dcc1063fe793213fabbf2",
+    "io_scope.py": "3b9daa908c68f34bbeaedf2a87cdc59855a47d723c8b7fc0b008f261e6ee1936"
+  },
+  "probe_status_note": "Probe status ok means the call completed. For malformed NUL input, successful truncating reads demonstrate B04. Scope probes override network FDR filters to isolate B06."
+}

@@ -8,7 +8,11 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
-from ._numerics import _check_numeric_result, _positive_reference_scores, _reaction_activity
+from ._numerics import (
+    _abundance_weights, _check_numeric_result, _positive_product,
+    _positive_reference_scores, _reaction_activity, _report_underflow,
+    _sender_base, _with_numerical_diagnostics,
+)
 
 from .config import (
     METABOLITE_AVAILABILITY_DEFAULTS,
@@ -44,18 +48,25 @@ def _resolve_cell_fractions(
     if cell_fractions is None:
         fractions = _compute_celltype_fractions(adata, celltype_col)
     else:
-        fractions = pd.Series(cell_fractions, dtype=float).copy()
+        # Preserve raw types until validation: forcing float here discards a
+        # complex imaginary part and treats True as 1 before checks can see it.
+        # Use the same strict numeric contract as externally supplied summaries.
+        # Regression: tests/test_cell_fraction_types.py.
+        fractions = pd.Series(cell_fractions, dtype=object).copy()
         fractions.index = pd.Index(_normalized_label_series(
             pd.Series(fractions.index, dtype=object), "cell_fractions index",
             reject_collisions=False,
         ))
         if fractions.index.has_duplicates:
             raise ValueError("cell_fractions must contain one value per cell type")
-        supplied_values = pd.to_numeric(fractions, errors="coerce").to_numpy(dtype=float)
+        supplied_values = _summary_numbers(fractions.to_frame(), "cell_fractions")[:, 0]
         if np.any(~np.isfinite(supplied_values)) or np.any(supplied_values <= 0.0):
             raise ValueError("cell_fractions must be finite and strictly positive")
-        if float(supplied_values.sum()) > 1.0 + 1e-9:
+        with np.errstate(over="ignore", invalid="ignore"):
+            total = float(supplied_values.sum())
+        if total > 1.0 + 1e-9:
             raise ValueError("cell_fractions must sum to at most 1")
+        fractions = pd.Series(supplied_values, index=fractions.index)
 
     required = pd.Index(pseudobulk.index).astype(str)
     missing = required.difference(fractions.index)
@@ -230,6 +241,7 @@ def _checked_receiver_counts(value, observed: pd.Series) -> pd.Series:
     return observed.copy()
 
 
+@_with_numerical_diagnostics
 def compute_sensor_scores(
     adata,
     sensor_prior: pd.DataFrame,
@@ -288,6 +300,10 @@ def compute_sensor_scores(
     expr_frac = _checked_receiver_summary(
         expr_frac, name="expr_frac", counts=observed_counts,
         genes=genes, required_genes=valid_genes,
+    )
+    _report_underflow(
+        (expr_frac.to_numpy() > 0) & (pseudobulk.to_numpy() == 0),
+        "receiver pseudobulk expression",
     )
     cell_fractions = _resolve_cell_fractions(
         adata,
@@ -597,6 +613,7 @@ def _score_PCE_by_reference(
     }
 
 
+@_with_numerical_diagnostics
 def compute_metabolite_availability(
     adata,
     enzyme_metabolite: pd.DataFrame,
@@ -684,10 +701,19 @@ def compute_metabolite_availability(
         if _prior_role_coverage is None
         else dict(_prior_role_coverage)
     )
+    relevant = list(dict.fromkeys(g for genes in reaction_genes["genes"] for g in genes if g in pseudobulk.columns))
+    _report_underflow((expr_frac[relevant].to_numpy() > 0) & (pseudobulk[relevant].to_numpy() == 0),
+                      "sender pseudobulk expression")
     reaction_scores = _compute_reaction_scores(pseudobulk, reaction_genes)
-    sender_abundance_weights = cell_fractions.pow(sender_abundance_exponent)
-    sender_abundance_weights.name = "sender_abundance_weight"
-    reaction_scores = reaction_scores.mul(sender_abundance_weights, axis="columns")
+    sender_abundance_weights = pd.Series(
+        _abundance_weights(cell_fractions, sender_abundance_exponent),
+        index=cell_fractions.index, name="sender_abundance_weight",
+    )
+    reaction_scores = pd.DataFrame(
+        _positive_product(reaction_scores.to_numpy(), sender_abundance_weights.reindex(reaction_scores.columns).to_numpy(),
+                          "abundance-adjusted reaction activity"),
+        index=reaction_scores.index, columns=reaction_scores.columns,
+    )
     _check_numeric_result(reaction_scores.to_numpy(), "abundance-adjusted reaction activity")
     PCE = _compute_PCE_matrices(reaction_scores, reaction_genes)
     P, C, E = PCE["P"], PCE["C"], PCE["E"]
@@ -795,13 +821,8 @@ def compute_metabolite_availability(
     P_score = scored["P_score"]
     C_score = scored["C_score"]
     E_score = scored["E_score"]
-    denominator = P_score + C_score
-    _check_numeric_result(denominator.to_numpy(), "sender normalization denominator")
-    base_availability = (
-        P_score.pow(2)
-        .div(denominator.where(denominator > 0.0))
-        .fillna(0.0)
-        .clip(lower=0.0, upper=1.0)
+    base_availability = pd.DataFrame(
+        _sender_base(P_score, C_score), index=P_score.index, columns=P_score.columns,
     )
 
     E_effective = pd.DataFrame(0.0, index=P.index, columns=P.columns, dtype=float)
@@ -814,7 +835,10 @@ def compute_metabolite_availability(
         # ``prior_no_expression`` remains zero: the prior is evaluable and
         # supplies direct evidence that exporter expression is absent.
     E_factor = (1.0 - export_weight) + export_weight * E_effective
-    availability = base_availability * E_factor
+    availability = pd.DataFrame(
+        _positive_product(base_availability, E_factor, "sender scores"),
+        index=P_score.index, columns=P_score.columns,
+    )
     _check_numeric_result(availability.to_numpy(), "sender scores")
     availability = availability.clip(lower=0.0, upper=1.0)
 

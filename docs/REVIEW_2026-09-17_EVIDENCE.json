@@ -1,0 +1,569 @@
+{
+  "date": "2026-09-17",
+  "branch": "feature-modified",
+  "scope": "Current working tree including completed A01-A11 revisions; review only",
+  "tests": {
+    "passed": 2043,
+    "skipped": 1,
+    "warnings": 213,
+    "seconds": 228.71
+  },
+  "environment": {
+    "Python": "3.10.20",
+    "NumPy": "2.2.6",
+    "pandas": "2.3.3",
+    "SciPy": "1.15.3",
+    "AnnData": "0.11.4",
+    "Matplotlib": "3.10.9"
+  },
+  "differential": {
+    "cases": 48,
+    "vectors_compared": 192,
+    "event_values_compared": 9216,
+    "max_absolute_difference": 1.1102230246251565e-16,
+    "pvalue_mismatches": 0,
+    "failures": [],
+    "seconds": 37.66
+  },
+  "sparse_minimal_case": {
+    "int8_duplicates": {
+      "X": "<Compressed Sparse Row sparse matrix of dtype 'int8'\n\twith 5 stored elements and shape (2, 2)>\n  Coords\tValues\n  (0, 0)\t2\n  (0, 1)\t80\n  (0, 1)\t80\n  (1, 0)\t2\n  (1, 1)\t1",
+      "expr_frac": {
+        "G": {
+          "A": 1.0,
+          "B": 1.0
+        },
+        "R": {
+          "A": 0.0,
+          "B": 1.0
+        }
+      },
+      "pseudobulk": {
+        "G": {
+          "A": 2.0,
+          "B": 2.0
+        },
+        "R": {
+          "A": 160.0,
+          "B": 1.0
+        }
+      },
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "B",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.012269938650306749,
+          "sensor_expr_frac": 1.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.07430661069271048,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 0.7,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.012269938650306749,
+          "sensor_expr_frac": 1.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.07430661069271048,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 0.7,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.0,
+          "sensor_expr_frac": 0.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.0,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 1.0,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.0,
+          "sensor_expr_frac": 0.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.0,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 1.0,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        }
+      ],
+      "violin_error": "ValueError('receptor_expression must contain finite real values >= 0 or missing values; invalid records: position 0 (index 0): np.float64(-96.0)')"
+    },
+    "float64_logical": {
+      "X": "[[  2. 160.]\n [  2.   1.]]",
+      "expr_frac": {
+        "G": {
+          "A": 1.0,
+          "B": 1.0
+        },
+        "R": {
+          "A": 1.0,
+          "B": 1.0
+        }
+      },
+      "pseudobulk": {
+        "G": {
+          "A": 2.0,
+          "B": 2.0
+        },
+        "R": {
+          "A": 160.0,
+          "B": 1.0
+        }
+      },
+      "events": [
+        {
+          "sender": "A",
+          "receiver": "A",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.6652806652806653,
+          "sensor_expr_frac": 1.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.5471529031050639,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 0.7,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.6652806652806653,
+          "sensor_expr_frac": 1.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.5471529031050639,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 0.7,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.012269938650306749,
+          "sensor_expr_frac": 1.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.07430661069271048,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 1.0,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "metabolite_availability": 0.45,
+          "sensor_score": 0.012269938650306749,
+          "sensor_expr_frac": 1.0,
+          "sender_n_cells": 1,
+          "receiver_n_cells": 1,
+          "sender_passes_min_cells": true,
+          "receiver_passes_min_cells": true,
+          "passes_min_cells": true,
+          "cell_mesh_score": 0.07430661069271048,
+          "inference_mode": "pooled_stratified",
+          "perm_pvalue": 1.0,
+          "fdr_global": 1.0,
+          "fdr_sensor_type": 1.0
+        }
+      ],
+      "violin_summary": {
+        "receiver": {
+          "0": "A",
+          "1": "B"
+        },
+        "n_cells": {
+          "0": 1,
+          "1": 1
+        },
+        "mean_receptor_expression": {
+          "0": 160.0,
+          "1": 1.0
+        },
+        "median_receptor_expression": {
+          "0": 160.0,
+          "1": 1.0
+        },
+        "q1_receptor_expression": {
+          "0": 160.0,
+          "1": 1.0
+        },
+        "q3_receptor_expression": {
+          "0": 160.0,
+          "1": 1.0
+        },
+        "sensor_score": {
+          "0": 0.6652806652806653,
+          "1": 0.012269938650306749
+        },
+        "sensor_expr_frac": {
+          "0": 1.0,
+          "1": 1.0
+        }
+      }
+    }
+  },
+  "input_followups": [
+    {
+      "dtype": "int8",
+      "kind": "csr",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.5471529031050639,
+      "p_mismatches": 2,
+      "warnings": []
+    },
+    {
+      "dtype": "int8",
+      "kind": "csr",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.5471529031050639,
+      "p_mismatches": 4,
+      "warnings": []
+    },
+    {
+      "dtype": "int8",
+      "kind": "csc",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.5471529031050639,
+      "p_mismatches": 2,
+      "warnings": []
+    },
+    {
+      "dtype": "int8",
+      "kind": "csc",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.5471529031050639,
+      "p_mismatches": 4,
+      "warnings": []
+    },
+    {
+      "dtype": "int16",
+      "kind": "csr",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.5477202753421067,
+      "p_mismatches": 2,
+      "warnings": []
+    },
+    {
+      "dtype": "int16",
+      "kind": "csr",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.5477202753421067,
+      "p_mismatches": 4,
+      "warnings": []
+    },
+    {
+      "dtype": "int16",
+      "kind": "csc",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.5477202753421067,
+      "p_mismatches": 2,
+      "warnings": []
+    },
+    {
+      "dtype": "int16",
+      "kind": "csc",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.5477202753421067,
+      "p_mismatches": 4,
+      "warnings": []
+    },
+    {
+      "dtype": "uint8",
+      "kind": "csr",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.5473663151536542,
+      "p_mismatches": 2,
+      "warnings": []
+    },
+    {
+      "dtype": "uint8",
+      "kind": "csr",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.5473663151536542,
+      "p_mismatches": 4,
+      "warnings": []
+    },
+    {
+      "dtype": "uint8",
+      "kind": "csc",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.5473663151536542,
+      "p_mismatches": 2,
+      "warnings": []
+    },
+    {
+      "dtype": "uint8",
+      "kind": "csc",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.5473663151536542,
+      "p_mismatches": 4,
+      "warnings": []
+    },
+    {
+      "dtype": "float32",
+      "kind": "csr",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.0,
+      "p_mismatches": 0,
+      "warnings": []
+    },
+    {
+      "dtype": "float32",
+      "kind": "csr",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.0,
+      "p_mismatches": 0,
+      "warnings": []
+    },
+    {
+      "dtype": "float32",
+      "kind": "csc",
+      "mode": "pooled_stratified",
+      "canonical": false,
+      "score_max_diff": 0.0,
+      "p_mismatches": 0,
+      "warnings": []
+    },
+    {
+      "dtype": "float32",
+      "kind": "csc",
+      "mode": "sample_aware",
+      "canonical": false,
+      "score_max_diff": 0.0,
+      "p_mismatches": 0,
+      "warnings": []
+    },
+    {
+      "fractions": "complex",
+      "api": "availability",
+      "accepted": true,
+      "warnings": [
+        "Casting complex values to real discards the imaginary part"
+      ]
+    },
+    {
+      "fractions": "complex",
+      "api": "sensor",
+      "accepted": true,
+      "warnings": [
+        "Casting complex values to real discards the imaginary part"
+      ]
+    },
+    {
+      "fractions": "bool_single",
+      "api": "availability",
+      "accepted": true,
+      "warnings": []
+    },
+    {
+      "fractions": "bool_single",
+      "api": "sensor",
+      "accepted": true,
+      "warnings": []
+    },
+    {
+      "fractions": "complex_object",
+      "api": "availability",
+      "accepted": true,
+      "warnings": [
+        "Casting complex values to real discards the imaginary part",
+        "Casting complex values to real discards the imaginary part",
+        "Casting complex values to real discards the imaginary part"
+      ]
+    },
+    {
+      "fractions": "complex_object",
+      "api": "sensor",
+      "accepted": true,
+      "warnings": [
+        "Casting complex values to real discards the imaginary part",
+        "Casting complex values to real discards the imaginary part",
+        "Casting complex values to real discards the imaginary part"
+      ]
+    },
+    {
+      "fixture": "demo_HNSC_200cell.h5ad",
+      "type": "ndarray",
+      "dtype": "float32",
+      "has_canonical_format": null
+    },
+    {
+      "fixture": "test_single_cell.h5ad",
+      "type": "csr_matrix",
+      "dtype": "float32",
+      "has_canonical_format": true
+    }
+  ],
+  "qc_followups": [
+    {
+      "api": "plot_significant_event_counts",
+      "flag": true,
+      "passing": 1,
+      "count": 1
+    },
+    {
+      "api": "plot_communication_network",
+      "flag": true,
+      "passing": 1
+    },
+    {
+      "api": "plot_event_dotplot",
+      "flag": true,
+      "passing": 1
+    },
+    {
+      "api": "plot_sample_event_scores",
+      "flag": true,
+      "passing": 1
+    },
+    {
+      "api": "plot_significant_event_counts",
+      "flag": "True",
+      "passing": 0,
+      "count": 0
+    },
+    {
+      "api": "plot_communication_network",
+      "flag": "True",
+      "error": "ValueError('No events remain after filtering')"
+    },
+    {
+      "api": "plot_event_dotplot",
+      "flag": "True",
+      "error": "ValueError('No events remain after filtering')"
+    },
+    {
+      "api": "plot_sample_event_scores",
+      "flag": "True",
+      "error": "ValueError('The requested sample-aware event has no rows after min-cells QC; set qc_only=False to include failed rows')"
+    },
+    {
+      "api": "plot_significant_event_counts",
+      "flag": "bad",
+      "passing": 0,
+      "count": 0
+    },
+    {
+      "api": "plot_communication_network",
+      "flag": "bad",
+      "error": "ValueError('No events remain after filtering')"
+    },
+    {
+      "api": "plot_event_dotplot",
+      "flag": "bad",
+      "error": "ValueError('No events remain after filtering')"
+    },
+    {
+      "api": "plot_sample_event_scores",
+      "flag": "bad",
+      "error": "ValueError('The requested sample-aware event has no rows after min-cells QC; set qc_only=False to include failed rows')"
+    }
+  ],
+  "source_sha256": {
+    "cellmesh/__init__.py": "a38bf1697eddf2e33ede7c05b0811dccadd322c47ab04619b7184348b8830c45",
+    "cellmesh/_numerics.py": "8b03f0b9164129b510383c34e9c83bfd8fcd390b6d6ce29e2ffee2fd60d167db",
+    "cellmesh/_table_io.py": "371de3f849f1ef199c04e2381df35ef375fbf09990184799ce43c29519d908f8",
+    "cellmesh/config.py": "26c734263a441aff39d215899a36214362df6e6a666bf24f07e6b67cae97bf42",
+    "cellmesh/core.py": "afe0884fde598144fc6f8871459ee3682b47b0f75e368e67145ae2cdb7460cf3",
+    "cellmesh/database.py": "329a5bc344d2468a90eae5e3240300c56e67e345999ad5e02485fccb1fcc6590",
+    "cellmesh/io.py": "1e72ce92f2f7a41164174144b0ed951b5d749d965f712f4ff9c4647882821bac",
+    "cellmesh/permutation.py": "14b6684b6841fd46b0e0c0da7b67134f469b0028fff6f2882f4bee67862722e9",
+    "cellmesh/plotting.py": "7cc204ae3005452f6fc73fd863455e35aef38d91c805dc989aef08144b706dcb",
+    "cellmesh/preprocess.py": "1cc4ac3f02271de0295f8b141ba0e432deee07476eeaf172440b400816ca98ca",
+    "cellmesh/prior_coverage.py": "e4ca12882e5680fe42215ddad21f27d652b0bc7c21e5effff391dbc73e85f0ae",
+    "cellmesh/score.py": "4f6f018fa396a7be05b2b06a9c48758eb2110a44ce84ad1de70eaf5ec8e71423"
+  },
+  "reproduction_scripts_directory": "/tmp/cellmesh_review_20260917"
+}

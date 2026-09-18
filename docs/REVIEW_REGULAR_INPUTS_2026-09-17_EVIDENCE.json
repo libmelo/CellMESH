@@ -1,0 +1,82 @@
+{
+  "review_date": "2026-09-17",
+  "branch": "feature-modified",
+  "production_edits_in_review": false,
+  "new_confirmed_findings": [],
+  "excluded_findings": [
+    {
+      "id": "B07",
+      "status": "ignored_by_user",
+      "reason": "User explicitly chose not to revise MaskedArray handling; focus on regular scRNA-seq inputs."
+    }
+  ],
+  "environment": {
+    "python": "3.10.20",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "scipy": "1.15.3",
+    "anndata": "0.11.4",
+    "matplotlib": "3.10.9"
+  },
+  "production_matches_previous_evidence": "REVIEW_POST_B06_2026-09-17_EVIDENCE.json",
+  "baseline_not_rerun": {
+    "path": "/tmp/b04-b06-full.log",
+    "passed": 2493,
+    "skipped": 1,
+    "warnings": 222,
+    "seconds": 262.92,
+    "rerun_in_review": false
+  },
+  "selected_regression_run": {
+    "passed": 220,
+    "warnings": 52,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 39.53,
+    "files": [
+      "test_compiled_permutation.py",
+      "test_permutation_precision.py",
+      "test_permutation_evaluability.py",
+      "test_scoring_event_identity.py",
+      "test_production_evaluability.py",
+      "test_export_consistency.py",
+      "test_min_cells_qc.py"
+    ],
+    "log_path": "/tmp/cellmesh_review_regular_20260917_tests.log",
+    "log_sha256": "b948f6a295caeaaf3033712e1e14ea2358afeec7fd7de3a9569a2fee2e7cd020"
+  },
+  "probe_path": "/tmp/cellmesh_review_regular_20260917/review_probe.py",
+  "probe_sha256": "2bf9103d7a4129d2c92650ec72c8cda30e4f712e180c0f67a890b58aa7927d2b",
+  "probe_results": {
+    "cases": 48,
+    "permutation_vectors": 384,
+    "event_values": 18432,
+    "max_score_difference": 0.0,
+    "pvalue_mismatches": 0,
+    "fdr_comparisons": 4608,
+    "plot_checks": 17,
+    "failures": [],
+    "seconds": 63.18279830738902,
+    "source_sha256": {
+      "cellmesh/core.py": "afe0884fde598144fc6f8871459ee3682b47b0f75e368e67145ae2cdb7460cf3",
+      "cellmesh/preprocess.py": "93e30491f033d050d13f1c2e935dd50bdf5d283d8baacb03599ba28592efb977",
+      "cellmesh/plotting.py": "c7b5f43bfd3e29f64ff588e5b5da0a340502649ef9c966c4eb42ad21f71f62b4",
+      "cellmesh/config.py": "26c734263a441aff39d215899a36214362df6e6a666bf24f07e6b67cae97bf42",
+      "cellmesh/io.py": "d7148465e8e5b4b03cc11a9ed32b6271376950030aff9b0bf9c08d7e3d0a444a",
+      "cellmesh/prior_coverage.py": "e4ca12882e5680fe42215ddad21f27d652b0bc7c21e5effff391dbc73e85f0ae",
+      "cellmesh/permutation.py": "2b035ce939b3b44daf842ae0368d77cfd92b403fe5ac27906d5ecf57744b9706",
+      "cellmesh/__init__.py": "a38bf1697eddf2e33ede7c05b0811dccadd322c47ab04619b7184348b8830c45",
+      "cellmesh/score.py": "db4620d060a1ebdbb4b687a45da7166e191a8408a4f730bb55f3de929211207d",
+      "cellmesh/_table_io.py": "d6ba2b098427402e459f9fc73549221ea02ae7b725e437fa7ff19b8c21671294",
+      "cellmesh/database.py": "329a5bc344d2468a90eae5e3240300c56e67e345999ad5e02485fccb1fcc6590",
+      "cellmesh/_numerics.py": "8b03f0b9164129b510383c34e9c83bfd8fcd390b6d6ce29e2ffee2fd60d167db"
+    }
+  },
+  "scope_limits": [
+    "Current local dependency versions only",
+    "Synthetic test data",
+    "No large-scale performance benchmark",
+    "No validation of biological database relations",
+    "No new MaskedArray review"
+  ]
+}

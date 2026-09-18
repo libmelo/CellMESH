@@ -10,6 +10,8 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from ._numerics import _reaction_activity, _with_numerical_diagnostics
+
 
 _MIN_CELLS_QC_COLUMN = "passes_min_cells"
 
@@ -18,6 +20,122 @@ _MIN_CELLS_QC_COLUMN = "passes_min_cells"
 # sender/receiver（样本表再加 sample）用于区分观测记录，名称不得参与匹配、
 # 分组、去重或排序主键。不能为兼容旧名称调用而回退到名称查找。
 # 回归测试：tests/test_visual_identity.py。
+
+
+def _plot_numeric_series(
+    values: pd.Series, name: str, *, upper: Optional[float] = None,
+    lower: Optional[float] = 0.0, allow_missing: bool = True,
+    probability: bool = False,
+) -> pd.Series:
+    """Validate a numeric view without turning malformed input into biological NA."""
+    import numpy as np
+    from numbers import Number
+
+    # 防回退：必须在阈值、排序、去重之前转换。errors="coerce" 只用于定位错误，
+    # 不能将新产生的 NA 当作原本不可计算；复数/布尔值也不能被隐式转换为得分。
+    # 真正下溢产生的有限零值合法，A04 的 report-and-continue 策略保持不变。
+    # 回归测试：tests/test_plotting_input_contracts.py。
+    invalid_type = values.map(
+        lambda value: not pd.api.types.is_scalar(value)
+        or isinstance(value, (bool, np.bool_, complex, np.complexfloating))
+        or (not pd.isna(value) and not isinstance(value, (str, Number)))
+    ).to_numpy(dtype=bool)
+    original_missing = values.isna().to_numpy()
+    # Mask unsupported dtypes through object storage, so a native complex column
+    # cannot emit ComplexWarning (or lose its imaginary part) before our error.
+    convertible = values.astype(object) if invalid_type.any() else values
+    numeric = pd.to_numeric(convertible.mask(invalid_type), errors="coerce")
+    with np.errstate(over="ignore", invalid="ignore", under="ignore"):
+        array = numeric.to_numpy(dtype=float, na_value=np.nan)
+    invalid = invalid_type | (~original_missing & ~np.isfinite(array))
+    if not allow_missing:
+        invalid |= original_missing
+    if lower is not None:
+        invalid |= array < lower
+    if upper is not None:
+        invalid |= array > upper
+    if invalid.any():
+        positions = np.flatnonzero(invalid)[:5]
+        records = ", ".join(
+            f"position {i} (index {values.index[i]!r}): {values.iloc[i]!r}" for i in positions
+        )
+        contract = "finite probabilities in [0, 1]" if probability else "finite real values"
+        if not probability:
+            if lower is not None:
+                contract += f" >= {lower:g}"
+            if upper is not None:
+                contract += f" and <= {upper:g}"
+        if allow_missing:
+            contract += " or missing values"
+        raise ValueError(f"{name} must contain {contract}; invalid records: {records}")
+    # pandas multi-column sorting builds categorical indexes, which cannot use
+    # float16. Promote the validated working copy BEFORE ranking/deduplication;
+    # this preserves the stored values/NA, not precision lost by earlier casting.
+    # Regression: tests/test_plotting_float16.py.
+    if values.dtype == np.dtype("float16"):
+        return values.astype(np.float64)
+    # Preserve other valid native/nullable columns, including their NA dtype.
+    if pd.api.types.is_numeric_dtype(values.dtype):
+        return values.copy()
+    return pd.Series(array, index=values.index, name=values.name)
+
+
+def _plot_number(value: Any, name: str, *, lower: Optional[float] = 0.0,
+                 upper: Optional[float] = None, positive: bool = False) -> float:
+    result = float(_plot_numeric_series(pd.Series([value], dtype=object), name,
+                                       lower=lower, upper=upper, allow_missing=False).iloc[0])
+    if positive and result <= 0:
+        raise ValueError(f"{name} must be positive")
+    return result
+
+
+def _plot_range(values: Any, name: str, *, positive: bool = False) -> tuple[float, float]:
+    try:
+        if isinstance(values, (str, bytes)) or len(values) != 2:
+            raise ValueError
+        low, high = (_plot_number(v, name, lower=None, positive=positive) for v in values)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a finite (minimum, maximum) pair"
+                         + (" with positive values" if positive else "")) from exc
+    if high < low:
+        raise ValueError(f"{name} maximum must be >= minimum")
+    return low, high
+
+
+def _plot_labels(values: Any, name: str) -> list[str]:
+    from .preprocess import _normalized_label_series
+
+    if isinstance(values, (str, bytes)):
+        raise TypeError(f"{name} must be a sequence of labels, not a string")
+    labels = _normalized_label_series(pd.Series(list(values), dtype=object), name,
+                                      reject_collisions=False).tolist()
+    if len(set(labels)) != len(labels):
+        raise ValueError(f"{name} must not contain duplicates after normalization")
+    return labels
+
+
+def _plot_thresholds(
+    score: Any, pvalue: Any, fdr: Any, score_col: str,
+) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    return (
+        None if score is None else _plot_number(score, "min_cell_mesh_score",
+                                                upper=1.0 if score_col == "cell_mesh_score" else None),
+        None if pvalue is None else _plot_number(pvalue, "max_perm_pvalue", upper=1.0),
+        None if fdr is None else _plot_number(fdr, "max_fdr", upper=1.0),
+    )
+
+
+def _plot_event_numbers(events: pd.DataFrame, score_col: str,
+                        probability_cols: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    out = events.copy()
+    out[score_col] = _plot_numeric_series(out[score_col], score_col,
+                                         upper=1.0 if score_col == "cell_mesh_score" else None)
+    for column in dict.fromkeys(probability_cols):
+        if column in out:
+            out[column] = _plot_numeric_series(out[column], column, upper=1.0, probability=True)
+    excluded = out.loc[out[score_col].isna()].copy()
+    excluded["plot_exclusion_reason"] = "missing_score"
+    return out.loc[out[score_col].notna()].copy(), excluded
 
 
 def _require_hmdb_id(value: Any) -> str:
@@ -112,6 +230,37 @@ def _validate_optional_positive_int(value: Any, *, name: str) -> Optional[int]:
     return int(value)
 
 
+def _plot_qc_series(values: pd.Series) -> pd.Series:
+    """Normalize explicit QC values without confusing text True with failure."""
+    import numpy as np
+    from numbers import Real
+
+    if pd.api.types.is_bool_dtype(values.dtype):
+        return values.copy()
+    normalized, invalid = [], []
+    for position, value in enumerate(values):
+        if not pd.api.types.is_scalar(value) or isinstance(value, (complex, np.complexfloating)):
+            invalid.append(position)
+            normalized.append(pd.NA)
+        elif pd.isna(value):
+            normalized.append(pd.NA)
+        elif isinstance(value, (bool, np.bool_)):
+            normalized.append(bool(value))
+        elif isinstance(value, str) and value.strip().lower() in {'true', 'false', '1', '0'}:
+            normalized.append(value.strip().lower() in {'true', '1'})
+        elif isinstance(value, Real) and value in (0, 1):
+            normalized.append(bool(value))
+        else:
+            invalid.append(position)
+            normalized.append(pd.NA)
+    if invalid:
+        records = ', '.join(f'position {i} (index {values.index[i]!r}): {values.iloc[i]!r}'
+                            for i in invalid[:5])
+        raise ValueError(f'{_MIN_CELLS_QC_COLUMN} must contain booleans, True/False text, '
+                         f'0/1 or genuine missing values; invalid records: {records}')
+    return pd.Series(normalized, index=values.index, name=values.name, dtype='boolean')
+
+
 def _apply_min_cells_event_qc(
     events: pd.DataFrame,
     *,
@@ -123,6 +272,11 @@ def _apply_min_cells_event_qc(
 
     has_qc_column = _MIN_CELLS_QC_COLUMN in events.columns
     if has_qc_column:
+        # Validate even with qc_only=False: QC summaries must not silently label
+        # malformed/text True values as failures. Keep NA and caller data intact.
+        # Regression: tests/test_plotting_qc_types.py.
+        events = events.copy()
+        events[_MIN_CELLS_QC_COLUMN] = _plot_qc_series(events[_MIN_CELLS_QC_COLUMN])
         passes_qc = events[_MIN_CELLS_QC_COLUMN].eq(True).fillna(False).astype(bool)
         failed_events = events.loc[~passes_qc].copy()
         passing_count = int(passes_qc.sum())
@@ -208,7 +362,16 @@ def plot_significant_event_counts(
     ``metabolite`` is optional display metadata. ``unique_keys`` must include
     the four identity/context fields above; only ``sample`` may be added to
     count sample-specific records separately.
+
+    Numeric strings are converted before filtering, ranking and deduplication.
+    Native scores and probabilities must be finite values in [0, 1] or genuine
+    missing values; malformed text, infinity, complex values and booleans raise
+    an error identifying the column and records. Missing scores are excluded
+    and returned in ``missing_score_events`` with reason ``missing_score``.
     """
+    min_cell_mesh_score, max_perm_pvalue, max_fdr = _plot_thresholds(
+        min_cell_mesh_score, max_perm_pvalue, max_fdr, "cell_mesh_score",
+    )
     source_events = _canonical_event_table(_events_frame(result_or_events))
     if source_events.empty:
         raise ValueError("No events available to plot")
@@ -226,7 +389,10 @@ def plot_significant_event_counts(
         source_events,
         qc_only=qc_only,
     )
-    filtered = events
+    probability_cols = (["perm_pvalue"] if max_perm_pvalue is not None else [])
+    if max_fdr is not None:
+        probability_cols.append(fdr_col)
+    filtered, missing_score_events = _plot_event_numbers(events, "cell_mesh_score", probability_cols)
     if min_cell_mesh_score is not None:
         filtered = filtered[filtered["cell_mesh_score"] >= min_cell_mesh_score]
     if max_perm_pvalue is not None:
@@ -317,6 +483,7 @@ def plot_significant_event_counts(
         "filtered_events": filtered.copy(),
         "qc_failed_events": qc_failed_events,
         "qc_excluded_events": qc_excluded_events,
+        "missing_score_events": missing_score_events,
         "qc": qc_summary,
         "thresholds": {
             "min_cell_mesh_score": min_cell_mesh_score,
@@ -385,7 +552,19 @@ def plot_communication_network(
     When ``passes_min_cells`` is available, ``qc_only=True`` (the default)
     uses only rows that explicitly pass min-cells QC. Set ``qc_only=False`` to
     include all rows. Older event tables without this column are unchanged.
+
+    Numeric strings are converted before filtering, ranking and deduplication.
+    Native scores and probabilities must be finite values in [0, 1] or genuine
+    missing values; malformed text, infinity, complex values and booleans raise
+    an error identifying the column and records. Missing scores are excluded
+    and returned in ``missing_score_events`` with reason ``missing_score``.
+    Custom ``score_col`` values must be finite and non-negative (no upper bound).
+    Cell-type selectors are stripped like source labels; normalized duplicates
+    are rejected. Only the QC-retained, explicitly selected context is checked.
     """
+    min_cell_mesh_score, max_perm_pvalue, max_fdr = _plot_thresholds(
+        min_cell_mesh_score, max_perm_pvalue, max_fdr, score_col,
+    )
     source_events = _canonical_event_table(_events_frame(result_or_events))
     if source_events.empty:
         raise ValueError("No events available to plot")
@@ -428,24 +607,28 @@ def plot_communication_network(
             "edge_color_by must be one of total_score, mean_score, event_count, or None"
         )
 
-    def _validate_output_range(name: str, values: tuple[float, float]) -> None:
-        if len(values) != 2 or values[0] <= 0 or values[1] < values[0]:
-            raise ValueError(f"{name} must be a positive (minimum, maximum) pair")
-
-    _validate_output_range("node_size_range", node_size_range)
-    _validate_output_range("edge_width_range", edge_width_range)
-    if not 0 <= edge_alpha <= 1:
-        raise ValueError("edge_alpha must be between 0 and 1")
-    if curve < 0:
-        raise ValueError("curve must be non-negative")
+    node_size_range = _plot_range(node_size_range, "node_size_range", positive=True)
+    edge_width_range = _plot_range(edge_width_range, "edge_width_range", positive=True)
+    if node_value_range is not None:
+        node_value_range = _plot_range(node_value_range, "node_value_range")
+    if edge_width_value_range is not None:
+        edge_width_value_range = _plot_range(edge_width_value_range, "edge_width_value_range")
+    if edge_color_value_range is not None:
+        edge_color_value_range = _plot_range(edge_color_value_range, "edge_color_value_range")
+    edge_alpha = _plot_number(edge_alpha, "edge_alpha", upper=1.0)
+    curve = _plot_number(curve, "curve")
+    node_label_size = _plot_number(node_label_size, "node_label_size", positive=True)
+    if figsize is not None:
+        if isinstance(figsize, (str, bytes)) or len(figsize) != 2:
+            raise ValueError("figsize must contain two positive finite values")
+        figsize = tuple(_plot_number(v, "figsize", positive=True) for v in figsize)
 
     filtered = events.copy()
     if sender_labels is not None:
-        filtered = filtered[filtered["sender"].isin(sender_labels)]
+        filtered = filtered[filtered["sender"].isin(_plot_labels(sender_labels, "sender_labels"))]
     if receiver_labels is not None:
-        filtered = filtered[filtered["receiver"].isin(receiver_labels)]
-    filtered[score_col] = pd.to_numeric(filtered[score_col], errors="coerce")
-    filtered = filtered[filtered[score_col].notna()]
+        filtered = filtered[filtered["receiver"].isin(_plot_labels(receiver_labels, "receiver_labels"))]
+    filtered, missing_score_events = _plot_event_numbers(filtered, score_col, ["perm_pvalue", fdr_col])
     if min_cell_mesh_score is not None:
         filtered = filtered[filtered[score_col] >= min_cell_mesh_score]
     if max_perm_pvalue is not None:
@@ -550,7 +733,7 @@ def plot_communication_network(
                 raise ValueError("Visual value range maximum must be >= minimum")
         output_min, output_max = output_range
         if value_max == value_min:
-            scaled = np.full(array.shape, (output_min + output_max) / 2.0)
+            scaled = np.full(array.shape, (output_min / 2.0 + output_max / 2.0))
         else:
             clipped = np.clip(array, value_min, value_max)
             fraction = (clipped - value_min) / (value_max - value_min)
@@ -559,7 +742,7 @@ def plot_communication_network(
 
     if node_size_by is None:
         node_table["node_size_value"] = np.nan
-        node_table["node_size"] = (node_size_range[0] + node_size_range[1]) / 2.0
+        node_table["node_size"] = (node_size_range[0] / 2.0 + node_size_range[1] / 2.0)
         node_limits = None
     else:
         node_table["node_size_value"] = node_table[node_size_by].astype(float)
@@ -821,6 +1004,7 @@ def plot_communication_network(
         "unique_events": unique_events,
         "qc_failed_events": qc_failed_events,
         "qc_excluded_events": qc_excluded_events,
+        "missing_score_events": missing_score_events,
         "qc": qc_summary,
         "node_artist": node_artist,
         "edge_artists": edge_artists,
@@ -849,6 +1033,96 @@ def plot_communication_network(
     }
 
 
+
+def _layout_dotplot(fig, axes, legend_ax, colorbar_ax, legend, title, *, region,
+                    n_events: int, n_receivers: int) -> dict[str, Any]:
+    """Allocate measured decorations and two separate sidebar boxes in inches."""
+    import numpy as np
+    from matplotlib.transforms import Bbox
+
+    # 防回退：布局不能依赖 has_missing。零值说明、固定大小说明、长概率标签
+    # 都必须计入实际 renderer 尺寸；图例和色条必须拥有独立区域。
+    # 不调用整张图的 tight_layout/subplots_adjust，不重排调用者的其他子图。
+    # 回归测试：tests/test_dotplot_layout.py。
+    gap, edge, bar_width = 0.18, 0.10, 0.18
+    margins = np.zeros((len(axes), 4))  # left, bottom, right, top
+    bar_margins = np.zeros(4)
+    required = None
+    for attempt in range(6):
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        dpi = fig.dpi
+
+        def extras(axis):
+            body = axis.get_window_extent(renderer)
+            outer = axis.get_tightbbox(renderer)
+            return np.maximum(0, np.array([body.x0 - outer.x0, body.y0 - outer.y0,
+                                           outer.x1 - body.x1, outer.y1 - body.y1]) / dpi)
+
+        margins = np.maximum(margins, np.array([extras(axis) for axis in axes]))
+        bar_margins = np.maximum(bar_margins, extras(colorbar_ax))
+        legend_box = legend.get_window_extent(renderer)
+        legend_width, legend_height = legend_box.width / dpi, legend_box.height / dpi
+        title_box = title.get_window_extent(renderer)
+        title_width, title_height = title_box.width / dpi, title_box.height / dpi
+        sidebar_width = max(legend_width, bar_width + bar_margins[0] + bar_margins[2])
+        sidebar_height = legend_height + gap + 1.0 + bar_margins[1] + bar_margins[3]
+        plot_min_width = max(0.75, 0.20 * n_receivers)
+        plot_height = max(1.25, 0.30 * n_events) if region is None else 0.75
+        min_width = (sum(margins[:, 0] + margins[:, 2]) + len(axes) * plot_min_width
+                     + gap * len(axes) + sidebar_width + 2 * edge)
+        min_width = max(min_width, title_width + 2 * edge)
+        min_height = max(plot_height + max(margins[:, 1] + margins[:, 3]), sidebar_height)
+        min_height += title_height + gap + 2 * edge
+        required = (float(min_width), float(min_height))
+        if region is None:
+            target_width = min_width + len(axes) * (max(1.7, 0.48 * n_receivers) - plot_min_width)
+            width, height = max(9.0, target_width), max(4.6, min_height)
+            fig.set_size_inches(width, height, forward=True)
+            x0, y0 = 0.0, 0.0
+        else:
+            fig_width, fig_height = fig.get_size_inches()
+            x0, y0 = region.x0 * fig_width, region.y0 * fig_height
+            width, height = region.width * fig_width, region.height * fig_height
+            if width + 1e-8 < min_width or height + 1e-8 < min_height:
+                raise ValueError(
+                    f"Dotplot layout needs at least {min_width:.2f} x {min_height:.2f} inches "
+                    f"inside the supplied ax; available {width:.2f} x {height:.2f}. "
+                    "Enlarge the figure or allocate a larger subplot before plotting."
+                )
+        fig_width, fig_height = fig.get_size_inches()
+        content_bottom = y0 + edge
+        content_top = y0 + height - edge - title_height - gap
+        content_height = content_top - content_bottom
+        panel_width = (width - 2 * edge - sidebar_width - gap * len(axes)
+                       - sum(margins[:, 0] + margins[:, 2])) / len(axes)
+        cursor = x0 + edge
+        for axis, (left, bottom, right, top) in zip(axes, margins):
+            axis.set_position([(cursor + left) / fig_width, (content_bottom + bottom) / fig_height,
+                               panel_width / fig_width, (content_height - bottom - top) / fig_height])
+            cursor += left + panel_width + right + gap
+        legend_ax.set_position([cursor / fig_width, (content_top - legend_height) / fig_height,
+                                sidebar_width / fig_width, legend_height / fig_height])
+        colorbar_ax.set_position([(cursor + bar_margins[0]) / fig_width,
+                                 (content_bottom + bar_margins[1]) / fig_height,
+                                 bar_width / fig_width,
+                                 (content_height - legend_height - gap - bar_margins[1]
+                                  - bar_margins[3]) / fig_height])
+        title.set_position(((x0 + width / 2) / fig_width, (y0 + height - edge) / fig_height))
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        owned_box = Bbox.from_bounds(x0 * dpi, y0 * dpi, width * dpi, height * dpi)
+        boxes = [axis.get_tightbbox(renderer) for axis in axes]
+        boxes += [legend.get_window_extent(renderer), colorbar_ax.get_tightbbox(renderer),
+                  title.get_window_extent(renderer)]
+        contained = all(box.x0 >= owned_box.x0 - 0.5 and box.y0 >= owned_box.y0 - 0.5
+                        and box.x1 <= owned_box.x1 + 0.5 and box.y1 <= owned_box.y1 + 0.5 for box in boxes)
+        separate = all(not a.overlaps(b) for i, a in enumerate(boxes) for b in boxes[i + 1:])
+        if contained and separate:
+            return {"required_size_inches": required, "available_size_inches": (width, height),
+                    "external_ax": region is not None}
+    raise ValueError("Dotplot layout could not fit all labels; enlarge the figure or subplot.")
+
 def plot_event_dotplot(
     result_or_events: Any,
     *,
@@ -874,11 +1148,18 @@ def plot_event_dotplot(
 
     Rows are metabolite-to-sensor events, each subplot is one sender cell type,
     columns are receiver cell types, bubble color is ``score_col`` and bubble
-    size is ``-log10(fdr_col)``. If the FDR column is absent, the p-value column
-    supplies the size scale. Missing significance uses a fixed-size diamond;
+    size follows ``-log10(fdr_col)`` for positive probabilities. Zero uses a
+    separately labeled maximum area; when zeros are present, positive values
+    use the lower 80% of the area interval. This reservation is display-only.
+    Without zeros, the existing positive size mapping is retained. If the FDR
+    column is absent, the p-value column supplies the size scale. Missing significance uses a fixed-size diamond;
     its color still represents the score. When no significance values are
     available, all points have fixed size and the legend reads "Significance:
-    Unavailable" without a numeric scale. An existing but missing FDR never
+    Unavailable" without a numeric scale. Both statistic branches label actual
+    probabilities, without inventing a positive floor for zero. Equal requested
+    size bounds explicitly disable size encoding. Returned ``dot_sizes`` align
+    with ``plot_events``; ``size_encoding`` records the source column, display
+    ranges and positive legend probabilities. An existing but missing FDR never
     falls back to an unadjusted p-value. Non-missing probabilities must be
     finite and in [0, 1]; input values, including NA, are preserved.
     If ``event_keys`` is not provided, the top
@@ -897,12 +1178,36 @@ def plot_event_dotplot(
     When supplying an existing ``ax``, the filtered data must contain exactly
     one sender; use ``sender_labels`` to select it. Leave ``ax=None`` for the
     default multi-sender faceted layout.
+    Layout measures the rendered legend, colorbar and axis labels; automatic
+    figures expand to fit. Supplied axes reserve the sidebar inside their
+    existing rectangle, without resizing the figure or other axes or replacing
+    a caller's suptitle. Finish any automatic layout first with
+    ``fig.canvas.draw(); fig.set_layout_engine('none')``. Active layout engines
+    are rejected before modifying the axes. An undersized supplied rectangle
+    raises an error giving the minimum required dimensions. Finalize figure
+    dimensions before plotting; later global layout changes or shrinking the
+    figure require recreating the plot. ``legend``, ``legend_ax``, ``colorbar``,
+    ``title_artist`` and ``layout`` are returned for inspection and export.
     When ``passes_min_cells`` is available, ``qc_only=True`` (the default)
     excludes rows that do not explicitly pass min-cells QC. Set
     ``qc_only=False`` to include all rows. Older event tables without this
     column retain their historical behavior.
+
+    Numeric strings are converted before filtering, ranking and deduplication.
+    Native scores and probabilities must be finite values in [0, 1] or genuine
+    missing values; malformed text, infinity, complex values and booleans raise
+    an error identifying the column and records. Missing scores are excluded
+    and returned in ``missing_score_events`` with reason ``missing_score``.
+    Custom ``score_col`` values must be finite and non-negative (no upper bound).
+    Cell-type selectors are stripped like source labels; normalized duplicates
+    are rejected. Only the QC-retained, explicitly selected context is checked.
     """
+    min_dot_size, max_dot_size = _plot_range((min_dot_size, max_dot_size),
+                                             "dot size range", positive=True)
     top_n = _validate_optional_positive_int(top_n, name="top_n")
+    min_cell_mesh_score, max_perm_pvalue, max_fdr = _plot_thresholds(
+        min_cell_mesh_score, max_perm_pvalue, max_fdr, score_col,
+    )
     source_events = _canonical_event_table(_events_frame(result_or_events))
     if source_events.empty:
         raise ValueError("No events available to plot")
@@ -928,9 +1233,17 @@ def plot_event_dotplot(
     )
     filtered = events.copy()
     if sender_labels is not None:
-        filtered = filtered[filtered["sender"].isin(sender_labels)]
+        filtered = filtered[filtered["sender"].isin(_plot_labels(sender_labels, "sender_labels"))]
     if receiver_labels is not None:
-        filtered = filtered[filtered["receiver"].isin(receiver_labels)]
+        filtered = filtered[filtered["receiver"].isin(_plot_labels(receiver_labels, "receiver_labels"))]
+    if event_keys is not None:
+        requested_keys = {_event_selector(key) for key in event_keys}
+        keys = pd.Series(list(filtered[["hmdb_id", "sensor_gene"]].itertuples(index=False, name=None)),
+                         index=filtered.index, dtype=object)
+        filtered = filtered.loc[keys.isin(requested_keys)].copy()
+        if filtered.empty:
+            raise ValueError("None of the requested event_keys were found after filtering")
+    filtered, missing_score_events = _plot_event_numbers(filtered, score_col, [pvalue_col, fdr_col])
     if min_cell_mesh_score is not None:
         filtered = filtered[filtered[score_col] >= min_cell_mesh_score]
     if max_perm_pvalue is not None:
@@ -1041,22 +1354,18 @@ def plot_event_dotplot(
 
     import numpy as np
     import matplotlib.pyplot as plt
-    from matplotlib.gridspec import GridSpec
     from matplotlib.lines import Line2D
     from matplotlib.patches import Rectangle
 
     if fdr_col in plot_events.columns:
         significance_col = fdr_col
         size_label = "FDR"
-        size_legend_transform = lambda values: np.power(10.0, -values)
     elif pvalue_col in plot_events.columns:
         significance_col = pvalue_col
-        size_label = f"-log10({pvalue_col})"
-        size_legend_transform = None
+        size_label = "p-value" if pvalue_col == "perm_pvalue" else f"p-value ({pvalue_col})"
     else:
         significance_col = None
         size_label = "Significance"
-        size_legend_transform = None
 
     probabilities = (
         pd.to_numeric(plot_events[significance_col], errors="raise").astype(float)
@@ -1075,52 +1384,67 @@ def plot_event_dotplot(
     # 缺失记录以固定大小菱形展示，避免 NaN 点大小让已评分事件悄悄消失。
     # 全 NA 时不生成数值显著性图例，也不能用未校正 p 值填补缺失 FDR。
     # 回归测试：tests/test_dotplot_significance.py。
+    # 防回退：0 是输入的零概率，不是最小正概率，也不是人为的 1e-12。
+    # 只对正概率取 log10；零单独使用显示上限，NA 保留原有菱形。
+    # 有零时正值使用面积区间的前 80%，上方空间仅作显示区分，不代表统计距离。
+    # 回归测试：tests/test_dotplot_zero_significance.py。
     positive = valid_probabilities[valid_probabilities > 0]
-    floor = positive.min() if not positive.empty else 1e-12
-    significance = -np.log10(valid_probabilities.clip(lower=floor))
-    has_available = not significance.empty
-    sig_min = float(significance.min()) if has_available else None
-    sig_max = float(significance.max()) if has_available else None
-    fixed_dot_size = (min_dot_size + max_dot_size) / 2
+    zero_mask = probabilities.eq(0)
+    has_zero = bool(zero_mask.any())
+    has_available = not valid_probabilities.empty
+    significance = -np.log10(positive)
+    sig_min = float(significance.min()) if not positive.empty else None
+    sig_max = float(significance.max()) if not positive.empty else None
+    fixed_size = min_dot_size == max_dot_size
+    fixed_dot_size = min_dot_size / 2 + max_dot_size / 2
+    positive_max_size = min_dot_size + (0.8 if has_zero else 1.0) * (max_dot_size - min_dot_size)
+    positive_fixed_size = min_dot_size / 2 + positive_max_size / 2
+
+    def positive_sizes(log_values):
+        if sig_max > sig_min:
+            return min_dot_size + (log_values - sig_min) / (sig_max - sig_min) * (
+                positive_max_size - min_dot_size
+            )
+        return np.full(np.shape(log_values), positive_fixed_size)
+
     dot_sizes = pd.Series(fixed_dot_size, index=plot_events.index, dtype=float)
-    if has_available and sig_max > sig_min:
-        dot_sizes.loc[significance.index] = min_dot_size + (significance - sig_min) / (sig_max - sig_min) * (
-            max_dot_size - min_dot_size
-        )
+    if not positive.empty:
+        dot_sizes.loc[positive.index] = positive_sizes(significance.to_numpy())
+    dot_sizes.loc[zero_mask] = max_dot_size
 
     if ax is None:
-        max_label_len = max(
-            (len(str(label)) for label in plot_events["_event_label"].astype(str).unique()),
-            default=0,
-        )
-        fig = plt.figure(
-            figsize=(
-                max(9.0, 2.15 * len(sender_order) + 3.4 + 0.035 * max_label_len),
-                max(4.6 if has_missing else 4.0, 0.42 * len(label_order) + 2.3),
-            )
-        )
-        grid = GridSpec(
-            2,
-            len(sender_order) + 2,
-            figure=fig,
-            width_ratios=[1.0] * len(sender_order) + [0.60 if has_missing else 0.20, 0.32],
-            height_ratios=[0.52, 0.48] if has_missing else [0.42, 0.58],
-            wspace=0.18,
-            hspace=0.45 if has_missing else 0.28,
-        )
-        axes = [fig.add_subplot(grid[:, i]) for i in range(len(sender_order))]
-        lax = fig.add_subplot(grid[0, -1])
-        cax = fig.add_subplot(grid[1, -1])
+        fig = plt.figure(figsize=(9.0, 4.6), layout="none")
+        axes = [fig.add_axes([0.30, 0.22, 0.35, 0.55]) for _ in sender_order]
+        owned_region = None
+        title_artist = fig.suptitle("Metabolite-sensor communication events", va="top")
     else:
         if len(sender_order) != 1:
             raise ValueError(
                 "A supplied ax can display exactly one sender; use "
                 "sender_labels to select one sender or leave ax=None"
             )
-        axes = [ax]
         fig = ax.figure
-        cax = None
-        lax = None
+        from matplotlib.layout_engine import PlaceHolderLayoutEngine
+
+        engine = fig.get_layout_engine()
+        if engine is not None and not isinstance(engine, PlaceHolderLayoutEngine):
+            raise ValueError(
+                "An external dotplot ax requires a finalized figure layout. "
+                "First call fig.canvas.draw(), then fig.set_layout_engine('none'), "
+                "then plot_event_dotplot(..., ax=ax). Automatic tight/constrained "
+                "layout would otherwise reposition this plot and other subplots."
+            )
+        fig.canvas.draw()
+        owned_region = ax.get_position().frozen()
+        axes = [ax]
+        # A local title must not overwrite the caller's figure-wide suptitle.
+        title_artist = fig.text(0.5, 0.95, "Metabolite-sensor communication events",
+                                ha="center", va="top", fontsize=12, in_layout=False)
+    lax = fig.add_axes([0.75, 0.65, 0.20, 0.25])
+    cax = fig.add_axes([0.78, 0.22, 0.025, 0.25])
+    lax.set_in_layout(False)
+    cax.set_in_layout(False)
+    lax.axis("off")
 
     score_values = plot_events[score_col].astype(float)
     score_min = float(score_values.min())
@@ -1192,34 +1516,30 @@ def plot_event_dotplot(
     if scatter is None:
         raise ValueError("No events available to plot after sender panel construction")
 
-    if cax is not None:
-        cbar = fig.colorbar(scatter, cax=cax)
-    else:
-        # Leave room above the colorbar for the unavailable-significance key.
-        colorbar_options = {"shrink": 0.45, "anchor": (0.0, 0.0)} if has_missing else {}
-        cbar = fig.colorbar(scatter, ax=axes, **colorbar_options)
+    cbar = fig.colorbar(scatter, cax=cax)
     cbar.ax.set_title(score_label, fontsize=9, pad=6)
     cbar.ax.tick_params(direction="in")
 
     handles = []
     labels = []
-    if has_available:
-        legend_values = np.linspace(sig_min, sig_max, num=3) if sig_max > sig_min else np.array([sig_max])
-        legend_sizes = (
-            min_dot_size + (legend_values - sig_min) / (sig_max - sig_min) * (max_dot_size - min_dot_size)
-            if sig_max > sig_min
-            else np.array([fixed_dot_size])
-        )
+    # Use observed probabilities for legend keys. Inverting interpolated logs can
+    # invent probabilities or round tiny positive values to zero again.
+    legend_probabilities = []
+    if not positive.empty:
+        unique_positive = np.sort(positive.unique())[::-1]
+        positions = np.linspace(0, len(unique_positive) - 1, min(3, len(unique_positive))).astype(int)
+        legend_probabilities = unique_positive[positions].tolist()
+        legend_sizes = positive_sizes(-np.log10(np.asarray(legend_probabilities)))
         handles = [
             Line2D([], [], linestyle="none", marker="o", markersize=np.sqrt(size),
                    color="black", markeredgewidth=0.3)
             for size in legend_sizes
         ]
-        displayed_values = (
-            size_legend_transform(legend_values)
-            if size_legend_transform is not None else legend_values
-        )
-        labels = [f"{value:.2g}" for value in displayed_values]
+        labels = [str(value) for value in legend_probabilities]
+    if has_zero:
+        handles.append(Line2D([], [], linestyle="none", marker="o", markersize=np.sqrt(max_dot_size),
+                              color="black", markeredgewidth=0.3))
+        labels.append("0" if fixed_size else "0 (display cap)")
     if has_missing:
         handles.append(
             Line2D([], [], linestyle="none", marker="D", markersize=np.sqrt(fixed_dot_size),
@@ -1227,28 +1547,45 @@ def plot_event_dotplot(
         )
         labels.append("Unavailable")
     legend_title = size_label if has_available else "Significance"
-    if lax is not None:
-        lax.axis("off")
-        lax.legend(
-            handles, labels, title=legend_title,
-            loc="upper right" if has_missing else "upper left", frameon=False,
-        )
-    else:
-        axes[0].legend(handles, labels, title=legend_title, loc="upper left", bbox_to_anchor=(1.02, 1.0))
+    if fixed_size and has_available:
+        legend_title += "\nFixed size (no size encoding)"
+    max_marker_size = max((handle.get_markersize() for handle in handles), default=0.0)
+    from matplotlib.font_manager import FontProperties
 
-    fig.suptitle("Metabolite-sensor communication events", y=0.995)
-    if ax is None:
-        max_label_len = max((len(str(label)) for label in label_order), default=0)
-        left_margin = min(0.52, max(0.22, 0.0105 * max_label_len))
-        fig.subplots_adjust(left=left_margin, right=0.93, top=0.86, bottom=0.24)
+    legend_font_size = FontProperties(size=plt.rcParams["legend.fontsize"]).get_size_in_points()
+    legend = lax.legend(
+        handles, labels, title=legend_title, loc="upper left", bbox_to_anchor=(0, 1),
+        borderaxespad=0, frameon=False,
+        # Include marker radii in the measured box and give rows enough height
+        # for the largest dot, including caller-specified marker/font sizes.
+        borderpad=max(0.4, max_marker_size / (2 * legend_font_size) + 0.1),
+        handleheight=max(0.7, max_marker_size / (0.65 * legend_font_size)),
+        handlelength=max(2.0, max_marker_size / legend_font_size),
+    )
+    layout = _layout_dotplot(fig, axes, lax, cax, legend, title_artist, region=owned_region,
+                             n_events=len(label_order), n_receivers=len(receiver_order))
 
     return {
         "fig": fig,
         "ax": axes[0],
         "axes": axes,
+        "legend": legend,
+        "legend_ax": lax,
+        "colorbar": cbar,
+        "title_artist": title_artist,
+        "layout": layout,
+        "dot_sizes": dot_sizes.copy(),
+        "size_encoding": {
+            "statistic": significance_col,
+            "fixed_size": fixed_size,
+            "zero_display_cap": max_dot_size if has_zero else None,
+            "positive_area_range": (min_dot_size, positive_max_size) if not positive.empty else None,
+            "positive_legend_probabilities": legend_probabilities,
+        },
         "plot_events": plot_events.drop(columns=["_event_id", "_x", "_y"]),
         "qc_failed_events": qc_failed_events,
         "qc_excluded_events": qc_excluded_events,
+        "missing_score_events": missing_score_events,
         "qc": qc_summary,
         "selected_events": label_order,
         "selected_event_keys": event_order,
@@ -1301,6 +1638,12 @@ def plot_sample_event_scores(
     shows only sample rows that explicitly pass min-cells QC. Set
     ``qc_only=False`` to include failed rows, including any NA sample scores.
     Older sample-event tables without this column are unchanged.
+
+    Scores are validated before comparing duplicate sample records. Native
+    scores lie in [0, 1]; custom scores are finite and non-negative. Numeric
+    strings are accepted, but malformed text/Inf/complex/bool values cannot
+    become NA. Sender, receiver and sample-order labels share source stripping;
+    duplicate normalized sample-order entries are rejected.
     """
     sample_events = _canonical_event_table(_sample_events_frame(result_or_sample_events))
     required = {
@@ -1320,8 +1663,8 @@ def plot_sample_event_scores(
     selected_hmdb = _require_hmdb_id(hmdb_id)
     sensor_gene = _sensor_gene_id(sensor_gene)
     selectors = {
-        "sender": sender,
-        "receiver": receiver,
+        "sender": _plot_labels([sender], "sender")[0],
+        "receiver": _plot_labels([receiver], "receiver")[0],
         "hmdb_id": selected_hmdb,
         "sensor_gene": sensor_gene,
     }
@@ -1346,6 +1689,9 @@ def plot_sample_event_scores(
             "set qc_only=False to include failed rows"
         )
 
+    selected = selected.copy()
+    selected[score_col] = _plot_numeric_series(selected[score_col], score_col,
+                                              upper=1.0 if score_col == "cell_mesh_score" else None)
     event_columns = ["sender", "receiver", "hmdb_id", "sensor_gene"]
     matched_events = selected[event_columns].drop_duplicates()
     if len(matched_events) != 1:
@@ -1358,12 +1704,11 @@ def plot_sample_event_scores(
 
     selected = selected.copy()
     selected["sample"] = selected["sample"].astype(str)
-    selected[score_col] = pd.to_numeric(selected[score_col], errors="coerce")
     available_samples = selected["sample"].tolist()
     if sample_order is None:
         order = sorted(available_samples)
     else:
-        requested_order = [str(sample) for sample in sample_order]
+        requested_order = _plot_labels(sample_order, "sample_order")
         order = [sample for sample in requested_order if sample in available_samples]
         order.extend(sorted(set(available_samples).difference(order)))
     selected["sample"] = pd.Categorical(selected["sample"], categories=order, ordered=True)
@@ -1463,7 +1808,7 @@ def _result_adata_context(
     layer: Optional[str],
 ) -> tuple[str, Optional[str], pd.Series, Any]:
     """Resolve the expression matrix and cell labels used by a result."""
-    from .preprocess import _validated_celltype_labels
+    from .preprocess import _validated_celltype_labels, _expression_source
 
     parameters = getattr(result, "parameters", {})
     if not isinstance(parameters, dict):
@@ -1479,7 +1824,7 @@ def _result_adata_context(
         raise KeyError(f"{resolved_cell_type_key!r} not found in adata.obs")
 
     if resolved_layer is None:
-        matrix = getattr(adata, "X", None)
+        matrix = _expression_source(adata) if hasattr(type(adata), "X") or "X" in vars(adata) else None
         if matrix is None:
             raise TypeError("adata must provide an expression matrix in .X")
     else:
@@ -1544,6 +1889,7 @@ def _select_metabolite_row(
     *,
     hmdb_id: Optional[str],
     table_name: str,
+    cell_types: Optional[list[str]] = None,
 ) -> tuple[pd.Series, str]:
     identifier = _require_hmdb_id(hmdb_id)
     matches = table.iloc[_metabolite_index_ids(table).eq(identifier).to_numpy()]
@@ -1551,6 +1897,21 @@ def _select_metabolite_row(
         raise _UnknownPlotHMDB(f"HMDB ID {identifier!r} was not found in {table_name}")
     # Alias rows may repeat identical values. Conflicting values for one ID
     # cannot be resolved by selecting a display name.
+    from .preprocess import _normalized_label_series
+
+    matches = matches.copy()
+    matches.columns = pd.Index(_normalized_label_series(
+        pd.Series(matches.columns, dtype=object), f"{table_name} cell types",
+        reject_collisions=False,
+    ), name=matches.columns.name)
+    if matches.columns.duplicated().any():
+        raise ValueError(f"{table_name} contains duplicate cell-type columns")
+    if cell_types is not None:
+        requested = _plot_labels(cell_types, f"{table_name} cell types")
+        matches = matches.loc[:, matches.columns.isin(requested)]
+    matches = matches.apply(lambda column: _plot_numeric_series(
+        column, f"{table_name}[{column.name!r}]", upper=1.0 if table_name == "sender_scores" else None,
+    ))
     if len(matches.drop_duplicates()) != 1:
         raise ValueError(f"Conflicting values for HMDB ID {identifier!r} in {table_name}")
     return matches.iloc[0].copy(), identifier
@@ -1570,9 +1931,16 @@ def _select_reaction_definitions(
         raise KeyError("reaction_genes is missing required columns: " + ", ".join(missing))
     identifier = _require_hmdb_id(hmdb_id)
     selected = reaction_genes.loc[_normalize_hmdb_series(reaction_genes["hmdb_id"]).eq(identifier)].copy()
-    selected["_genes_key"] = selected["genes"].map(
-        lambda genes: tuple(sorted(set(str(g).strip() for g in _as_reaction_sequence(genes))))
-    )
+    from .preprocess import _normalized_label_series
+
+    # 防回退：不能只规范用于比较的临时键。后续取表达和计算必须使用相同的
+    # 去空白、去重基因列表，否则空白基因会漏匹配，重复基因会被重复加权。
+    # 保留未测到的基因用于反应身份判断；表达提取仍按既定规则跳过未测基因。
+    selected["genes"] = selected["genes"].map(lambda genes: sorted(set(
+        _normalized_label_series(pd.Series(_as_reaction_sequence(genes), dtype=object),
+                                 "reaction_genes.genes", reject_collisions=False).tolist()
+    )))
+    selected["_genes_key"] = selected["genes"].map(tuple)
     selected = selected.drop_duplicates(["reaction", "direction", "_genes_key"])
     if selected.duplicated(["reaction", "direction"]).any():
         raise ValueError(f"Conflicting reaction definitions for HMDB ID {identifier!r}")
@@ -1590,10 +1958,10 @@ def _ordered_cell_types(
     requested: Optional[list[str]],
     *,
     role: str,
-) -> tuple[list[str], pd.Series]:
+) -> tuple[list[str], pd.Series, list[str]]:
     from .preprocess import _normalized_label_series
 
-    scores = pd.to_numeric(score_values, errors="coerce").copy()
+    scores = score_values.copy()
     scores.index = pd.Index(
         _normalized_label_series(
             pd.Series(scores.index, dtype="object"),
@@ -1605,6 +1973,14 @@ def _ordered_cell_types(
     if scores.index.duplicated().any():
         raise ValueError(f"The {role} score table contains duplicate cell-type columns")
 
+    if requested is not None:
+        requested = _plot_labels(requested, f"{role}_labels")
+        # Numeric validation concerns the requested context, not unrelated types.
+        numeric_mask = scores.index.isin(requested)
+    else:
+        numeric_mask = scores.index.isin(labels.astype(str))
+    scores = scores.loc[numeric_mask]
+    scores = _plot_numeric_series(scores, f"{role} score", upper=1.0)
     present = set(labels.astype(str))
     available = [
         cell_type
@@ -1614,13 +1990,7 @@ def _ordered_cell_types(
     if requested is None:
         order = available
     else:
-        order = _normalized_label_series(
-            pd.Series(requested, dtype="object"),
-            f"{role}_labels",
-            reject_collisions=False,
-        ).tolist()
-        if len(order) != len(set(order)):
-            raise ValueError(f"{role}_labels must not contain duplicates")
+        order = requested
         missing = [cell_type for cell_type in order if cell_type not in available]
         if missing:
             raise ValueError(
@@ -1628,7 +1998,8 @@ def _ordered_cell_types(
             )
     if not order:
         raise ValueError(f"No {role} cell types are available to plot")
-    return order, scores.reindex(order)
+    missing_scores = scores.index[scores.isna() & scores.index.isin(present)].tolist()
+    return order, scores.reindex(order), missing_scores
 
 
 def _expression_columns(
@@ -1642,7 +2013,8 @@ def _expression_columns(
 ) -> tuple[Any, list[str]]:
     import numpy as np
     from scipy import sparse
-    from .preprocess import _normalized_gene_names, _validate_expression_values
+    from .preprocess import (_normalized_gene_names, _validate_expression_values,
+                             _slice_expression, _canonical_sparse_expression)
 
     var_names = _normalized_gene_names(getattr(adata, "var_names", []))
     if len(var_names) != matrix.shape[1]:
@@ -1660,7 +2032,9 @@ def _expression_columns(
         locations.append(int(matched[0]))
         measured_genes.append(gene)
 
-    selected = matrix[cell_mask, :][:, locations]
+    selected = _slice_expression(matrix, cell_mask, locations)
+    _validate_expression_values(selected, layer=layer)
+    selected = _canonical_sparse_expression(selected)
     _validate_expression_values(selected, layer=layer)
     if sparse.issparse(selected):
         selected = selected.toarray()
@@ -1706,10 +2080,7 @@ def _cell_reaction_scores(
         else:
             used_genes = [genes[position] for position in valid]
             locations = [gene_locations[gene] for gene in used_genes]
-            with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
-                reaction_score = np.expm1(
-                    np.mean(np.log1p(expression[:, locations]), axis=1)
-                )
+            reaction_score = _reaction_activity(expression[:, locations], stage="plot reaction activity")
             _check_numeric_result(reaction_score, "plot reaction activity")
 
         direction = str(row["direction"])
@@ -1761,10 +2132,12 @@ def _plot_grouped_violins(
     import matplotlib.pyplot as plt
     from matplotlib.cm import ScalarMappable
     from matplotlib.colors import Normalize
+    from scipy.stats import gaussian_kde
 
     clean = plot_data.copy()
-    clean[value_col] = pd.to_numeric(clean[value_col], errors="coerce")
-    clean = clean[np.isfinite(clean[value_col])]
+    clean[value_col] = _plot_numeric_series(clean[value_col], value_col)
+    missing_value_data = clean.loc[clean[value_col].isna()].copy()
+    clean = clean.loc[clean[value_col].notna()].copy()
     if clean.empty:
         raise ValueError("No finite single-cell values are available to plot")
 
@@ -1785,7 +2158,8 @@ def _plot_grouped_violins(
         )
     summary = pd.DataFrame(summary_rows)
 
-    colors = pd.to_numeric(color_values.reindex(group_order), errors="coerce")
+    colors = _plot_numeric_series(color_values.reindex(group_order), color_value_name,
+                                  upper=1.0 if color_value_name == "metabolite_availability" else None)
     if colors.isna().any():
         missing = colors.index[colors.isna()].tolist()
         raise ValueError(
@@ -1794,8 +2168,8 @@ def _plot_grouped_violins(
     if color_value_name not in summary:
         summary[color_value_name] = colors.to_numpy(dtype=float)
 
-    color_min = float(colors.min()) if vmin is None else float(vmin)
-    color_max = float(colors.max()) if vmax is None else float(vmax)
+    color_min = float(colors.min()) if vmin is None else _plot_number(vmin, "vmin", lower=None)
+    color_max = float(colors.max()) if vmax is None else _plot_number(vmax, "vmax", lower=None)
     if not np.isfinite(color_min) or not np.isfinite(color_max) or color_min > color_max:
         raise ValueError("vmin and vmax must define a finite increasing color range")
     if color_min == color_max:
@@ -1810,25 +2184,43 @@ def _plot_grouped_violins(
     fig = ax.figure
     violin_bodies = []
     constant_artists = []
+    fallback_artists = []
+    density_fallbacks = []
     medians = []
     for position, group in enumerate(group_order):
         values = clean.loc[clean[group_col] == group, value_col].to_numpy(dtype=float)
         color = color_map(norm(float(colors.loc[group])))
-        if len(values) >= 2 and not np.allclose(values, values[0]):
-            violin = ax.violinplot(
-                [values],
-                positions=[position],
-                widths=0.82,
-                showmeans=False,
-                showmedians=False,
-                showextrema=False,
-            )
-            body = violin["bodies"][0]
-            body.set_facecolor(color)
-            body.set_edgecolor("#666666")
-            body.set_linewidth(0.6)
-            body.set_alpha(1.0)
-            violin_bodies.append(body)
+        if len(values) >= 2 and not np.all(values == values[0]):
+            # Absolute allclose tolerances turn [0, 1e-9, 2e-9] into a false
+            # zero constant. Fit KDE on a unit range, then restore actual units;
+            # bandwidth is scale equivariant, and tiny variance cannot underflow.
+            try:
+                with np.errstate(over="ignore", invalid="ignore", divide="ignore", under="ignore"):
+                    low, high = float(values.min()), float(values.max())
+                    span = high - low
+                    normalized = (values - low) / span
+                    grid = np.linspace(0.0, 1.0, 100)
+                    density = gaussian_kde(normalized)(grid)
+                    coords = low + grid * span
+                if not (np.isfinite(density).all() and density.max() > 0
+                        and np.isfinite(coords).all()):
+                    raise ValueError("density or coordinates are not finite")
+                coords[0], coords[-1] = low, high
+                stats = dict(coords=coords, vals=density, mean=float(np.mean(values)),
+                             median=float(np.median(values)), min=low, max=high)
+            except (ValueError, np.linalg.LinAlgError, FloatingPointError) as exc:
+                fallback_artists.append(ax.scatter(np.full(len(values), position), values,
+                                                   s=16, color=color, alpha=0.7, zorder=3))
+                density_fallbacks.append({"cell_type": str(group), "reason": str(exc)})
+            else:
+                violin = ax.violin([stats], positions=[position], widths=0.82,
+                                   showmeans=False, showmedians=False, showextrema=False)
+                body = violin["bodies"][0]
+                body.set_facecolor(color)
+                body.set_edgecolor("#666666")
+                body.set_linewidth(0.6)
+                body.set_alpha(1.0)
+                violin_bodies.append(body)
         else:
             artist = ax.hlines(
                 float(values[0]),
@@ -1869,11 +2261,15 @@ def _plot_grouped_violins(
     return {
         "fig": fig,
         "ax": ax,
+        "plot_data": clean,
+        "missing_value_data": missing_value_data,
         "summary": summary,
         "cell_order": group_order,
         "colorbar": colorbar,
         "violin_bodies": violin_bodies,
         "constant_artists": constant_artists,
+        "fallback_artists": fallback_artists,
+        "density_fallbacks": density_fallbacks,
         "median_artists": medians,
         "color_range": (color_min, color_max),
     }
@@ -1884,6 +2280,7 @@ def _mean_metabolite_intermediate(
     key: str,
     *,
     hmdb_id: Optional[str],
+    cell_types: Optional[list[str]] = None,
 ) -> Optional[pd.Series]:
     rows = []
     for intermediate in _availability_intermediates(result):
@@ -1895,10 +2292,11 @@ def _mean_metabolite_intermediate(
                 table,
                 hmdb_id=hmdb_id,
                 table_name=key,
+                cell_types=cell_types,
             )
         except _UnknownPlotHMDB:
             continue
-        row = pd.to_numeric(row, errors="coerce")
+        row = _plot_numeric_series(row, key)
         row.index = row.index.astype(str)
         rows.append(row)
     if not rows:
@@ -1906,6 +2304,7 @@ def _mean_metabolite_intermediate(
     return pd.concat(rows, axis=1).mean(axis=1, skipna=True)
 
 
+@_with_numerical_diagnostics
 def plot_metabolite_secretion_violin(
     result: Any,
     adata: Any,
@@ -1945,6 +2344,14 @@ def plot_metabolite_secretion_violin(
     matrix. By default, ``cell_type_key`` and ``layer`` are recovered from the
     result parameters. Passing ``sender_labels`` both filters and orders the
     displayed sender cell types.
+
+    Native scores/expression fractions are checked in [0, 1]; single-cell
+    expression, reaction activity and P/C/E capacities are finite non-negative
+    values without an upper bound. Malformed numeric inputs raise explicit
+    errors. With automatic cell-type selection, genuine missing scores are
+    omitted and listed in ``missing_score_cell_types``; explicitly requesting
+    an unavailable type raises an error. ``plot_data`` contains the actual
+    plotted values; ``missing_value_data`` records any missing cell values.
     """
     sender_scores = getattr(result, "sender_scores", None)
     if not isinstance(sender_scores, pd.DataFrame) or sender_scores.empty:
@@ -1953,6 +2360,7 @@ def plot_metabolite_secretion_violin(
         sender_scores,
         hmdb_id=hmdb_id,
         table_name="sender_scores",
+        cell_types=sender_labels,
     )
     if metabolite is None:
         metabolite = availability.name[0] if isinstance(availability.name, tuple) else None
@@ -1967,7 +2375,7 @@ def plot_metabolite_secretion_violin(
         cell_type_key=cell_type_key,
         layer=layer,
     )
-    sender_order, availability = _ordered_cell_types(
+    sender_order, availability, missing_score_cell_types = _ordered_cell_types(
         availability,
         labels,
         sender_labels,
@@ -2032,13 +2440,14 @@ def plot_metabolite_secretion_violin(
             result,
             key,
             hmdb_id=selected_hmdb,
+            cell_types=sender_order,
         )
         if values is not None:
             summary[column_name] = summary["sender"].map(values)
 
     plotted.update(
         {
-            "plot_data": plot_data,
+            "missing_score_cell_types": missing_score_cell_types,
             "summary": summary,
             "metabolite": metabolite,
             "hmdb_id": selected_hmdb,
@@ -2051,6 +2460,7 @@ def plot_metabolite_secretion_violin(
     return plotted
 
 
+@_with_numerical_diagnostics
 def plot_receptor_expression_violin(
     result: Any,
     adata: Any,
@@ -2079,6 +2489,14 @@ def plot_receptor_expression_violin(
     supported. Empty/missing or unmatched IDs raise an error. Identical alias
     rows count once; conflicting receiver scores raise an error.
     Passing ``receiver_labels`` both filters and orders the displayed types.
+
+    Native scores/expression fractions are checked in [0, 1]; single-cell
+    expression, reaction activity and P/C/E capacities are finite non-negative
+    values without an upper bound. Malformed numeric inputs raise explicit
+    errors. With automatic cell-type selection, genuine missing scores are
+    omitted and listed in ``missing_score_cell_types``; explicitly requesting
+    an unavailable type raises an error. ``plot_data`` contains the actual
+    plotted values; ``missing_value_data`` records any missing cell values.
     """
     receiver_scores = getattr(result, "receiver_scores", None)
     if not isinstance(receiver_scores, pd.DataFrame) or receiver_scores.empty:
@@ -2110,6 +2528,12 @@ def plot_receptor_expression_violin(
         candidates = selected_scores["metabolite"].dropna()
         metabolite = next((value for value in candidates if str(value).strip()), None)
     selected_scores["receiver"] = _normalized_label_series(selected_scores["receiver"], "receiver")
+    if receiver_labels is not None:
+        receiver_labels = _plot_labels(receiver_labels, "receiver_labels")
+        selected_scores = selected_scores.loc[selected_scores["receiver"].isin(receiver_labels)].copy()
+    for column in ("sensor_score", "sensor_expr_frac"):
+        selected_scores[column] = _plot_numeric_series(selected_scores[column], column, upper=1.0,
+                                                       probability=column == "sensor_expr_frac")
     comparable = selected_scores.assign(hmdb_id=selected_hmdb, sensor_gene=receptor_gene).drop(
         columns="metabolite", errors="ignore",
     )
@@ -2124,7 +2548,7 @@ def plot_receptor_expression_violin(
         cell_type_key=cell_type_key,
         layer=layer,
     )
-    receiver_order, _ = _ordered_cell_types(
+    receiver_order, _, missing_score_cell_types = _ordered_cell_types(
         receiver_metadata["sensor_score"],
         labels,
         receiver_labels,
@@ -2173,7 +2597,7 @@ def plot_receptor_expression_violin(
     )
     plotted.update(
         {
-            "plot_data": plot_data,
+            "missing_score_cell_types": missing_score_cell_types,
             "summary": summary,
             "receptor_gene": str(receptor_gene),
             "selected_receiver_scores": selected_scores,

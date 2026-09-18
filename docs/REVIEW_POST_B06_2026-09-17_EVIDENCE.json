@@ -1,0 +1,1408 @@
+{
+  "review_date": "2026-09-17",
+  "branch": "feature-modified",
+  "production_edits_in_review": false,
+  "baseline": {
+    "path": "/tmp/b04-b06-full.log",
+    "passed": 2493,
+    "skipped": 1,
+    "warnings": 222,
+    "seconds": 262.92,
+    "rerun_in_review": false
+  },
+  "environment": {
+    "python": "3.10.20",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "scipy": "1.15.3",
+    "anndata": "0.11.4",
+    "matplotlib": "3.10.9"
+  },
+  "source_sha256": {
+    "cellmesh/__init__.py": "a38bf1697eddf2e33ede7c05b0811dccadd322c47ab04619b7184348b8830c45",
+    "cellmesh/_numerics.py": "8b03f0b9164129b510383c34e9c83bfd8fcd390b6d6ce29e2ffee2fd60d167db",
+    "cellmesh/_table_io.py": "d6ba2b098427402e459f9fc73549221ea02ae7b725e437fa7ff19b8c21671294",
+    "cellmesh/config.py": "26c734263a441aff39d215899a36214362df6e6a666bf24f07e6b67cae97bf42",
+    "cellmesh/core.py": "afe0884fde598144fc6f8871459ee3682b47b0f75e368e67145ae2cdb7460cf3",
+    "cellmesh/database.py": "329a5bc344d2468a90eae5e3240300c56e67e345999ad5e02485fccb1fcc6590",
+    "cellmesh/io.py": "d7148465e8e5b4b03cc11a9ed32b6271376950030aff9b0bf9c08d7e3d0a444a",
+    "cellmesh/permutation.py": "2b035ce939b3b44daf842ae0368d77cfd92b403fe5ac27906d5ecf57744b9706",
+    "cellmesh/plotting.py": "c7b5f43bfd3e29f64ff588e5b5da0a340502649ef9c966c4eb42ad21f71f62b4",
+    "cellmesh/preprocess.py": "93e30491f033d050d13f1c2e935dd50bdf5d283d8baacb03599ba28592efb977",
+    "cellmesh/prior_coverage.py": "e4ca12882e5680fe42215ddad21f27d652b0bc7c21e5effff391dbc73e85f0ae",
+    "cellmesh/score.py": "db4620d060a1ebdbb4b687a45da7166e191a8408a4f730bb55f3de929211207d"
+  },
+  "findings": [
+    {
+      "id": "B07",
+      "priority": "P1",
+      "status": "unfixed",
+      "condition": "MaskedArray with masked relevant values in selected expression source",
+      "effect": "hidden values enter scores and plots; observed/compiled gates and p values can differ"
+    }
+  ],
+  "pipeline": [
+    {
+      "reader": "csv",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "csv",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "csv",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "csv",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "csv",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "csv",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "csv",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "csv",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "nullable_csv",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "tsv_gzip",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "mtx",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "mtx",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "mtx",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "mtx",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "mtx",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "mtx",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "mtx",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "mtx",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "pooled_stratified",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "pooled_stratified",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 9
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "sample_aware",
+      "permutations": 0,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": null,
+      "status": "passed",
+      "events": 7
+    },
+    {
+      "reader": "backed_csc",
+      "mode": "sample_aware",
+      "permutations": 5,
+      "gate": 0.75,
+      "status": "passed",
+      "events": 7
+    }
+  ],
+  "masked_probes": [
+    {
+      "mode": "pooled_stratified",
+      "layer": null,
+      "gene": "G",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "observed_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.551566271732306,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.55
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.4614734515428523,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.42761798705987897,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.4
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.35777087639996635,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.6
+        }
+      ]
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": null,
+      "gene": "R",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.4706787243316417,
+        0.3207134902949093,
+        0.5625686771261945,
+        0.3833259389999639
+      ],
+      "observed_scores": [
+        0.4706787243316417,
+        0.3207134902949093,
+        0.0,
+        0.0
+      ],
+      "identity_max_difference": 0.5625686771261945,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 1.0
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.0,
+          "sensor_expr_frac": 0.5,
+          "perm_pvalue": 1.0
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.0,
+          "sensor_expr_frac": 0.5,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": null,
+      "gene": "UNUSED",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "observed_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.5625686771261945,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.3833259389999639,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.8
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": "chosen",
+      "gene": "G",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "observed_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.551566271732306,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.55
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.4614734515428523,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.42761798705987897,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.4
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.35777087639996635,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.6
+        }
+      ]
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": "chosen",
+      "gene": "R",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.4706787243316417,
+        0.3207134902949093,
+        0.5625686771261945,
+        0.3833259389999639
+      ],
+      "observed_scores": [
+        0.4706787243316417,
+        0.3207134902949093,
+        0.0,
+        0.0
+      ],
+      "identity_max_difference": 0.5625686771261945,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 1.0
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.0,
+          "sensor_expr_frac": 0.5,
+          "perm_pvalue": 1.0
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.0,
+          "sensor_expr_frac": 0.5,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": "chosen",
+      "gene": "UNUSED",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "observed_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.5625686771261945,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.3833259389999639,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 0.8
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac": 1.0,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "mode": "sample_aware",
+      "layer": null,
+      "gene": "G",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "observed_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.551566271732306,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.55
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.4614734515428523,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.42761798705987897,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.4
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.35777087639996635,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.6
+        }
+      ]
+    },
+    {
+      "mode": "sample_aware",
+      "layer": null,
+      "gene": "R",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.4706787243316417,
+        0.3207134902949093,
+        0.3833259389999639,
+        0.5625686771261945
+      ],
+      "observed_scores": [
+        0.4706787243316417,
+        0.3207134902949093,
+        0.0,
+        0.0
+      ],
+      "identity_max_difference": 0.5625686771261945,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 1.0
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.0,
+          "sensor_expr_frac_median": 0.5,
+          "perm_pvalue": 1.0
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.0,
+          "sensor_expr_frac_median": 0.5,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "mode": "sample_aware",
+      "layer": null,
+      "gene": "UNUSED",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "observed_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.5625686771261945,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.3833259389999639,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.8
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "mode": "sample_aware",
+      "layer": "chosen",
+      "gene": "G",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "observed_scores": [
+        0.551566271732306,
+        0.4614734515428523,
+        0.42761798705987897,
+        0.35777087639996635
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.551566271732306,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.55
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.4614734515428523,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.42761798705987897,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.4
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.35777087639996635,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.6
+        }
+      ]
+    },
+    {
+      "mode": "sample_aware",
+      "layer": "chosen",
+      "gene": "R",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "observed_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.5625686771261945,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.3833259389999639,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.8
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "mode": "sample_aware",
+      "layer": "chosen",
+      "gene": "UNUSED",
+      "accepted": true,
+      "original_compiled_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "observed_scores": [
+        0.5625686771261945,
+        0.4706787243316417,
+        0.3833259389999639,
+        0.3207134902949093
+      ],
+      "identity_max_difference": 0.0,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "cell_mesh_score": 0.5625686771261945,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.15
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "cell_mesh_score": 0.4706787243316417,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.35
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "cell_mesh_score": 0.3833259389999639,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 0.8
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "cell_mesh_score": 0.3207134902949093,
+          "sensor_expr_frac_median": 1.0,
+          "perm_pvalue": 1.0
+        }
+      ]
+    },
+    {
+      "probe": "hidden-value-sender",
+      "hidden": 1.0,
+      "availability": [
+        [
+          0.2571428571428571,
+          0.5538461538461539
+        ]
+      ]
+    },
+    {
+      "probe": "hidden-value-sender",
+      "hidden": 1000.0,
+      "availability": [
+        [
+          0.5984058452341415,
+          0.014048780487804878
+        ]
+      ]
+    },
+    {
+      "probe": "plot_metabolite_secretion_violin",
+      "plotted_masked_value": {
+        "cell_id": "a",
+        "sender": "A",
+        "metabolite": "M",
+        "hmdb_id": "HMDB1",
+        "production_score": 20.0,
+        "consumption_score": 0.0,
+        "export_score": 0.0
+      }
+    },
+    {
+      "probe": "plot_receptor_expression_violin",
+      "plotted_masked_value": {
+        "cell_id": "a",
+        "receiver": "A",
+        "receptor_gene": "R",
+        "receptor_expression": 20.0
+      }
+    },
+    {
+      "probe": "standalone_receiver",
+      "scores": [
+        {
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "receiver": "A",
+          "sensor_score": 0.0,
+          "sensor_expr_frac": 0.5,
+          "receiver_n_cells": 2,
+          "receiver_cell_fraction": 0.5,
+          "receiver_passes_min_cells": true
+        },
+        {
+          "metabolite": "M",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R",
+          "sensor_type": "Transporter",
+          "receiver": "B",
+          "sensor_score": 0.4,
+          "sensor_expr_frac": 1.0,
+          "receiver_n_cells": 2,
+          "receiver_cell_fraction": 0.5,
+          "receiver_passes_min_cells": true
+        }
+      ]
+    }
+  ],
+  "masked_permutation": [
+    {
+      "mode": "pooled_stratified",
+      "layer": null,
+      "masked": false,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "p_compiled": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "null_max_difference": 0.0,
+      "pvalue_mismatches": 0
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": null,
+      "masked": true,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.55,
+        1.0,
+        1.0
+      ],
+      "p_compiled": [
+        0.35,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "null_max_difference": 0.5625686771261945,
+      "pvalue_mismatches": 2
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": "chosen",
+      "masked": false,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "p_compiled": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "null_max_difference": 0.0,
+      "pvalue_mismatches": 0
+    },
+    {
+      "mode": "pooled_stratified",
+      "layer": "chosen",
+      "masked": true,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.55,
+        1.0,
+        1.0
+      ],
+      "p_compiled": [
+        0.35,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "null_max_difference": 0.5625686771261945,
+      "pvalue_mismatches": 2
+    },
+    {
+      "mode": "sample_aware",
+      "layer": null,
+      "masked": false,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "p_compiled": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "null_max_difference": 0.0,
+      "pvalue_mismatches": 0
+    },
+    {
+      "mode": "sample_aware",
+      "layer": null,
+      "masked": true,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.55,
+        1.0,
+        1.0
+      ],
+      "p_compiled": [
+        0.35,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "null_max_difference": 0.5625686771261945,
+      "pvalue_mismatches": 2
+    },
+    {
+      "mode": "sample_aware",
+      "layer": "chosen",
+      "masked": false,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "p_compiled": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "null_max_difference": 0.0,
+      "pvalue_mismatches": 0
+    },
+    {
+      "mode": "sample_aware",
+      "layer": "chosen",
+      "masked": true,
+      "events": [
+        {
+          "sender": "B",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "B",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "A",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        },
+        {
+          "sender": "A",
+          "receiver": "B",
+          "hmdb_id": "HMDB1",
+          "sensor_gene": "R"
+        }
+      ],
+      "p_full_observed_path": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "p_compiled": [
+        0.15,
+        0.35,
+        0.8,
+        1.0
+      ],
+      "null_max_difference": 0.0,
+      "pvalue_mismatches": 0
+    },
+    {
+      "probe": "view-mask",
+      "layer": null,
+      "type": "ArrayView",
+      "masked_array": false,
+      "mask_count": 0
+    },
+    {
+      "probe": "view-mask",
+      "layer": "chosen",
+      "type": "ArrayView",
+      "masked_array": false,
+      "mask_count": 0
+    }
+  ],
+  "scripts": {
+    "masked_probe.py": "84c26f262cd860c5e28e13ef0047c7594bdc49fced86033f490cccdf82dc9ceb",
+    "masked_permutation.py": "c40cb67c79a43c502827820e6abf1cae8f7ce4966e645a0e157bdbeb51b44cc4",
+    "pipeline_probe.py": "4b3db202c7a14c9ba8dfc88cc6ca09abad7f5a32c7442d406414e8a317c0bc77"
+  },
+  "note": "Full recomputation p-values on masked input demonstrate path inconsistency; neither p-value path is valid ground truth for missing expression."
+}

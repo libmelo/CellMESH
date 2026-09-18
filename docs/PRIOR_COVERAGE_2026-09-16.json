@@ -1,0 +1,32 @@
+{
+  "definition": "Unique normalized HMDB IDs; export role present; no expression filtering",
+  "prior_inputs": {
+    "enzyme": {
+      "input_kind": "default_file",
+      "filename": "Enzyme1.39.csv",
+      "filename_version": "1.39",
+      "sha256": "f80d66c7425f044dd028b847eeb268c27888ac45acdcc1ebb35cde1423f53832",
+      "raw_rows": 5017,
+      "normalized_rows": 11687
+    },
+    "interaction": {
+      "input_kind": "default_file",
+      "filename": "Interaction1.41.csv",
+      "filename_version": "1.41",
+      "sha256": "b8f03349952bfe4ec9a30387c2ac9754f31dccb86e8b0ba7412c066b1177d6d6",
+      "raw_rows": 6478,
+      "normalized_rows": 6478
+    }
+  },
+  "enzyme_all": {
+    "exporter_hmdb_count": 76,
+    "total_hmdb_count": 1095,
+    "percent": 6.940639269406392
+  },
+  "shared_with_interaction": {
+    "exporter_hmdb_count": 56,
+    "total_hmdb_count": 346,
+    "percent": 16.184971098265898
+  },
+  "snapshot_date": "2026-09-16"
+}

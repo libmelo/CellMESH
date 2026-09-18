@@ -16,6 +16,20 @@ def _record_location(start: int, end: int) -> str:
     return f"line {start}" if start == end else f"lines {start}-{end}"
 
 
+def _reject_nul_text(path, *, encoding=None, compression="infer",
+                     encoding_errors="strict", storage_options=None):
+    """Reject NUL in decoded text, including records excluded by parser options."""
+    # Scan BEFORE pandas: the C parser can silently turn G\0suffix into G, even
+    # in a header probe. Scan decoded characters, not bytes (UTF-16/32 normally
+    # contain zero bytes). Do not remove NUL or change the caller's parser.
+    # Regression: tests/test_text_nul_inputs.py.
+    with get_handle(path, "r", encoding=encoding, compression=compression,
+                    errors=encoding_errors, storage_options=storage_options) as handles:
+        for line_number, line in enumerate(handles.handle, start=1):
+            if "\0" in line:
+                raise ValueError(f"{path}, line {line_number}: NUL characters are not valid CSV/TSV text")
+
+
 @contextmanager
 def _delimited_records(path, *, delimiter=",", skip_blank_lines=True):
     """Yield (first physical line, last physical line, raw string fields).

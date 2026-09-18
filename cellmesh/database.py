@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import hashlib
+from pathlib import Path
 from os import PathLike
 from importlib.resources import files
 from typing import Iterable, Tuple
@@ -318,8 +320,9 @@ def normalize_enzyme_database(enzyme_df: pd.DataFrame) -> pd.DataFrame:
             [value or ("database" if not has_role else None) for value in evidence],
             dtype=object,
         )
-    if not has_role and "source" not in out:
-        out["source"] = "packaged_enzyme_test"
+    # 缺少 source 不能根据 direction 格式推断为某个测试库。行级来源由
+    # 提供者填写；加载位置/文件校验值另记 attrs["input_provenance"]。
+    # 回归测试：tests/test_prior_provenance.py。
     # 标准化后只保留 role 表示反应角色，避免后续评分重新采用原始方向列，
     # 使大小写、空白或空值绕过这里的标准化，导致错误评分。
     # 回归测试：test_raw_direction_cannot_override_normalized_role。
@@ -504,6 +507,38 @@ def _deduplicate_sensor_pairs(sensor: pd.DataFrame) -> pd.DataFrame:
     return sensor.drop_duplicates(subset=sensor_key, keep="first")
 
 
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _load_prior_with_provenance(value, *, default_input, table_name, normalize, prefix):
+    if isinstance(value, pd.DataFrame):
+        raw = value
+        provenance = {"input_kind": "dataframe", "filename": None, "path": None,
+                      "filename_version": None, "sha256": None}
+    else:
+        path = Path(value).resolve()
+        before = _file_sha256(path)
+        raw = _read_prior_table(path, table_name=table_name)
+        if _file_sha256(path) != before:
+            raise ValueError(f"{table_name} file changed while loading: {path}")
+        version = re.fullmatch(rf"{prefix}(\d+(?:\.\d+)*)\.csv(?:\.gz)?", path.name)
+        provenance = {"input_kind": "default_file" if default_input else "user_file",
+                      "filename": path.name, "path": str(path),
+                      "filename_version": version.group(1) if version else None,
+                      "sha256": before}
+    normalized = normalize(raw)
+    # Record this call's actual input, not stale attrs from a previously loaded
+    # and possibly edited DataFrame. Do not overwrite row-level source evidence.
+    provenance.update(raw_rows=len(raw), normalized_rows=len(normalized))
+    normalized.attrs["input_provenance"] = provenance
+    return normalized
+
 def load_cell_mesh_database(
     enzyme_file: str | PathLike[str] | pd.DataFrame | None = None,
     interaction_file: str | PathLike[str] | pd.DataFrame | None = None,
@@ -517,6 +552,12 @@ def load_cell_mesh_database(
     Paths may be strings or path-like objects. CSVs and DataFrames use the same
     schema normalization and sensor conflict checks. DataFrames are copied;
     each prior can be supplied independently in raw or normalized form.
+    Row-level source annotations are never invented. Each output stores this
+    call's input provenance in ``attrs["input_provenance"]``: input kind, file
+    path/name, filename-derived version (not an independently verified release),
+    SHA-256 of file bytes and raw/normalized row counts. DataFrames have no file
+    identity; stale incoming provenance attrs are replaced, without mutating
+    the caller's data. Files must remain unchanged during loading.
 
     Returns
     -------
@@ -527,13 +568,21 @@ def load_cell_mesh_database(
         if value is not None and not isinstance(value, (str, PathLike, pd.DataFrame)):
             raise TypeError(f"{name} must be None, a CSV path, or a pandas DataFrame")
 
+    default_enzyme = enzyme_file is None
+    default_interaction = interaction_file is None
     if enzyme_file is None or interaction_file is None:
         default_enzyme_path, default_interaction_path = _default_database_paths()
         enzyme_file = default_enzyme_path if enzyme_file is None else enzyme_file
         interaction_file = default_interaction_path if interaction_file is None else interaction_file
 
-    enzyme = normalize_enzyme_database(_read_prior_table(enzyme_file, table_name="enzyme_metabolite"))
-    sensor = normalize_interaction_database(_read_prior_table(interaction_file, table_name="metabolite_sensor"))
+    enzyme = _load_prior_with_provenance(
+        enzyme_file, default_input=default_enzyme, table_name="enzyme_metabolite",
+        normalize=normalize_enzyme_database, prefix="Enzyme",
+    )
+    sensor = _load_prior_with_provenance(
+        interaction_file, default_input=default_interaction, table_name="metabolite_sensor",
+        normalize=normalize_interaction_database, prefix="Interaction",
+    )
     return enzyme, sensor
 
 

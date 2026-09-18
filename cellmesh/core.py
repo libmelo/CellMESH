@@ -5,15 +5,19 @@ CELL MESH 核心算法模块
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
+import shutil
+import tempfile
 from typing import Optional, Dict, Any, Literal
 
 import numpy as np
 import pandas as pd
 
-from ._numerics import _check_numeric_result
+from ._numerics import _check_numeric_result, _event_score, _with_numerical_diagnostics
 
 # 导入集中配置
 from .config import (
@@ -38,6 +42,7 @@ from .score import (
     compute_sensor_scores
 )
 from .preprocess import (
+    _sample_expression_adata,
     _compute_celltype_fractions,
     _normalized_label_series,
     _validate_scoring_expression,
@@ -145,7 +150,13 @@ class CellMeshResult:
         存在样本级结果时一并导出；不导出 availability_results 中间量。
 
         参数:
-            prefix: 保存路径前缀；父目录须已存在，同名文件会被覆盖。
+            prefix: 保存路径前缀；父目录须已存在，同名标准结果文件会被覆盖。
+
+        同前缀下本次缺省的标准可选结果文件会被删除（包括旧版无清单导出）；
+        不扫描其他前缀或非标准后缀。请勿把手工文件放在相同标准结果路径。
+        manifest.json 记录本次文件、表头和行数，最后发布。全部 CSV/严格 JSON
+        先写临时文件，再替换和清理；普通 I/O 失败尝试回滚。符号链接/目录拒绝。
+        不支持同前缀并发写入；多文件提交不保证进程崩溃或断电时的整体原子性。
         """
         index_columns = {
             "events": (),
@@ -174,12 +185,64 @@ class CellMeshResult:
 
         # 先验证全部表头和参数，避免格式错误发生时已写出部分文件。
         parameters_json = json.dumps(
-            self.parameters, ensure_ascii=False, indent=2, default=json_parameter,
+            self.parameters, ensure_ascii=False, indent=2, default=json_parameter, allow_nan=False,
         )
-        for name, table in tables.items():
-            table.to_csv(f"{prefix}.{name}.csv", index=False, encoding="utf-8")
-        with open(f"{prefix}.parameters.json", "w", encoding="utf-8") as stream:
-            stream.write(parameters_json + "\n")
+        prefix_path = Path(prefix)
+        parent, stem = prefix_path.parent, prefix_path.name
+        if not stem:
+            raise ValueError("Export prefix must have a non-empty filename component")
+        filenames = {name: f"{stem}.{name}.csv" for name in tables}
+        parameters_name = f"{stem}.parameters.json"
+        manifest_name = f"{stem}.manifest.json"
+        current_names = [*filenames.values(), parameters_name, manifest_name]
+        # 防回退：仅管理明确列出的标准后缀，不能 glob 删除 prefix.*，也不能
+        # 信任外部 manifest 中的路径。完全同名的标准结果路径属于本导出命名空间。
+        # 旧版无 manifest 的导出也须清理过时的可选表；用户笔记和其他前缀不动。
+        managed_names = [f"{stem}.{name}.csv" for name in index_columns]
+        managed_names += [parameters_name, manifest_name]
+        for name in managed_names:
+            destination = parent / name
+            if destination.is_symlink() or (destination.exists() and not destination.is_file()):
+                raise ValueError(f"Export target must be a regular file, not a symlink/directory: {destination}")
+        manifest = {
+            "format_version": 1,
+            "files": current_names,
+            "tables": {name: {"file": filenames[name], "rows": len(table),
+                               "columns": [str(column) for column in table.columns]}
+                       for name, table in tables.items()},
+        }
+        manifest_json = json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False)
+        # 全部序列化到同目录临时区后才替换正式文件。保留备份，普通 I/O 失败
+        # 回滚本次变更；manifest 最后发布。多文件更新不等于断电/并发原子事务。
+        # 回归测试：tests/test_export_consistency.py。
+        with tempfile.TemporaryDirectory(prefix=".cellmesh-export-", dir=parent) as temporary:
+            staging = Path(temporary)
+            backup = staging / "backup"
+            backup.mkdir()
+            for name, table in tables.items():
+                table.to_csv(staging / filenames[name], index=False, encoding="utf-8")
+            (staging / parameters_name).write_text(parameters_json + "\n", encoding="utf-8")
+            (staging / manifest_name).write_text(manifest_json + "\n", encoding="utf-8")
+            existing = {name for name in managed_names if (parent / name).exists()}
+            for name in existing:
+                shutil.copy2(parent / name, backup / name)
+            changed = []
+            try:
+                for name in current_names[:-1]:
+                    os.replace(staging / name, parent / name)
+                    changed.append(name)
+                for name in existing.difference(current_names):
+                    (parent / name).unlink()
+                    changed.append(name)
+                os.replace(staging / manifest_name, parent / manifest_name)
+                changed.append(manifest_name)
+            except Exception:
+                for name in reversed(changed):
+                    if name in existing:
+                        os.replace(backup / name, parent / name)
+                    else:
+                        (parent / name).unlink(missing_ok=True)
+                raise
 
 
 def _bh_fdr(pvalues: np.ndarray) -> np.ndarray:
@@ -356,7 +419,11 @@ def _compiled_permutation_scores(
         while completed < n_perms:
             current = min(batch_size, n_perms - completed)
             labels = [scorer.permute_codes(rng) for _ in range(current)]
-            yield from executor.map(scorer.score, labels)
+            # Each task gets its own Context, sharing the run's locked diagnostic
+            # collector. Preserve deterministic permutation/result order.
+            futures = [executor.submit(copy_context().run, scorer.score, item) for item in labels]
+            for future in futures:
+                yield future.result()
             completed += current
 
 
@@ -598,7 +665,7 @@ def _compute_sample_aware_scores(
         valid_sample_names.append(sample)
 
         mask = sample_labels.to_numpy() == sample
-        adata_sample = adata[mask, :].copy()
+        adata_sample = _sample_expression_adata(adata, mask, layer)
         sender_scores, receiver_scores, availability_results = _compute_availability_scores(
             adata_sample,
             enzyme_prior,
@@ -857,7 +924,7 @@ def _make_cell_mesh_events(
 
                 availability = float(availability_value)
                 sensor_score = float(rr["sensor_score"])
-                cell_mesh_score = float(np.sqrt(availability * sensor_score))
+                cell_mesh_score = float(_event_score(availability, sensor_score))
                 sender_n_cells = (
                     int(cell_counts.loc[sender])
                     if cell_counts is not None and sender in cell_counts.index
@@ -985,7 +1052,10 @@ def _empirical_pvalues_by_sensor_type(
     if n_perms <= 0 or obs_events.empty:
         out = obs_events.copy()
         out["perm_pvalue"] = np.nan
-        return _assign_fdr_columns(out)
+        out = _assign_fdr_columns(out)
+        out.attrs["n_perms_completed"] = 0
+        out.attrs["null_scores_stored"] = False
+        return out
 
     ge_counts = np.zeros(len(obs_events), dtype=int)
     obs_score = obs_events["cell_mesh_score"].to_numpy(dtype=float)
@@ -1038,6 +1108,7 @@ def _empirical_pvalues_by_sensor_type(
     return out
 
 
+@_with_numerical_diagnostics
 def run_cell_mesh(
     adata,
     enzyme_metabolite: pd.DataFrame | str | os.PathLike[str] | None = None,
@@ -1254,7 +1325,7 @@ def run_cell_mesh(
         )
 
     # 计算显著性（按 sensor type 分别计算）
-    if sample_mode == "pooled_stratified" and not events.empty:
+    if sample_mode == "pooled_stratified":
         events["inference_mode"] = "pooled_stratified"
 
     events = _empirical_pvalues_by_sensor_type(
@@ -1286,6 +1357,10 @@ def run_cell_mesh(
 
     # 整理参数
     parameters = {
+        "prior_inputs": {
+            "enzyme": enzyme_metabolite.attrs["input_provenance"].copy(),
+            "interaction": metabolite_sensor.attrs["input_provenance"].copy(),
+        },
         "method": "CELL MESH",
         "acronym": "Metabolite-mediated Event Scoring with Sensor Hierarchies",
         "algorithm": "sender-abundance-adjusted positive-reference saturation scoring",

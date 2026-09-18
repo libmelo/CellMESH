@@ -69,6 +69,22 @@ def _validated_gene_names(adata) -> pd.Index:
 _EXPRESSION_CHECK_BLOCK_SIZE = 1_000_000
 
 
+def _canonical_sparse_expression(X):
+    """Combine duplicate coordinates on a float64 copy, keeping sparse storage."""
+    if not sparse.issparse(X) or X.has_canonical_format:
+        return X
+    # >0 and toarray() can sum duplicates in the original dtype: int8 80+80
+    # becomes -96. Promote BEFORE combining, not after comparison/densification.
+    # Keep raw-value validation before this helper so negative entries cannot
+    # cancel against positive duplicates. Never mutate caller-owned storage.
+    # Regression: tests/test_sparse_duplicate_coordinates.py.
+    result = X.copy()
+    result.data = result.data.astype(np.float64)
+    with np.errstate(over="ignore", invalid="ignore"):
+        result.sum_duplicates()
+    return result
+
+
 def _validate_expression_values(X, *, layer: Optional[str] = None) -> None:
     """Check selected expression values without densifying sparse matrices."""
     source = "adata.X" if layer is None else f"adata.layers[{layer!r}]"
@@ -87,13 +103,105 @@ def _validate_expression_values(X, *, layer: Optional[str] = None) -> None:
             raise ValueError(message)
 
 
+
+
+class _BackedExpressionView:
+    """Map a backed AnnData view to its base before HDF5 sees two fancy axes."""
+
+    def __init__(self, adata):
+        # AnnData stores view-to-base positions here. Use positions rather than
+        # joining labels: obs names may repeat and view annotations may change.
+        base = adata._adata_ref
+        self.source = _expression_source(base)
+        self.rows = np.arange(base.n_obs)[adata._oidx]
+        self.columns = np.arange(base.n_vars)[adata._vidx]
+        self.shape = (len(self.rows), len(self.columns))
+
+    def __getitem__(self, key):
+        rows, columns = key
+        return _slice_expression(self.source, self.rows[rows], self.columns[columns])
+
+
+def _expression_source(adata, layer=None):
+    if layer is not None:
+        return adata.layers[layer]
+    if getattr(adata, "isbacked", False) and getattr(adata, "is_view", False):
+        return _BackedExpressionView(adata)
+    return adata.X
+
+def _slice_expression(source, rows=slice(None), columns=slice(None)):
+    """Read a 2-D expression subset, preserving requested order on disk backends."""
+    if isinstance(source, np.ndarray) or sparse.issparse(source):
+        return source[rows, :][:, columns]
+
+    # HDF5 fancy indices must be increasing and cannot span both axes at once.
+    # Never sort gene identifiers without restoring their corresponding values.
+    # Keep sparse backed slices sparse and bound dense row temporaries.
+    # Regression: tests/test_backed_inputs.py.
+    if isinstance(columns, slice):
+        disk_columns, inverse = columns, None
+        width = len(range(*columns.indices(source.shape[1])))
+    else:
+        requested = np.asarray(columns)
+        if requested.dtype.kind == "b":
+            requested = np.flatnonzero(requested)
+        requested = np.asarray(requested, dtype=int)
+        requested = np.where(requested < 0, requested + source.shape[1], requested)
+        disk_columns, inverse = np.unique(requested, return_inverse=True)
+        width = len(disk_columns)
+    if isinstance(rows, slice) and (rows.step is None or rows.step > 0):
+        selected = source[rows, disk_columns]
+    else:
+        requested_rows = (np.arange(source.shape[0])[rows] if isinstance(rows, slice)
+                          else np.asarray(rows))
+        if requested_rows.dtype.kind == "b":
+            requested_rows = np.flatnonzero(requested_rows)
+        requested_rows = np.asarray(requested_rows, dtype=int)
+        requested_rows = np.where(requested_rows < 0, requested_rows + source.shape[0], requested_rows)
+        unique_rows, row_inverse = np.unique(requested_rows, return_inverse=True)
+        if not len(unique_rows):
+            selected = source[0:0, disk_columns]
+        else:
+            block_rows = max(1, _EXPRESSION_CHECK_BLOCK_SIZE // max(1, width))
+            blocks = []
+            # Only visit blocks containing selected rows, then restore row order.
+            for block in np.unique(unique_rows // block_rows):
+                start = int(block * block_rows)
+                positions = unique_rows[(unique_rows >= start) & (unique_rows < start + block_rows)]
+                chunk = source[start:min(start + block_rows, source.shape[0]), disk_columns]
+                blocks.append(chunk[positions - start, :])
+            # Stacking CSC blocks directly as CSR may use COO conversion and
+            # sum duplicates in their original dtype. Convert compressed format
+            # first (without reduction), keeping raw entries for validation.
+            selected = (sparse.vstack([block.tocsr() for block in blocks], format="csr")
+                        if sparse.issparse(blocks[0]) else np.concatenate(blocks))
+            selected = selected[row_inverse, :]
+    return selected if inverse is None else selected[:, inverse]
+
+
+def _sample_expression_adata(adata, mask, layer=None):
+    """Materialize only the current sample's chosen matrix for backed inputs."""
+    if not getattr(adata, "isbacked", False):
+        return adata[mask, :].copy()
+    from anndata import AnnData
+
+    source = _expression_source(adata, layer)
+    matrix = _slice_expression(source, mask)
+    # Preserve all gene columns and annotations: filtering the prior here would
+    # change complete-reaction deduplication. No copy of raw/unselected layers.
+    sample = AnnData(X=matrix if layer is None else None,
+                     obs=adata.obs.loc[mask].copy(), var=adata.var.copy())
+    if layer is not None:
+        sample.layers[layer] = matrix
+    return sample
+
 def _validate_scoring_expression(adata, genes, layer: Optional[str] = None) -> None:
     """Validate measured scoring genes in the selected layer before aggregation."""
     measured_genes = _validated_gene_names(adata)
     requested = list(dict.fromkeys(str(gene) for gene in genes))
     columns = measured_genes.get_indexer(requested)
     columns = columns[columns >= 0]
-    source = adata.layers[layer] if layer is not None else adata.X
+    source = _expression_source(adata, layer)
     if not len(columns):
         return
 
@@ -104,7 +212,7 @@ def _validate_scoring_expression(adata, genes, layer: Optional[str] = None) -> N
     # 回归测试：tests/test_expression_validation.py。
     rows_per_block = max(1, _EXPRESSION_CHECK_BLOCK_SIZE // len(columns))
     for start in range(0, source.shape[0], rows_per_block):
-        selected = source[start:start + rows_per_block, columns]
+        selected = _slice_expression(source, slice(start, start + rows_per_block), columns)
         _validate_expression_values(selected, layer=layer)
 
 
@@ -151,7 +259,8 @@ def _grouped_expression_mean(X, indicator: sparse.csr_matrix, counts) -> np.ndar
     # Observed pseudobulks also retain unrelated genes. Consumers check the
     # scoring columns before using them, so unrelated overflow does not reject
     # an otherwise valid analysis. Keep the same accumulation/division order.
-    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+    X = _canonical_sparse_expression(X)
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore", under="ignore"):
         sums = indicator.astype(np.float64, copy=False) @ X
         sums = sums.toarray() if sparse.issparse(sums) else np.asarray(sums)
         denominators = np.asarray(counts, dtype=np.float64)[:, None]
@@ -166,7 +275,7 @@ def _build_celltype_pseudobulk(
     """
     构建细胞类型的 pseudobulk 表达矩阵
     """
-    X = adata.layers[layer] if layer is not None else adata.X
+    X = _expression_source(adata, layer)
     genes = _validated_gene_names(adata)
     labels = _validated_celltype_labels(adata, celltype_col)
 
@@ -177,7 +286,7 @@ def _build_celltype_pseudobulk(
     group_names = []
     for group in valid_groups:
         idx = labels.values == group
-        group_x = X[idx, :]
+        group_x = _slice_expression(X, idx)
         n_cells = group_x.shape[0]
         # Process one cell type at a time to bound expression temporaries.
         indicator = sparse.csr_matrix(
@@ -203,7 +312,7 @@ def _compute_celltype_expr_frac(
     """
     计算每个基因在每个细胞类型中的表达比例（表达>0的细胞比例）
     """
-    X = adata.layers[layer] if layer is not None else adata.X
+    X = _expression_source(adata, layer)
     genes = _validated_gene_names(adata)
     labels = _validated_celltype_labels(adata, celltype_col)
 
@@ -215,12 +324,13 @@ def _compute_celltype_expr_frac(
     for group in valid_groups:
         idx = labels.values == group
         n_cells = idx.sum()
-        group_x = X[idx, :]
+        group_x = _slice_expression(X, idx)
         # 表达比例必须按数值 > 0 计数，不能为提速替换为 getnnz()/nnz。
         # 稀疏矩阵可能显式存储零；按存储条目计数会抬高表达比例，
         # 改变 min_expr_frac 门槛，并使观测与置换的统计口径不一致。
         # 布尔比较和求和保持稀疏计算，仅将按基因汇总的计数转为向量。
         # 回归测试：tests/test_expression_fraction.py。
+        group_x = _canonical_sparse_expression(group_x)
         positive_counts = _as_1d_array((group_x > 0).sum(axis=0))
         expr_frac.append(positive_counts / n_cells)
         group_names.append(group)

@@ -13,6 +13,7 @@ authors = [{name = "CELL MESH developers"}]
 dependencies = ["numpy", "pandas", "scipy", "anndata"]
 
 [project.optional-dependencies]
+loom = ["loompy"]
 scanpy = ["scanpy"]
 notebook = ["matplotlib", "ipykernel", "notebook"]
 dev = ["pytest", "matplotlib"]

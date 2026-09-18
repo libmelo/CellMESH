@@ -8,6 +8,8 @@ See [README.md](README.md) for usage and output fields,
   and permutation calculations; `min_cells` produces QC annotations only.
 - Equal-weight multi-gene reaction activity uses
   `geometric_mean(expression + 1) - 1`.
+  Its stable implementation is `expm1(mean(log1p(expression)))`, shared by
+  observation, permutation and cell plots; a one-gene reaction returns x.
 - `reaction` is required and non-empty; unknown reactions are never collapsed
   into an inferred multi-gene complex.
 - Reaction grouping uses canonical HMDB ID, reaction, and direction. For one
@@ -36,6 +38,17 @@ See [README.md](README.md) for usage and output fields,
   non-negative Python/NumPy integers only, including when no permutations run
   or the event table is empty. NumPy parameters are stored as Python scalars.
 - Pooled and sample-level event score is `sqrt(sender_score * receiver_score)`.
+  Stable evaluation uses the product of square roots. The sender base likewise
+  divides before multiplying, avoiding a premature squared-P underflow.
+- True numerical underflow is logged once per public run and recorded as
+  `numerical_diagnostics`, including worker-stage counts, while computation
+  continues with rounded zeros and all requested permutation draws. No epsilon
+  or small-value cutoff is introduced. References, evidence states, scores and
+  p/FDR may be affected by these zeros; the diagnostic is exported in parameters
+  JSON. Non-finite/negative values and overflow still fail validation.
+- Violin constants require exact equality. Nonconstant densities are estimated
+  on a unit range and displayed in original units; failed densities fall back
+  to original-value points and expose group/reason diagnostics.
 - Sample-aware mode scores each sample independently and aggregates event scores
   using median, IQR, and prevalence summaries. Aggregate component fields have
   explicit `_median` names and top-level component tables use sample medians.
@@ -105,3 +118,15 @@ Analyses affected by earlier positive-P filtering should be rerun. Retaining
 evaluable zero events can change sample summaries and expands the FDR correction
 family in either inference mode. The review report also records the effects of
 earlier input, reaction-selection, and permutation fixes.
+
+
+## A06 plotting input contracts (2026-09-14)
+
+All six plot entrances share explicit numeric contracts before numeric filtering,
+ranking and duplicate resolution. Numeric strings are accepted; malformed values
+cannot become biological NA. Missing-score exclusions are returned, selectors
+share source-label normalization, and canonical reaction lists are used in the
+actual calculation. Display ranges must be finite and ordered. Raw expression
+and custom non-negative scores remain unbounded; A04 underflow still reports and
+continues. See [the visualization contract](README.md#visualization) and
+[288 regression cases](tests/test_plotting_input_contracts.py).

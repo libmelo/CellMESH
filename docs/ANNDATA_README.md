@@ -46,6 +46,46 @@ import cellmesh
 adata = cellmesh.read_anndata("path/to/data.h5ad", mode="h5ad")
 ```
 
+### H5AD 的 backed 模式
+
+```python
+adata = cellmesh.read_anndata("data.h5ad", mode="h5ad", backed="r")
+try:
+    result = cellmesh.run_cell_mesh(
+        adata, enzyme_prior, sensor_prior,
+        sample_key="sample", sample_mode="sample_aware", min_cells=1,
+    )
+finally:
+    adata.file.close()
+```
+
+`backed="r"` 以只读方式保持文件打开，主要表达矩阵按需读取；普通默认模式将
+数据加载到内存。文件由调用者负责关闭，评分/绘图不会关闭或修改原文件。
+
+评分前检查、独立评分、pseudobulk、表达比例、编译置换及两种小提琴图共用
+兼容磁盘的切片规则：按递增、唯一位置读取基因列，再恢复请求顺序和重复项；
+细胞选择按行块读取并恢复顺序。dense、CSR、CSC 以及重排细胞/基因后的 backed
+视图均有回归测试。视图适配使用 AnnData 保存的视图到原对象的位置映射，避免按
+可能重复或被改写的细胞名称重新匹配；升级 AnnData 后应运行这些兼容性测试。
+
+sample-aware 对当前样本所选表达层构建内存对象，保留所有基因定义和 obs/var
+对应关系，不额外复制 raw 或未选择的层。完整先验的反应去重规则保持不变。
+
+**内存边界：** 支持 backed 输入不等于全程磁盘计算。分组汇总会加载当前细胞类型
+的表达数据；sample-aware 会加载当前样本的所选矩阵；编译置换会保留所有细胞中
+参与评分的基因子矩阵及计算中间量。稀疏矩阵保持稀疏，不会因兼容修订统一转为
+稠密。AnnData 对 layers、obs/var 等内容的加载方式仍由其读取实现决定，不能假定
+所有表达层都留在磁盘。内存需求取决于当前样本、细胞类型和评分基因的规模。
+
+普通/backed 对照仅用于小型回归数据，日常分析不会自动运行两遍。测试比较事件
+标识、得分、p/FDR、零与 NA，以及无置换/有置换、串行/并行和两种分析模式。
+
+CSR/CSC 若含有重复的 `(cell, gene)` 存储坐标，计算会在稀疏副本中先提升为
+float64 再合并，避免原始整数类型在比较或转为稠密时溢出。观测、编译置换及
+小提琴取值共用该规则；backed CSC 分块拼接也保留原始条目供校验。原始相关
+表达值先校验，负值不能通过重复坐标的正负抵消被隐藏。调用者的矩阵和文件不变，
+没有重复坐标的规范矩阵无需此副本；程序不会统一将真实表达数据转换为 int8。
+
 ### 2. 读取 10X Genomics 数据
 
 ```python
@@ -208,6 +248,18 @@ CSV/TSV 使用 pandas 的 C 或 Python 解析器，支持单行表头（或 `hea
 多层表头、`parse_dates` 或标识列转换器；第一列固定用于行标识。
 这些限制会明确报错，不会静默改变标识。
 
+表达文本、细胞/基因元数据和 MTX 名称文件在 pandas 解析前检查实际 NUL 字符
+（`0x00`），发现后报告文件和物理行号。检查按选定编码解码并支持压缩文件，
+UTF-16/32 编码本身的零字节不会被误判；字面文本 `\0` 也不是 NUL。
+整个文件都检查，包括被 `usecols`、`skiprows`、`nrows` 排除的内容，避免解析器
+先截断字段，再将改写后的基因名、分组或表达值当作合法输入。
+
+`dtype="Int64"`、`dtype="Float64"`、`dtype_backend="numpy_nullable"` 等 pandas
+可空数值选项会在转置和建立 AnnData 前转换为 NumPy 数值列。无缺失整数列
+保留整数类型，缺失整数使用浮点 NaN，缺失值不会补零。普通 NumPy float32/64
+读取方式保持原行为；转换不用于掩盖非法文本、布尔或复数。实际参与评分的
+缺失/非有限表达仍由评分校验拒绝。
+
 **旧结果处理：**
 
 旧版本可能把重复基因表头改成 `.1`，或把样本 `01`、`1` 都读成整数 `1`。
@@ -216,9 +268,22 @@ CSV/TSV 使用 pandas 的 C 或 Python 解析器，支持单行表头（或 `hea
 
 ### Loom 模式
 
-读取 Loom 格式文件。
+需要核心依赖 `anndata` 以及可选依赖 `loompy`：
 
-**需要:** `anndata` 包，已包含在 CELL MESH 核心依赖中。
+```bash
+pip install 'cellmesh[loom]'
+# 本地项目可使用：pip install -e '.[loom]'
+```
+
+```python
+adata = cellmesh.read_anndata("data.loom", mode="loom", sparse=True)
+```
+
+Loom 使用 AnnData 对应版本的 reader，优先 `anndata.io.read_loom`，老版本回退
+到原入口；额外参数原样传递。缺少 loompy 会给出安装提示，依赖内部错误、文件
+损坏、文件不存在等保持原始异常，不会全部改写成安装依赖错误。真实 Loom 文件
+的方向、基因/细胞标识、元数据和 dense/稀疏读取均有测试，并与同数据内存评分比较。
+Loom 读取不会因本修订变为 backed 模式；backed 示例针对 H5AD。
 
 ### mtx 模式
 

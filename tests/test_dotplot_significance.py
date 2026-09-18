@@ -138,7 +138,7 @@ def test_partial_significance_keeps_missing_points_and_uses_only_available_sizes
     result = _plot(events, supplied_ax)
     sizes = _assert_visible_points(result, statistic)
     title, labels = _legend(result)
-    assert title == ("FDR" if statistic == "fdr_sensor_type" else "-log10(perm_pvalue)")
+    assert title == ("FDR" if statistic == "fdr_sensor_type" else "p-value")
     assert labels[-1] == "Unavailable"
     assert all(np.isfinite(float(label)) for label in labels[:-1])
     if values[1] == 0.2:
@@ -158,7 +158,7 @@ def test_available_significance_retains_circle_size_order_and_numeric_legend(eve
     assert sizes[3] == 20
     assert sizes[0] > sizes[2] > sizes[1] > sizes[3]
     title, labels = _legend(result)
-    assert title == ("FDR" if statistic == "fdr_sensor_type" else "-log10(perm_pvalue)")
+    assert title == ("FDR" if statistic == "fdr_sensor_type" else "p-value")
     assert len(labels) == 3
     assert all(np.isfinite(float(label)) for label in labels)
 

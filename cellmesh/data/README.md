@@ -214,3 +214,25 @@ M,HMDB0000001,G1;G2,001,product
 不能为提速跳过同义列检查，或先丢弃空标准列的行后才查兼容列；这会再次丢失有效记录。
 Interaction 回归测试位于 `tests/test_interaction_aliases.py`，Enzyme 回归测试位于
 `tests/test_enzyme_aliases.py` 和 `tests/test_enzyme_multigene.py`。
+
+
+## 来源记录与外排覆盖率（2026-09-16）
+
+行级 `source` 是数据提供者填写的来源。已有值保留，未知来源保持缺失；
+不能因 Enzyme 使用 `direction` 格式就标注为随包测试库。
+加载层将输入来源单独记录在 `attrs["input_provenance"]`，主分析结果在
+`parameters["prior_inputs"]` 中保存两张表的摘要，并随参数 JSON 导出。
+摘要区分默认文件、自定义文件和 DataFrame；文件记录名称、解析路径、文件名
+版本和文件字节 SHA-256，版本名称不代表已独立核实发布版本。DataFrame 不虚构
+文件/版本/校验值；重新传入的 DataFrame 也不沿用可能已经失效的文件 attrs。
+
+本地 Enzyme1.39.csv / Interaction1.41.csv 的去重 HMDB 外排覆盖率为：
+
+- Enzyme 全部 HMDB：76 / 1095 = 6.9406%。
+- 两库共有 HMDB：56 / 346 = 16.1850%。
+
+分子为具有 `export` 角色先验的唯一 HMDB 数；仅使用标准化完整先验，不按
+表达矩阵筛选。默认 `export_weight=0.2` 是可配置模型设置，不由这些比例推导。
+在项目根目录运行 `python -m cellmesh.prior_coverage` 可复算；也可使用
+`--enzyme` 和 `--interaction` 指定文件。文件校验值及统计快照见
+[覆盖率快照](../../docs/PRIOR_COVERAGE_2026-09-16.json)。数据库文件仍仅保留在本地。
