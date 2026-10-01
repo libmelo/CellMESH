@@ -1174,6 +1174,271 @@ Contains one row per communication event. Important columns:
   unobserved), never merely that an observed unit failed min-cells QC or had
   evaluable zero production. Computed zeros keep their cell counts and QC flags.
 
+### Save, reload, and explain results (0.5+)
+
+By default, save one versioned result file, a positive-event CSV, and
+one self-contained general HTML with a small report navigation page. Set `report=False` to omit HTML:
+
+```python
+from cellmesh import CellMeshResult
+
+# res is the result returned by run_cell_mesh(...).
+selectors = res.events[["hmdb_id", "sensor_gene", "sender", "receiver"]].head(3).to_dict("records")
+files = res.save("analysis")
+# H5 + positive CSV + general report + navigation
+restored = CellMeshResult.load(files["result"])
+coverage = restored.coverage_report()
+if selectors:
+    explanation = restored.explain_event(**selectors[0])
+```
+
+Reaction/gene details, P/C/E components, receiver references, coverage and prior
+snapshots stay inside the result file. They are descriptive and do not alter
+scores, event selection or statistical testing. By default, `save()` excludes
+cell-level expression and stored permutation matrices. It preserves result
+table types and missingness. Parent directories are created when needed. Use the append methods to update
+independent report scopes in an existing bundle.
+
+The full CSV is opt-in: `res.save("analysis", include_all_events=True)` adds
+`analysis.all_events.csv`, available through `files["events_csv"]` only when requested.
+It contains every row and column of `res.events`, including
+zero/nonsignificant scores and QC-failing events, regardless of HTML selections
+or preview limits. Sample-aware rows are cross-sample event summaries; sample
+details stay in HDF5. The legacy `to_csv()` output names remain unchanged.
+Omitting the flag never generates or refreshes the full CSV, even for a loaded
+result; HDF5 always retains all events. Existing full CSVs are left untouched,
+but are not linked or returned by a save with the flag disabled. Append methods
+inherit the saved choice. See the [real-data acceptance record](docs/COMMUNICATION_FEATURES_ACCEPTANCE_2026-09-29.md)
+for validation; previously generated reports retain their original export settings.
+
+Since 0.6, input archiving is optional:
+
+```python
+res = run_cell_mesh(adata, enzyme_metabolite, metabolite_sensor, retain_input=True)
+files = res.save("analysis", report=True, include_input=True)
+# Adds analysis.input.h5ad with the selected cell × gene matrix in .X and obs/var.
+restored = CellMeshResult.load(files["result"])  # Scores only; no expression load.
+input_adata = restored.load_input()             # Explicit, checksum-verified load.
+# Or restored.load_input(backed="r") for read-only disk-backed X.
+```
+
+Capturing input copies the selected matrix before scoring; later caller changes
+do not affect it. No other layers, raw or embeddings are copied. The archive
+contains expression as supplied, not necessarily raw counts. For a repeat run,
+the captured matrix is in `.X`, so use `layer=None` with the original parameters
+and saved priors. Move the result and input files together. Reusing a prefix with
+`include_input=False` removes a stale same-prefix `.input.h5ad`.
+
+See [result format, interpretation and API examples](docs/RESULT_FILES_AND_REPORTS.md)
+and the runnable [synthetic export example](examples/export_explain_report.py).
+The existing CSV export below remains unchanged.
+
+### Positive results and interests (0.8)
+
+`save()` exports HTML by default and always exports a positive-event CSV,
+including when `report=False`. The full CSV requires `include_all_events=True`.
+By default a positive event has `fdr_sensor_type <= 0.05` (BH-adjusted p-value
+within sensor type). No cell-count QC or score gate is silently added.
+The report overview counts all generated events, positive events, events failing
+the criterion and events with unavailable statistics. Its main figures and
+searchable event list use the positive events. The main overview contains only
+the event-count heatmap and communication network; dotplots appear only in the separate selection report.
+
+```python
+# Tier 2: independent condition lists allow many-to-many combinations.
+filtered = res.filter_events(
+    hmdb_ids=["HMDB0000961", "HMDB0006465"],
+    sensor_genes=["CYSLTR1", "SLCO2A1"],
+)
+# Tier 3: explicitly paired objects, one report per requested pair.
+selected = res.select_events(metabolite_sensor_pairs=[
+    ("HMDB0000961", "CYSLTR1"), ("HMDB0006465", "SLCO2A1"),
+])
+files = res.save("analysis", filtered_events=filtered,
+                 selected_events=selected, adata=adata)
+# Either optional scope can be omitted; general output remains independent.
+```
+
+The **communication filter report** uses `filter_events()` and is always tier 2,
+including singleton filters. The **metabolite–sensor communication reports** use
+`select_events(metabolite_sensor_pairs=...)`; each requested pair gets one tier-3
+page containing all matched cell-pair events. Both default to `source="positive"`;
+use `source="all"` to include nonpositive or unassessed generated events. No
+pair-wide score or p-value is computed, and BH correction is never repeated on a subset.
+
+For an existing general bundle, independently append
+`res.add_filtered_report(filtered, adata=adata)` and
+`res.add_event_reports(selected, adata=adata)`. Existing scopes require
+`replace=True`; other pair pages and general science remain unchanged.
+
+Tier 3 contains a pair overview, communication distribution, shared endpoint
+expression/components, sample-aware performance, collapsed cell-pair details
+with every existing sample, and shared source tables. Explicit empty pairs get
+a diagnostic page. Pooled pages omit sample-aware panels. `plot_top_n` never
+limits requested pair reports or complete event tables/CSVs.
+
+Files use `analysis.filtered.report.html`, `analysis.filtered_events.csv`,
+`analysis.metabolite_sensor_events.csv` and
+`analysis.reports/metabolite_sensor/pair_<id>.html`; the unified navigation stays
+at `analysis.reports/index.html`. `get_filtered_events()` restores the condition
+filter; `get_selected_events()` restores a list of independent pair scopes.
+
+When saving or appending to an existing bundle, superseded
+`analysis.selected.report.html` and `analysis.selected_events.csv` files are
+archived losslessly under `analysis.reports/history/legacy-selection-<hash>.zip`.
+For an already migrated bundle with leftover old filenames, call
+`cellmesh.result_io.archive_legacy_reports("output/analysis")` to organize files
+without loading full results or regenerating reports. Current report and data
+files remain byte-for-byte unchanged by this maintenance call.
+
+**Migration:** old list-based `select_events()` calls must become `filter_events()`.
+The old `selection=` and `add_selection()` are deprecated tier-2 aliases;
+`events=[complete_event]` gives an explicit migration error. To retain an old
+four-field scope, use explicit molecular pairs and directed `cell_pairs` rather
+than silently widening the request. See [complete report API and structure](docs/THREE_LEVEL_REPORTS.md).
+
+Tier 2 opens with **one static communication matrix**: columns identify
+**receiver–sensor** pairs, and rows identify **sender–metabolite** pairs
+(using HMDB IDs by default). All metabolites and sensors in the display scope
+share one plot. The score/statistic encoding draws on MEBOCOST's
+[`commu_dotmap()` example (In[12])](https://github.com/kaifuchenlab/MEBOCOST/blob/main/Demo_one_sample_mCCC_analysis.ipynb);
+the composite axes follow the explicit CELL MESH design. Each dot is one complete event: area maps communication
+score, and color maps −log10 of the chosen p/BH statistic. The default sequential
+colormap is `viridis`. Constant statistics use a single color swatch with their
+value. Zero probabilities and missing statistics have separate colors; missing
+scores use crosses. Minimum visible dot area preserves zero-score events. Blank
+positions mean no displayed event at that position, not proven biological absence.
+
+This replaces both the four-column graph and the duplicate report dotplot. The
+new standalone function is `plot_communication_dotmap()`; the interim
+`plot_communication_paths()` API is removed. The existing sender-faceted
+`plot_event_dotplot()` remains available separately with its original encoding.
+Both report tiers call the public `plot_communication_dotmap()` function and
+embed its returned Figure as one SVG. The top-level and `cellmesh.plotting`
+exports reference the same implementation; the former private forwarding and
+drawing entry points have been merged into it. Reports reuse its returned
+`scope`, coordinates, encoding and labels instead of preparing another plot.
+SVG glyph outlines retain the Figure's fonts without browser substitution;
+event identities and labels remain available in the embedded data and tables.
+Figure dimensions grow with the
+composite axes; it is never split by metabolite or automatically paginated.
+Reading it requires no JavaScript, hover or selector. Event-table
+search and links to explicitly requested molecular-pair reports remain available below it.
+
+The network is retained for multiple cell pairs. A count heatmap is included when
+multiple metabolite-sensor pairs produce different counts across observed cell
+pairs. With `adata` or retained input, grouped expression violins remain available:
+one per metabolite across senders and one per metabolite-sensor context across
+receivers. Matrix and violins share `plot_top_n`; this display limit never truncates
+the selection CSV or event table and never adds a significance/QC filter. The
+sample-aware heatmap retains all sample rows. Appending molecular-pair reports reuses
+matching expression figures; replacing a filter rebuilds them.
+
+```python
+from cellmesh import plot_communication_dotmap
+
+view = plot_communication_dotmap(filtered)  # metabolite_label="id" by default
+# For metabolite names: plot_communication_dotmap(filtered, metabolite_label="name")
+view["fig"].savefig("communication_dotmap.svg", bbox_inches="tight")
+# x_keys: (receiver, sensor); y_keys: (sender, HMDB ID), in either label mode.
+# Reports embed the same complete figure, without extra image files:
+filtered.to_html("filtered.html", adata=adata)
+```
+
+The readability revision uses 14-point titles, 12-point axis titles and ticks,
+and 11-point legend values. Every tick is a single-line composite label:
+receiver–sensor on x and sender–HMDB ID on y, even for shared molecules.
+X labels are fixed at 45° and y labels stay horizontal. The standalone plotting
+parameter `metabolite_label="name"` uses names instead of IDs; missing names fall
+back to IDs and ambiguous names receive an ID suffix. Names never change the
+underlying coordinates or merge events. The matrix height follows its rows independently of the legend height.
+The automatically created canvas fits the full labels and the separate sidebar.
+
+The title, "Selected cell–cell communication events (n = …)", is centered above
+the matrix with a 28-point gap. The score key shows "Communication score" and
+example circles without a redundant "Dot area" caption.
+The score-size key and statistic-color key occupy separate regions. Varying
+statistics use a vertical rectangular colorbar with 3–5 labelled −log10 ticks;
+a single value uses a solid swatch labelled with the original probability.
+The statistic key explicitly states "BH correction: within each sensor type" or
+"BH correction: all tested events"; raw probabilities are labelled "raw p".
+Raw zero probabilities and missing values have separate swatches. Longer reading
+notes are collapsed below the static figure.
+
+The 2026-10-01 report-scope acceptance notebook regenerated tier-2 and tier-3
+reports from the complete original pooled and sample-aware results. Scientific
+values, parameters, original sources and tier-1 reports were verified unchanged.
+Eight current report/navigation pages passed browser checks; static-figure
+checks also cover desktop, narrow screens and JavaScript-disabled rendering.
+See the [current acceptance record](docs/THREE_LEVEL_REPORTS.md#本轮验收2026-10-01).
+
+The subsequent [unified plotting acceptance](docs/THREE_LEVEL_REPORTS.md#绘图入口统一验收2026-10-01)
+confirmed pixel-identical standalone output before and after the refactor, exact
+agreement with report plot data for the same input, and complete pooled and
+sample-aware deliveries. Report SVGs now retain the Figure's glyph outlines.
+
+Overview cards emphasize the purpose of each scope: passing and total generated
+events in tier 1, the filtered set in tier 2, and the explicitly paired molecules
+and their matched cell-pair events in tier 3. Each event retains its own score
+and statistic. Sample-aware details retain all existing sample records and show
+computability and diagnostic information. Missing decision inputs
+are explained explicitly, and an empty selection is never labelled all passing.
+The current overview cards are included in the report-scope acceptance above.
+
+Expression violins require explicit `adata` or retained input. Loading a result
+never opens its expression archive implicitly. Figures expand fully without
+internal scrollbars; small figures are not stretched to fill the page. Files
+under `analysis.reports/` provide navigation and stable event pages. See the
+[three-level report guide](docs/THREE_LEVEL_REPORTS.md) for paths and examples.
+
+Human-review validation deliveries keep the complete bundle under each analysis
+mode (`pooled/` or `sample_aware/`), with `analysis.report.html`,
+`analysis.filtered.report.html`, and `analysis.reports/index.html` together.
+When reviewing a revision to one tier, retain the other existing reports and
+identify reused versions in the navigation. Keep links within the current mode
+directory and use the saved-bundle append methods for subsequent updates.
+Standalone event HTML exports are for separate inspection, not the main entry
+to a complete validation delivery.
+
+```python
+# Raw p-value criterion, or use positive_col="fdr_global" for global BH.
+res.save("pvalue_results", report=True,
+         positive_col="perm_pvalue", positive_threshold=0.01)
+# Saved criteria are inherited by subsequent filters and append methods.
+# Inspect nonsignificant or statistically unavailable events explicitly:
+focus = res.filter_events(source="all", sender_labels=["A"])
+focus.to_csv("exploratory.csv")  # Includes positive_status; original scores unchanged.
+focus.to_html("exploratory.report.html")  # HTML and linked CSV companions.
+```
+
+The criterion, optional `positive_qc_only`/`positive_min_score` gates, selection
+conditions and display limits are saved in H5 delivery metadata, separate from
+scientific parameters. `get_filtered_events()` reconstructs the saved condition
+filter, and `get_selected_events()` returns the saved pair scopes. `save()` does
+not restore either implicitly; pass each requested scope when exporting again. No scoring,
+permutation or BH adjustment is repeated during filtering or appending. Without
+available statistics (e.g. `n_perms=0`), the positive CSV has headers only and the
+report says no positive assessment was possible, rather than calling every event
+negative. `source="all"` is available in that case.
+
+Identity filters intersect; values within one list combine by OR. Directed
+`cell_pairs` further restrict sender/receiver lists. `None` is unrestricted and
+`[]` matches nothing. Optional `max_fdr`, `max_perm_pvalue`, score and QC filters
+further restrict the chosen source. FDR columns retain their existing names for
+compatibility; report headers explain that they contain BH-adjusted p-values.
+
+Public plotting functions accept an `EventSelection` without applying hidden
+additional filters. `selection.to_csv()` writes a standalone file and cannot
+overwrite the managed delivery files. Use `add_filtered_report(..., replace=True)` to
+update a saved bundle. Standalone `result.to_html()` exports general HTML with a
+positive CSV; `include_all_events=True` adds the full CSV for this general export.
+`selection.to_html()` exports selected HTML with only its selected CSV and needs
+a distinct prefix when a result is already associated with a bundle.
+
+See [current delivery rules and examples](docs/THREE_LEVEL_REPORTS.md).
+Version 0.7 examples and previously generated HTML preserve their historical
+scope; regenerate reports to use the current three-level structure.
+
 ### Export Results
 
 Call `res.to_csv(prefix)` explicitly to export results; `run_cell_mesh()` does

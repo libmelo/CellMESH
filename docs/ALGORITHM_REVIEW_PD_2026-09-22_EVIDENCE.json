@@ -1,0 +1,229 @@
+{
+  "date": "2026-09-22",
+  "git_head": "3f70744ca2e933d40410779b13f4d550023cc213",
+  "environment": {
+    "python": "3.10.20",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "scipy": "1.15.3",
+    "anndata": "0.11.4"
+  },
+  "source_sha256": {
+    "cellmesh/__init__.py": "a38bf1697eddf2e33ede7c05b0811dccadd322c47ab04619b7184348b8830c45",
+    "cellmesh/_numerics.py": "8b03f0b9164129b510383c34e9c83bfd8fcd390b6d6ce29e2ffee2fd60d167db",
+    "cellmesh/_table_io.py": "d6ba2b098427402e459f9fc73549221ea02ae7b725e437fa7ff19b8c21671294",
+    "cellmesh/config.py": "26c734263a441aff39d215899a36214362df6e6a666bf24f07e6b67cae97bf42",
+    "cellmesh/core.py": "afe0884fde598144fc6f8871459ee3682b47b0f75e368e67145ae2cdb7460cf3",
+    "cellmesh/database.py": "329a5bc344d2468a90eae5e3240300c56e67e345999ad5e02485fccb1fcc6590",
+    "cellmesh/io.py": "d7148465e8e5b4b03cc11a9ed32b6271376950030aff9b0bf9c08d7e3d0a444a",
+    "cellmesh/permutation.py": "2b035ce939b3b44daf842ae0368d77cfd92b403fe5ac27906d5ecf57744b9706",
+    "cellmesh/plotting.py": "c7b5f43bfd3e29f64ff588e5b5da0a340502649ef9c966c4eb42ad21f71f62b4",
+    "cellmesh/preprocess.py": "93e30491f033d050d13f1c2e935dd50bdf5d283d8baacb03599ba28592efb977",
+    "cellmesh/prior_coverage.py": "e4ca12882e5680fe42215ddad21f27d652b0bc7c21e5effff391dbc73e85f0ae",
+    "cellmesh/score.py": "db4620d060a1ebdbb4b687a45da7166e191a8408a4f730bb55f3de929211207d"
+  },
+  "proposal_sha256": "2ae7353fa0f39d6ab80657efa26739880f51734b95f99a20968acd304937f24f",
+  "consumption_coverage": [
+    {
+      "state": "supported",
+      "C_ref": 0.5,
+      "sender_A": 0.225,
+      "event_A_A": 0.33541019662496846
+    },
+    {
+      "state": "prior_missing",
+      "C_ref": null,
+      "sender_A": 0.45,
+      "event_A_A": 0.47434164902525694
+    },
+    {
+      "state": "prior_gene_unavailable",
+      "C_ref": null,
+      "sender_A": 0.45,
+      "event_A_A": 0.47434164902525694
+    },
+    {
+      "state": "prior_no_expression",
+      "C_ref": null,
+      "sender_A": 0.45,
+      "event_A_A": 0.47434164902525694
+    }
+  ],
+  "within_sample_rescaling": [
+    {
+      "sample": "S1",
+      "P_A": 0.5,
+      "P_ref": 0.5,
+      "P_score_A": 0.5,
+      "sender_A": 0.225,
+      "event_A_A": 0.33541019662496846
+    },
+    {
+      "sample": "S2",
+      "P_A": 5.0,
+      "P_ref": 5.0,
+      "P_score_A": 0.5,
+      "sender_A": 0.225,
+      "event_A_A": 0.33541019662496846
+    }
+  ],
+  "positive_reference_discontinuity": [
+    {
+      "values": [
+        1.0,
+        0.0
+      ],
+      "reference": 1.0,
+      "scores": [
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "values": [
+        1.0,
+        1e-12
+      ],
+      "reference": 0.5000000000005,
+      "scores": [
+        0.6666666666664445,
+        1.9999999999939997e-12
+      ]
+    }
+  ],
+  "saturation_vs_relative_ratio": [
+    {
+      "p": 4,
+      "d": 2,
+      "R_rel": 0.6666666666666666,
+      "saturated_ratio": 0.5454545454545454,
+      "sender_base": 0.4363636363636364
+    },
+    {
+      "p": 1,
+      "d": 0.5,
+      "R_rel": 0.6666666666666666,
+      "saturated_ratio": 0.6000000000000001,
+      "sender_base": 0.30000000000000004
+    },
+    {
+      "p": 0.2,
+      "d": 0.1,
+      "R_rel": 0.6666666666666666,
+      "saturated_ratio": 0.6470588235294119,
+      "sender_base": 0.10784313725490198
+    },
+    {
+      "p": 100,
+      "d": 10,
+      "R_rel": 0.9090909090909091,
+      "saturated_ratio": 0.5213270142180094,
+      "sender_base": 0.5161653606118906
+    },
+    {
+      "p": 2,
+      "d": 1,
+      "R_rel": 0.6666666666666666,
+      "saturated_ratio": 0.5714285714285715,
+      "sender_base": 0.380952380952381
+    }
+  ],
+  "partial_reaction_coverage": [
+    {
+      "measured_genes": [
+        "G1",
+        "G2"
+      ],
+      "P_A": 9.049875621120892,
+      "P_B": 1.0,
+      "sender_A": 0.5786853302563341
+    },
+    {
+      "measured_genes": [
+        "G1"
+      ],
+      "P_A": 100.0,
+      "P_B": 1.0,
+      "sender_A": 0.5980066445182725
+    }
+  ],
+  "aggregation_noncommutativity": {
+    "activity_of_group_mean": 50.0,
+    "mean_of_cell_activities": 9.049875621120892,
+    "cells_coexpressing_both_genes": 0
+  },
+  "strict_subset_reaction_selection": [
+    {
+      "metabolite": "Met",
+      "hmdb_id": "HMDB0000001",
+      "reaction": "r2",
+      "direction": "product",
+      "genes": [
+        "G1",
+        "G2"
+      ]
+    }
+  ],
+  "composition_only_change": [
+    {
+      "fraction_A": 0.5,
+      "event_A_A": 0.33541019662496846,
+      "event_B_B": 0.33541019662496846
+    },
+    {
+      "fraction_A": 0.2,
+      "event_A_A": 0.253546276418555,
+      "event_B_B": 0.37210420376762543
+    }
+  ],
+  "local_expression_support": [
+    {
+      "positive_cells_A": 1,
+      "group_size_A": 100,
+      "raw_counts_each_signal_A": 1,
+      "sensor_expr_frac": 0.01,
+      "passes_min_cells": true,
+      "event_A_A": 0.33541019662496846
+    },
+    {
+      "positive_cells_A": 100,
+      "group_size_A": 100,
+      "raw_counts_each_signal_A": 100,
+      "sensor_expr_frac": 1.0,
+      "passes_min_cells": true,
+      "event_A_A": 0.33541019662496846
+    }
+  ],
+  "default_prior_audit": {
+    "input_provenance": {
+      "enzyme": {
+        "input_kind": "default_file",
+        "filename": "Enzyme1.39.csv",
+        "path": "/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/data/Enzyme1.39.csv",
+        "filename_version": "1.39",
+        "sha256": "f80d66c7425f044dd028b847eeb268c27888ac45acdcc1ebb35cde1423f53832",
+        "raw_rows": 5017,
+        "normalized_rows": 11687
+      },
+      "sensor": {
+        "input_kind": "default_file",
+        "filename": "Interaction1.41.csv",
+        "path": "/home/qsong/.openclaw/workspace/developer/cell_mesh_pkg/cellmesh/data/Interaction1.41.csv",
+        "filename_version": "1.41",
+        "sha256": "b8f03349952bfe4ec9a30387c2ac9754f31dccb86e8b0ba7412c066b1177d6d6",
+        "raw_rows": 6478,
+        "normalized_rows": 6478
+      }
+    },
+    "enzyme_hmdb_count": 1095,
+    "shared_hmdb_count": 346,
+    "shared_with_production": 275,
+    "shared_production_without_consumption": 87,
+    "shared_with_export": 56,
+    "reaction_groups_before_set_selection": 5002,
+    "unique_direction_gene_sets": 3826,
+    "strict_subsets_omitted": 254,
+    "retained_reaction_sets": 3572,
+    "retained_multigene_sets": 1492
+  }
+}

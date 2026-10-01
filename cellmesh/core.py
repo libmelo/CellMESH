@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from .positivity import INHERIT
 import json
 import os
 from pathlib import Path
@@ -141,6 +142,146 @@ class CellMeshResult:
     sample_receiver_scores: Optional[pd.DataFrame] = None
     sample_events: Optional[pd.DataFrame] = None
     celltype_qc: Optional[pd.DataFrame] = None
+    priors: Optional[Dict[str, pd.DataFrame]] = None
+    input_provenance: Optional[dict] = None
+    input_archive: Optional[dict] = None
+    delivery: Optional[dict] = None
+    _input_adata: Any = field(default=None, repr=False, compare=False)
+    _result_path: Optional[Path] = field(default=None, repr=False, compare=False)
+
+    def save(self, prefix, *, filtered_events=None, selected_events=None, report=True, events=None, include_null_scores=False,
+             include_input=False, include_all_events=False, selection=None, detail_n=INHERIT, plot_top_n=20,
+             positive_col=None, positive_threshold=None, positive_qc_only=None,
+             positive_min_score=INHERIT, adata=None):
+        """Save the full H5, positive CSV, general HTML and report navigation.
+
+        filtered_events comes from filter_events(): one condition-filter report.
+        selected_events comes from select_events(metabolite_sensor_pairs=...):
+        one report per explicit molecular pair and one combined event CSV.
+        Both scopes are independent and default to positive events. No report
+        recomputes scientific values or BH correction. include_all_events and
+        include_input default to False. report=False disables every HTML file.
+        plot_top_n bounds figure display, never tables, CSVs or pair requests.
+        Use the append methods to update an existing bundle. Legacy selection=
+        is a deprecated tier-2 alias; events= requires explicit migration.
+        """
+        from .result_io import save_result
+        return save_result(self, prefix, filtered_events=filtered_events, selected_events=selected_events, report=report, events=events,
+                           include_null_scores=include_null_scores, include_input=include_input,
+                           include_all_events=include_all_events,
+                           selection=selection, detail_n=detail_n, plot_top_n=plot_top_n,
+                           positive_col=positive_col, positive_threshold=positive_threshold,
+                           positive_qc_only=positive_qc_only, positive_min_score=positive_min_score, adata=adata)
+
+    def filter_events(self, *, sender_labels=None, receiver_labels=None, cell_pairs=None,
+                      hmdb_ids=None, sensor_genes=None, max_fdr=None,
+                      fdr_col="fdr_sensor_type", min_cell_mesh_score=None, qc_only=False,
+                      source="positive", max_perm_pvalue=None, positive_col=None,
+                      positive_threshold=None, positive_qc_only=None, positive_min_score=INHERIT):
+        """Select interest events from positives (default) or source='all'.
+
+        AND across conditions, OR within each list. None is unrestricted;
+        an empty list selects no events. See EventSelection for export methods.
+        """
+        from .selection import filter_events
+        return filter_events(self, sender_labels=sender_labels, receiver_labels=receiver_labels,
+                             cell_pairs=cell_pairs, hmdb_ids=hmdb_ids, sensor_genes=sensor_genes,
+                             max_fdr=max_fdr, fdr_col=fdr_col,
+                             min_cell_mesh_score=min_cell_mesh_score, qc_only=qc_only,
+                             source=source, max_perm_pvalue=max_perm_pvalue,
+                             positive_col=positive_col, positive_threshold=positive_threshold,
+                             positive_qc_only=positive_qc_only, positive_min_score=positive_min_score)
+
+    def select_events(self, *, metabolite_sensor_pairs=None, **filters):
+        """Request explicit metabolite–sensor pairs; one report per pair.
+
+        Use filter_events() for independent metabolite/sensor lists (tier 2).
+        Both scopes default to the saved positive criterion and never rescore.
+        """
+        from ._pair_selection import select_events
+        return select_events(self, metabolite_sensor_pairs=metabolite_sensor_pairs, **filters)
+
+    def add_filtered_report(self, filtered_events, *, replace=False,
+                            plot_top_n=INHERIT, adata=None):
+        """Append/replace tier 2 without changing the general or pair reports."""
+        from .result_io import add_selection
+        return add_selection(self, filtered_events, replace=replace,
+                             plot_top_n=plot_top_n, adata=adata)
+
+    def get_filtered_events(self):
+        """Restore the stored tier-2 filter, including legacy selections."""
+        from .positivity import restore_selection
+        return restore_selection(self)
+
+    def get_selected_events(self):
+        """Restore pair requests as independent selections, one per pair."""
+        from ._pair_selection import restore_pairs
+        return restore_pairs(self, (self.delivery or {}).get("pair_selections", []))
+
+    def get_selection(self):
+        """Restore the saved interest selection, or None when none was saved."""
+        from .positivity import restore_selection
+        return restore_selection(self)
+
+    def add_selection(self, selection, *, replace=False, detail_n=INHERIT, plot_top_n=INHERIT, adata=None):
+        """Deprecated tier-2 alias; use add_filtered_report()."""
+        import warnings
+        warnings.warn("add_selection() is deprecated; use add_filtered_report().", FutureWarning, stacklevel=2)
+        from .result_io import add_selection
+        return add_selection(self, selection, replace=replace, detail_n=detail_n, plot_top_n=plot_top_n, adata=adata)
+
+    def add_event_reports(self, selected_events, *, replace=False, adata=None):
+        """Append/replace explicit pair reports from select_events().
+
+        Existing pair identities require replace=True. General files, science
+        and other pair pages are preserved. A tier-2 filter is not required.
+        """
+        from .result_io import add_event_reports
+        return add_event_reports(self, selected_events, replace=replace, adata=adata)
+
+    @classmethod
+    def load(cls, path):
+        """Restore a result from a .cellmesh.h5 file without the original AnnData."""
+        from .result_io import load_result
+        return load_result(path)
+
+    def load_input(self, *, backed=None):
+        """Get a copy of captured input, or read its verified companion .h5ad.
+
+        ``backed='r'`` opens an on-disk archive read-only; close its ``.file``
+        when finished. Loading never attaches the matrix to this result.
+        The archived scoring matrix is in ``.X``, regardless of source layer.
+        """
+        from .input_archive import load_input
+        return load_input(self, backed=backed)
+
+    def coverage_report(self):
+        """Return descriptive coverage tables; never filter or rescore events."""
+        from .reporting import coverage_report
+        return coverage_report(self)
+
+    def explain_event(self, *, hmdb_id, sensor_gene, sender, receiver, sample=None):
+        """Explain an event, including an unscored candidate, by stable identifiers."""
+        from .reporting import explain_event
+        return explain_event(self, hmdb_id=hmdb_id, sensor_gene=sensor_gene,
+                             sender=sender, receiver=receiver, sample=sample)
+
+    def to_html(self, path, *, filtered_events=None, selected_events=None, events=None, selection=None, include_all_events=False,
+                detail_n=INHERIT, plot_top_n=20,
+                positive_col=None, positive_threshold=None, positive_qc_only=None, positive_min_score=INHERIT,
+                adata=None):
+        """Export a standalone general, filtered or explicit-pair report.
+
+        A pair export returns a navigation page, pair pages and combined CSV.
+        Use save() for a complete delivery of all requested scopes together.
+        Existing managed bundle paths are protected from standalone exports.
+        """
+        from .reporting import write_html_report
+        return write_html_report(self, path, filtered_events=filtered_events, selected_events=selected_events, events=events, selection=selection,
+                                 include_all_events=include_all_events,
+                                 detail_n=detail_n, plot_top_n=plot_top_n,
+                                 positive_col=positive_col, positive_threshold=positive_threshold,
+                                 positive_qc_only=positive_qc_only, positive_min_score=positive_min_score, adata=adata)
 
     def to_csv(self, prefix: str | os.PathLike[str]) -> None:
         """
@@ -335,6 +476,7 @@ def _compute_availability_scores(
     sender_scores = availability
     
     # 计算新的 sensor scores
+    receiver_details = {}
     receiver_scores = compute_sensor_scores(
         adata,
         sensor_prior,
@@ -347,8 +489,10 @@ def _compute_availability_scores(
         cell_counts=avail_results.get("cell_counts"),
         cell_fractions=avail_results.get("cell_fractions"),
         receiver_reference=receiver_reference,
+        _details=receiver_details,
     )
     avail_results["receiver_reference"] = receiver_reference
+    avail_results.update(receiver_details)
     
     return sender_scores, receiver_scores, avail_results
 
@@ -1134,6 +1278,7 @@ def run_cell_mesh(
     receiver_reference: Literal["mean", "median"] = METABOLITE_AVAILABILITY_DEFAULTS[
         "receiver_reference"
     ],
+    retain_input: bool = False,
 ) -> CellMeshResult:
     """
     运行 CELL MESH: Metabolite-mediated Event Scoring with Sensor Hierarchies.
@@ -1191,6 +1336,11 @@ def run_cell_mesh(
         receiver_reference : {"mean", "median"}, default="median"
             Unweighted statistic calculated over strictly positive observed
             cell-type mean sensor expression to define the receiver reference.
+        retain_input : bool, default=False
+            Capture an independent copy of the selected expression matrix and
+            obs/var annotations and score that copy. Enables optional input
+            archiving at save time; consumes additional memory only if enabled.
+            Other layers, raw, embeddings and arbitrary uns are not copied.
 
     返回:
         CellMeshResult 对象,包含所有计算结果
@@ -1239,6 +1389,7 @@ def run_cell_mesh(
     # not depend on whether the random-number generator happens to be reached.
     allow_self = _validate_boolean(allow_self, "allow_self")
     store_null_scores = _validate_boolean(store_null_scores, "store_null_scores")
+    retain_input = _validate_boolean(retain_input, "retain_input")
     random_state = _validate_random_state(random_state)
     if cell_type_key not in adata.obs:
         raise KeyError(f"{cell_type_key!r} not found in adata.obs")
@@ -1280,6 +1431,16 @@ def run_cell_mesh(
     _validate_scoring_expression(
         adata, list(enzyme_prior["gene"]) + list(sensor_prior["sensor_gene"]), layer,
     )
+    source_layer = layer
+    input_adata, input_provenance = None, None
+    if retain_input:
+        from .input_archive import capture_input
+        input_adata, input_provenance = capture_input(
+            adata, layer=layer, cell_type_key=cell_type_key, sample_key=sample_key,
+        )
+        # Score the captured matrix itself. The original layer is provenance;
+        # the snapshot has exactly one matrix, in X.
+        adata, layer = input_adata, None
     prior_role_coverage = _build_prior_role_coverage(enzyme_prior, gene_names)
 
     # 计算 availability 和得分
@@ -1388,7 +1549,7 @@ def run_cell_mesh(
         "cell_type_key": cell_type_key,
         "sample_key": sample_key,
         "sample_mode": sample_mode,
-        "layer": layer,
+        "layer": source_layer,
         "min_expr_frac": min_expr_frac,
         "allow_self": allow_self,
         "n_perms": n_perms,
@@ -1404,7 +1565,11 @@ def run_cell_mesh(
         sender_scores=sender_scores,
         receiver_scores=receiver_scores,
         parameters=parameters,
+        input_provenance=input_provenance,
+        _input_adata=input_adata,
         availability_results=availability_results,
+        priors={"enzyme": enzyme_metabolite.copy(deep=True),
+                "interaction": metabolite_sensor.copy(deep=True)},
         sample_validation=availability_results.get("sample_validation"),
         sample_sender_scores=availability_results.get("sample_sender_scores"),
         sample_receiver_scores=availability_results.get("sample_receiver_scores"),

@@ -1,0 +1,86 @@
+// Run inside an actual browser using report_browser_webkit.py.
+(() => {
+  const checks = [];
+  const check = (condition, name) => {
+    if (!condition) throw new Error(name);
+    checks.push(name);
+  };
+  const get = id => document.getElementById(id);
+  const data = JSON.parse(get('event-data').textContent);
+  const rows = () => Array.from(document.querySelectorAll('#event-rows tr[data-event-index]'));
+  const indices = () => rows().map(row => Number(row.dataset.eventIndex));
+  const change = (id, value, event = 'change') => {
+    get(id).value = String(value); get(id).dispatchEvent(new Event(event, {bubbles: true}));
+  };
+  const reset = () => get('event-reset').click();
+  const sort = name => document.querySelector('[data-sort-column="' + data.columns.indexOf(name) + '"]').click();
+  const sections = Array.from(document.querySelectorAll('.event-explanation'));
+  const scope = get('event-scope').textContent;
+  check(innerWidth === 1400 && document.querySelector('main').clientWidth === 1200, 'desktop layout geometry');
+  check(data.rows.length === 125, 'all 125 fixture rows embedded');
+  check(!get('event-controls').hidden, 'controls enabled');
+  check(rows().length === 50 && indices()[0] === 0, 'default first 50 rows');
+  check(sections.length === 2 && sections.every(s=>!s.open), 'explanations initially collapsed');
+  document.querySelector('.event-table').scrollTop = 500;
+  get('event-next').click();
+  check(rows().length === 50 && indices()[0] === 50, 'second page starts at 51st report row');
+  check(document.querySelector('.event-table').scrollTop === 0, 'new page starts at top of table');
+  get('event-next').click();
+  check(rows().length === 25 && indices()[0] === 100 && indices()[24] === 124, 'last page includes row 125');
+  check(get('event-next').disabled, 'last page disables next');
+  change('event-page', 999);
+  check(indices()[0] === 100, 'page jump clamps to last page');
+  change('event-page', -10);
+  check(indices()[0] === 0, 'page jump clamps to first page');
+  change('event-page', 1.5);
+  check(indices()[0] === 0 && get('event-page').value === '1', 'fractional page is rejected');
+  change('event-page-size', 25);
+  check(rows().length === 25, 'page-size control');
+  change('event-page-size', 100);
+  check(rows().length === 100, '100-row display page');
+  get('event-next').click();
+  check(rows().length === 25, 'page-size change preserves final rows');
+  reset();
+  change('event-search', '  SENSOR_120  ', 'input');
+  check(rows().length === 1 && indices()[0] === 124, 'search covers last page, case and whitespace');
+  change('event-search-field', data.columns.indexOf('metabolite'));
+  check(rows().length === 0, 'field-specific search does not match another field');
+  check(get('event-prev').disabled && get('event-next').disabled && get('event-page').disabled,
+        'zero matches disables pagination');
+  change('event-search', '末页代谢物', 'input');
+  check(rows().length === 1 && indices()[0] === 124, 'Chinese metabolite search');
+  check(rows()[0].textContent.includes('<b>literal</b>'), 'markup remains literal cell text');
+  check(!document.querySelector('#event-rows b,#event-rows img,#event-rows script') &&
+        typeof window.PWNED === 'undefined', 'annotations cannot inject DOM or execute scripts');
+  reset();
+  sort('fdr_sensor_type');
+  check(indices().slice(0, 3).join(',') === '2,0,1', 'FDR sorted numerically across all pages');
+  change('event-page', 3);
+  check(indices().at(-1) === 3, 'NA last in ascending order');
+  sort('fdr_sensor_type');
+  check(indices()[0] === 4 && indices()[1] === 5, 'descending order has stable equal-value ties');
+  change('event-page', 3);
+  check(indices().at(-1) === 3, 'NA last in descending order');
+  sort('fdr_global');
+  check(indices().slice(0, 3).join(',') === '2,0,1', 'numeric-string FDR sorting');
+  sort('extra_annotation');
+  check(indices()[0] === 0 && indices()[49] === 49, 'all-NA sort is stable');
+  sort('extra_annotation');
+  check(indices()[0] === 0, 'all-NA reverse sort is stable');
+  reset();
+  check(rows().length === 50 && indices()[0] === 0, 'restore original order and default page size');
+  const secondId = data.details[1].id;
+  const rowLink = document.querySelector('#event-rows a[href="#' + secondId + '"]');
+  check(Boolean(rowLink), 'table identity links to correct explanation');
+  rowLink.click();
+  check(get(secondId).open, 'table link opens collapsed explanation');
+  get(secondId).open = false;
+  document.querySelector('#explanation-directory a[href="#' + secondId + '"]').click();
+  check(get(secondId).open, 'directory link opens collapsed explanation');
+  check(get('event-scope').textContent === scope, 'search and sorting preserve overview counts');
+  check(JSON.stringify(JSON.parse(get('event-data').textContent)) === JSON.stringify(data),
+        'interaction preserves original values and explanation mapping');
+  reset();
+  get('event-browser').scrollIntoView({block: 'start'});
+  return JSON.stringify({passed: checks.length, checks});
+})();

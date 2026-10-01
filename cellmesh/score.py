@@ -256,6 +256,7 @@ def compute_sensor_scores(
     receiver_reference: str = METABOLITE_AVAILABILITY_DEFAULTS[
         "receiver_reference"
     ],
+    _details: Optional[dict] = None,
 ) -> pd.DataFrame:
     """
     Compute receiver scores from per-cell-type mean sensor expression.
@@ -329,12 +330,30 @@ def compute_sensor_scores(
         )
 
     sensor_gene_scores = {}
+    detail_rows = []
     for gene in valid_genes:
         expr_values = pseudobulk[gene].to_numpy(dtype=float)
-        scores, _ = _positive_reference_scores(
+        scores, reference = _positive_reference_scores(
             expr_values, receiver_reference, "receiver pseudobulk expression",
         )
         sensor_gene_scores[gene] = pd.Series(scores, index=pseudobulk.index)
+        if _details is not None:
+            reference_types = pseudobulk.index[expr_values > 0].tolist()
+            for receiver, expression, raw_score in zip(pseudobulk.index, expr_values, scores):
+                fraction = float(expr_frac.at[receiver, gene])
+                gated = min_expr_frac is not None and fraction < min_expr_frac
+                detail_rows.append({
+                    "sensor_gene": gene, "receiver": receiver,
+                    "mean_expression": float(expression), "reference": reference,
+                    "reference_method": receiver_reference,
+                    "reference_celltypes": reference_types,
+                    "n_reference_celltypes": len(reference_types),
+                    "expr_frac": fraction, "score_before_gate": float(raw_score),
+                    "gate_applied": bool(gated),
+                    "sensor_score": 0.0 if gated else float(raw_score),
+                })
+    if _details is not None:
+        _details["receiver_components"] = pd.DataFrame(detail_rows)
 
     display_names = _prior_metabolite_names(sensor_prior)
     rows = []
@@ -705,6 +724,9 @@ def compute_metabolite_availability(
     _report_underflow((expr_frac[relevant].to_numpy() > 0) & (pseudobulk[relevant].to_numpy() == 0),
                       "sender pseudobulk expression")
     reaction_scores = _compute_reaction_scores(pseudobulk, reaction_genes)
+    # The following assignment retains the exact pre-abundance values; the
+    # adjusted frame below is a new object. No scoring arithmetic is changed.
+    unweighted_reaction_scores = reaction_scores
     sender_abundance_weights = pd.Series(
         _abundance_weights(cell_fractions, sender_abundance_exponent),
         index=cell_fractions.index, name="sender_abundance_weight",
@@ -804,6 +826,8 @@ def compute_metabolite_availability(
                     "sender_abundance_weights": sender_abundance_weights,
                     "sender_abundance_exponent": sender_abundance_exponent,
                     "reaction_genes": reaction_genes,
+                    "reaction_scores_unweighted": unweighted_reaction_scores,
+                    "reaction_scores": reaction_scores,
                 }
             )
         return result
@@ -872,6 +896,8 @@ def compute_metabolite_availability(
                 "sender_abundance_weights": sender_abundance_weights,
                 "sender_abundance_exponent": sender_abundance_exponent,
                 "reaction_genes": reaction_genes,
+                "reaction_scores_unweighted": unweighted_reaction_scores,
+                "reaction_scores": reaction_scores,
             }
         )
 

@@ -4,18 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cellmesh"
-version = "0.4.0"
+version = "0.9.0"
 description = "CELL MESH: Metabolite-mediated Event Scoring with Sensor Hierarchies"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [{name = "CELL MESH developers"}]
-dependencies = ["numpy", "pandas", "scipy", "anndata"]
+dependencies = ["numpy", "pandas", "scipy", "anndata", "h5py", "matplotlib"]
 
 [project.optional-dependencies]
 loom = ["loompy"]
 scanpy = ["scanpy"]
 notebook = ["matplotlib", "ipykernel", "notebook"]
+report = ["matplotlib"]
 dev = ["pytest", "matplotlib"]
 
 [tool.setuptools.packages.find]

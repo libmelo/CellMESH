@@ -6,6 +6,8 @@ matplotlib, inside the function body so the core package import remains fast.
 from __future__ import annotations
 
 from numbers import Integral
+from functools import wraps
+import inspect
 from typing import Any, Optional
 
 import pandas as pd
@@ -14,6 +16,57 @@ from ._numerics import _reaction_activity, _with_numerical_diagnostics
 
 
 _MIN_CELLS_QC_COLUMN = "passes_min_cells"
+
+
+def _with_event_selection(func):
+    """Keep legacy plotting defaults while giving selections one shared scope."""
+    signature = inspect.signature(func)
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        from .selection import EventSelection
+        bound = signature.bind(*args, **kwargs)
+        focus = bound.arguments.get("result_or_events")
+        if not isinstance(focus, EventSelection):
+            return func(*args, **kwargs)
+        frame = focus.events
+        if frame.empty:
+            raise ValueError("The event selection is empty; no events available to plot")
+        for key in ("min_cell_mesh_score", "max_perm_pvalue", "max_fdr", "sender_labels",
+                    "receiver_labels", "event_keys"):
+            if bound.arguments.get(key) is not None:
+                raise ValueError(f"{key} would filter an EventSelection again; create a new filter_events() or select_events() scope")
+        if not isinstance(bound.arguments.get("qc_only", False), bool):
+            raise TypeError("qc_only must be boolean")
+        if bound.arguments.get("qc_only", False):
+            raise ValueError("qc_only would filter an EventSelection again; create a new scope with qc_only=True")
+        bound.arguments["qc_only"] = False
+        bound.arguments["max_fdr"] = None
+        bound.arguments.setdefault("fdr_col", focus.criteria["fdr_col"])
+        if "top_n" in signature.parameters:
+            bound.arguments.setdefault("top_n", None)
+        metadata = dict(focus.summary, criteria=focus.criteria)
+        frame.attrs["_cellmesh_selection"] = metadata
+        bound.arguments["result_or_events"] = frame
+        output = func(*bound.args, **bound.kwargs)
+        plotted = output.get("plot_events", output.get("filtered_events"))
+        output["selection"] = dict(metadata, n_plotted=len(plotted),
+                                   n_missing_score=len(output["missing_score_events"]),
+                                   top_n=bound.arguments.get("top_n"),
+                                   top_n_unit="hmdb_id + sensor_gene")
+        return output
+
+    return wrapped
+
+
+def _selection_caption(source, n_plotted, top_n=None):
+    metadata = getattr(source, "attrs", {}).get("_cellmesh_selection")
+    if metadata is None:
+        return ""
+    caption = f"Selected: {metadata['n_selected']} events; plotted: {n_plotted}"
+    if top_n is not None:
+        caption += f"; top {top_n} metabolite-sensor pairs"
+    return "\n" + caption
 
 
 # 防回退：代谢物名称只能展示。代谢物—受体身份只有 HMDB ID + sensor_gene；
@@ -333,6 +386,7 @@ def _sample_events_frame(result_or_sample_events: Any) -> pd.DataFrame:
     )
 
 
+@_with_event_selection
 def plot_significant_event_counts(
     result_or_events: Any,
     *,
@@ -451,7 +505,10 @@ def plot_significant_event_counts(
     ax.set_yticklabels(counts.index)
     ax.set_xlabel("Receiver")
     ax.set_ylabel("Sender")
-    ax.set_title(f"Significant metabolite-sensor event counts ({threshold_label})")
+    caption = _selection_caption(result_or_events, len(filtered))
+    title = ("Selected metabolite-sensor event counts" if caption else
+             f"Significant metabolite-sensor event counts ({threshold_label})")
+    ax.set_title(title + caption)
 
     if show_values:
         max_count = counts.to_numpy().max()
@@ -498,6 +555,7 @@ def plot_significant_event_counts(
     }
 
 
+@_with_event_selection
 def plot_communication_network(
     result_or_events: Any,
     *,
@@ -889,8 +947,11 @@ def plot_communication_network(
     if max_fdr is not None:
         title_parts.append(f"{fdr_col} <= {max_fdr:g}")
     threshold_label = ", ".join(title_parts) if title_parts else "no thresholds"
+    caption = _selection_caption(result_or_events, len(filtered))
     if title is None:
-        title = f"Cell-cell communication network ({threshold_label})"
+        title = ("Selected cell-cell communication network" if caption else
+                 f"Cell-cell communication network ({threshold_label})")
+    title += caption
     ax.set_title(title, pad=16)
     ax.set_aspect("equal")
     # Keep outward-facing labels inside the axes even when a compact figure is
@@ -1123,6 +1184,7 @@ def _layout_dotplot(fig, axes, legend_ax, colorbar_ax, legend, title, *, region,
                     "external_ax": region is not None}
     raise ValueError("Dotplot layout could not fit all labels; enlarge the figure or subplot.")
 
+@_with_event_selection
 def plot_event_dotplot(
     result_or_events: Any,
     *,
@@ -1359,7 +1421,7 @@ def plot_event_dotplot(
 
     if fdr_col in plot_events.columns:
         significance_col = fdr_col
-        size_label = "FDR"
+        size_label = "p-value" if fdr_col == "perm_pvalue" else "FDR"
     elif pvalue_col in plot_events.columns:
         significance_col = pvalue_col
         size_label = "p-value" if pvalue_col == "perm_pvalue" else f"p-value ({pvalue_col})"
@@ -1412,11 +1474,13 @@ def plot_event_dotplot(
         dot_sizes.loc[positive.index] = positive_sizes(significance.to_numpy())
     dot_sizes.loc[zero_mask] = max_dot_size
 
+    plot_title = "Metabolite-sensor communication events" + _selection_caption(
+        result_or_events, len(plot_events), top_n)
     if ax is None:
         fig = plt.figure(figsize=(9.0, 4.6), layout="none")
         axes = [fig.add_axes([0.30, 0.22, 0.35, 0.55]) for _ in sender_order]
         owned_region = None
-        title_artist = fig.suptitle("Metabolite-sensor communication events", va="top")
+        title_artist = fig.suptitle(plot_title, va="top")
     else:
         if len(sender_order) != 1:
             raise ValueError(
@@ -1438,7 +1502,7 @@ def plot_event_dotplot(
         owned_region = ax.get_position().frozen()
         axes = [ax]
         # A local title must not overwrite the caller's figure-wide suptitle.
-        title_artist = fig.text(0.5, 0.95, "Metabolite-sensor communication events",
+        title_artist = fig.text(0.5, 0.95, plot_title,
                                 ha="center", va="top", fontsize=12, in_layout=False)
     lax = fig.add_axes([0.75, 0.65, 0.20, 0.25])
     cax = fig.add_axes([0.78, 0.22, 0.025, 0.25])
@@ -1816,6 +1880,15 @@ def _result_adata_context(
 
     resolved_cell_type_key = cell_type_key or parameters.get("cell_type_key", "cell_type")
     resolved_layer = layer if layer is not None else parameters.get("layer")
+    # The optional input companion places the originally selected layer in X.
+    # Only auto-resolve this documented mapping for a captured input whose
+    # provenance agrees with the result; explicit layer overrides keep priority.
+    capture = getattr(result, "input_provenance", None)
+    archived = getattr(adata, "uns", {}).get("cellmesh_input", {})
+    if (layer is None and isinstance(capture, dict) and isinstance(archived, dict)
+            and capture.get("stored_matrix") == archived.get("stored_matrix") == "X"
+            and capture.get("source_layer") == archived.get("source_layer") == resolved_layer):
+        resolved_layer = None
 
     obs = getattr(adata, "obs", None)
     if not isinstance(obs, pd.DataFrame):
@@ -2339,11 +2412,11 @@ def plot_metabolite_secretion_violin(
     require a sensor gene. Identical alias rows/reactions contribute once;
     conflicting values for one identity raise an error.
 
-    ``adata`` is required because ``CellMeshResult`` intentionally stores
-    cell-type summaries rather than a copy of the single-cell expression
-    matrix. By default, ``cell_type_key`` and ``layer`` are recovered from the
-    result parameters. Passing ``sender_labels`` both filters and orders the
-    displayed sender cell types.
+    ``adata`` supplies cell-level expression, either the original input or
+    ``result.load_input()`` from an optional captured input. By default,
+    ``cell_type_key`` and ``layer`` are recovered from the result parameters;
+    a captured input's original expression layer is read from its archived X.
+    Passing ``sender_labels`` both filters and orders the displayed types.
 
     Native scores/expression fractions are checked in [0, 1]; single-cell
     expression, reaction activity and P/C/E capacities are finite non-negative
@@ -2489,6 +2562,8 @@ def plot_receptor_expression_violin(
     supported. Empty/missing or unmatched IDs raise an error. Identical alias
     rows count once; conflicting receiver scores raise an error.
     Passing ``receiver_labels`` both filters and orders the displayed types.
+    ``adata`` may be the original input or ``result.load_input()``; automatic
+    layer selection recognizes the archived selected matrix in X.
 
     Native scores/expression fractions are checked in [0, 1]; single-cell
     expression, reaction activity and P/C/E capacities are finite non-negative
@@ -2610,7 +2685,12 @@ def plot_receptor_expression_violin(
     return plotted
 
 
+# Re-export the implementation itself; no forwarding wrapper.
+from ._communication_dotmap import plot_communication_dotmap
+
+
 __all__ = [
+    "plot_communication_dotmap",
     "plot_significant_event_counts",
     "plot_communication_network",
     "plot_event_dotplot",
